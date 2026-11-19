@@ -4,7 +4,15 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
-- Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
+- Branch `feat/user-feedback` (from `main` at `ea910ce`). To resume: read this logbook first, then continue from the "Next:" line below.
+
+## 2026-11-19 - user feedback (branch `feat/user-feedback`)
+
+Items in order 2, 6, 3, 4, 1, 7, 5.
+
+- **2 Measure clamps to the image.** `measureEnd`/`clampPoint`/`clampAlong` (pure, unit-tested). The view has an "image area": the overlay sets it to the selection (in image px), the editor uses the crop or the whole image. Start, end and handle drags of measurements are clamped; with Shift the 45° direction is kept by shortening along the ray instead of clamping per axis. Editor pointer input moved from `#stage` to `#viewport` so a measurement can start in the grey margin; other tools still need to start on the image (text boxes or shapes starting off-image would be surprising). e2e: `measure.spec.ts` (overlay and editor, checked through the saved project document).
+
+**Next:** item 6 (press-and-hold zoom buttons).
 
 ## 2026-11-19 - PR #1 review fixes
 

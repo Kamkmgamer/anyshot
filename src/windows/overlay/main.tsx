@@ -122,6 +122,8 @@ function buildHandles(): void {
 
 function setSelection(rect: Rect | null, commit = true): void {
   selection = rect;
+  // The selection is the picture here: measurements stay inside it.
+  annotator.view.setImageArea(rect && toImageRegion(rect, init.scaleFactor, init.frame));
   scheduleChrome();
   if (commit) {
     ui.set({ selection: rect, phase: rect ? 'selected' : 'idle' });

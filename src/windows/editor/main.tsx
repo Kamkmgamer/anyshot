@@ -409,13 +409,18 @@ function onKeyDown(e: KeyboardEvent): void {
 
 function wirePointer(): void {
   let active = false;
-  stage.addEventListener('pointerdown', (e) => {
-    if (ui.get().cropping || !annotator.view.pointerDown(e)) return;
+  viewport.addEventListener('pointerdown', (e) => {
+    if (ui.get().cropping) return;
+    // Measurements may start beside the image: they begin at its nearest edge.
+    const onImage = e.target instanceof Node && stage.contains(e.target);
+    const onScrollbar = e.offsetX >= viewport.clientWidth || e.offsetY >= viewport.clientHeight;
+    if (!onImage && (onScrollbar || annotator.controller.store.get().tool !== 'measure')) return;
+    if (!annotator.view.pointerDown(e)) return;
     active = true;
-    stage.setPointerCapture(e.pointerId);
+    viewport.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
-  stage.addEventListener('pointermove', (e) => {
+  viewport.addEventListener('pointermove', (e) => {
     if (active) annotator.view.pointerMove(e);
   });
   const up = (e: PointerEvent) => {
@@ -423,8 +428,8 @@ function wirePointer(): void {
     active = false;
     annotator.view.pointerUp(e);
   };
-  stage.addEventListener('pointerup', up);
-  stage.addEventListener('pointercancel', up);
+  viewport.addEventListener('pointerup', up);
+  viewport.addEventListener('pointercancel', up);
   viewport.addEventListener(
     'wheel',
     (e) => {
