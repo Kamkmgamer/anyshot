@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../common/icons';
 import { SAVE_MODE_LABELS, SAVE_MODES, type SaveMode, shortcutFor } from './save-mode';
 
@@ -20,9 +20,13 @@ export function SaveSplitButton(props: {
   const toggle = useRef<HTMLButtonElement>(null);
   const items = useRef<(HTMLButtonElement | null)[]>([]);
 
+  // Focus moves into the menu before the next paint, so keys pressed right after opening reach it.
+  useLayoutEffect(() => {
+    if (open) items.current[0]?.focus();
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
-    items.current[0]?.focus();
     const outside = (e: PointerEvent) => {
       if (!(e.target instanceof Node && root.current?.contains(e.target))) setOpen(false);
     };
@@ -43,11 +47,14 @@ export function SaveSplitButton(props: {
     close();
     props.onSave(mode);
   };
-  const onMenuKey = (e: KeyboardEvent, i: number) => {
+  /** Menu keys work wherever focus is inside the split button while the menu is open. */
+  const onMenuKey = (e: KeyboardEvent) => {
+    if (!open) return;
     const count = SAVE_MODES.length;
+    const i = items.current.findIndex((el) => el === document.activeElement);
     const focus = (j: number) => items.current[(j + count) % count]?.focus();
     if (e.key === 'ArrowDown') focus(i + 1);
-    else if (e.key === 'ArrowUp') focus(i - 1);
+    else if (e.key === 'ArrowUp') focus(i < 0 ? count - 1 : i - 1);
     else if (e.key === 'Home') focus(0);
     else if (e.key === 'End') focus(count - 1);
     else if (e.key === 'Escape') close();
@@ -59,7 +66,7 @@ export function SaveSplitButton(props: {
   };
 
   return (
-    <div class="split" ref={root}>
+    <div class="split" ref={root} onKeyDown={onMenuKey}>
       <button
         type="button"
         class="split-main"
@@ -105,7 +112,6 @@ export function SaveSplitButton(props: {
               tabIndex={-1}
               data-testid={`save-${mode}`}
               onClick={() => choose(mode)}
-              onKeyDown={(e) => onMenuKey(e, i)}
             >
               <span class="check">{mode === props.primary && <Icon name="check" size={14} />}</span>
               <span>{SAVE_MODE_LABELS[mode]}</span>

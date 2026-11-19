@@ -3,12 +3,14 @@
 ## Session
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
-- On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
+- On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
 - Branch `feat/user-feedback` (from `main` at `ea910ce`). To resume: read this logbook first, then continue from the "Next:" line below.
 
 ## 2026-11-19 - user feedback (branch `feat/user-feedback`)
 
 Items in order 2, 6, 3, 4, 1, 7, 5.
+
+- **Fix (review):** a fresh-clone e2e run failed once in `save-mode.spec.ts`: Esc right after opening the save menu was lost because focus moved into the menu in a deferred `useEffect` and only the items handled keys. Menu keys are now handled on the split button root (so they work while focus is still on the chevron) and the initial focus uses `useLayoutEffect`. `--repeat-each=8` of the spec: 32/32.
 
 - **2 Measure clamps to the image.** `measureEnd`/`clampPoint`/`clampAlong` (pure, unit-tested). The view has an "image area": the overlay sets it to the selection (in image px), the editor uses the crop or the whole image. Start, end and handle drags of measurements are clamped; with Shift the 45° direction is kept by shortening along the ray instead of clamping per axis. Editor pointer input moved from `#stage` to `#viewport` so a measurement can start in the grey margin; other tools still need to start on the image (text boxes or shapes starting off-image would be surprising). e2e: `measure.spec.ts` (overlay and editor, checked through the saved project document).
 
