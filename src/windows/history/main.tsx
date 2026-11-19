@@ -37,11 +37,12 @@ function Preview(props: {
 }) {
   const { entry } = props;
   const dialog = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  // Layout effects: focus and the Tab trap are in place before the first key after opening.
+  useLayoutEffect(() => {
     // Focus moves into the dialog so keys and screen readers follow it.
     if (!dialog.current?.contains(document.activeElement)) dialog.current?.focus();
   }, [entry.id]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Tab cycles through the dialog's controls. Handled for the whole window,
     // so focus that fell to <body> (e.g. a button that became disabled) comes back.
     const onTab = (e: KeyboardEvent) => {
