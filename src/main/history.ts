@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { EditableSource, HistoryEntry } from '../shared/ipc';
 import { isProjectDoc, type Project, packProject, unpackProject } from '../shared/project';
+import { isRecord } from '../shared/schema';
 import { readJson, writeFileAtomic } from './atomic-file';
 import { paths } from './paths';
 import { registerMediaRoute } from './protocol';
@@ -101,13 +102,37 @@ async function prune(): Promise<void> {
   await removeFiles(drop);
 }
 
+const isSide = (v: unknown): v is number => Number.isInteger(v) && (v as number) > 0;
+
 /**
  * Accepts an editable source from a window only if it is a PNG with a
- * well-formed document; anything else is stored as a plain image.
+ * well-formed document; anything else is stored as a plain image. The shape
+ * is checked too: a renderer's payload is untrusted, and a broken one must
+ * not fail the whole delivery.
  */
-export function checkEditable(edit: EditableSource | undefined): EditableSource | undefined {
-  if (!edit) return undefined;
-  if (edit.source.mime === 'image/png' && isProjectDoc(edit.doc, edit.source)) return edit;
+export function checkEditable(edit: unknown): EditableSource | undefined {
+  if (edit === undefined) return undefined;
+  const source = isRecord(edit) ? edit.source : undefined;
+  if (
+    isRecord(edit) &&
+    isRecord(source) &&
+    source.mime === 'image/png' &&
+    source.bytes instanceof ArrayBuffer &&
+    source.bytes.byteLength > 0 &&
+    isSide(source.width) &&
+    isSide(source.height) &&
+    isProjectDoc(edit.doc, { width: source.width, height: source.height })
+  ) {
+    return {
+      doc: edit.doc,
+      source: {
+        mime: 'image/png',
+        bytes: source.bytes,
+        width: source.width,
+        height: source.height,
+      },
+    };
+  }
   console.warn('[history] ignoring a malformed annotation document');
   return undefined;
 }

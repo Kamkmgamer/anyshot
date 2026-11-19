@@ -222,6 +222,21 @@ describe('history', () => {
       ).toBeUndefined();
       expect(history.checkEditable({ ...edit(), doc: { version: 2 } })).toBeUndefined();
       expect(history.checkEditable({ ...edit(), doc: 'nope' })).toBeUndefined();
+      for (const broken of [
+        null,
+        'edit',
+        { doc: doc([]) },
+        { doc: doc([]), source: null },
+        { doc: doc([]), source: 'png' },
+        { doc: doc([]), source: { ...edit().source, bytes: undefined } },
+        { doc: doc([]), source: { ...edit().source, bytes: [1, 2, 3] } },
+        { doc: doc([]), source: { ...edit().source, bytes: new ArrayBuffer(0) } },
+        { doc: doc([]), source: { ...edit().source, width: 0 } },
+        { doc: doc([]), source: { ...edit().source, height: 2.5 } },
+        { doc: doc([]), source: { ...edit().source, width: '4' } },
+      ]) {
+        expect(history.checkEditable(broken)).toBeUndefined();
+      }
     });
 
     it('delete, prune and clear remove the documents too', async () => {
