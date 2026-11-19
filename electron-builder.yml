@@ -1,0 +1,56 @@
+appId: dev.anyshot.app
+productName: anyshot
+copyright: Copyright © 2026 anyshot contributors
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - out/**
+  - package.json
+  # Only the compact English OCR model ships; the larger variant is excluded.
+  - '!node_modules/@tesseract.js-data/eng/4.0.0/**'
+  - '!**/*.{md,map,ts,tsx}'
+extraResources:
+  - from: resources
+    to: .
+    filter: ['tray*.png', 'icon*.png']
+# Native modules can't load from inside the asar archive.
+asarUnpack:
+  - '**/*.node'
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: false
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: false
+  shortcutName: anyshot
+linux:
+  target:
+    - AppImage
+    - deb
+    - rpm
+  category: Graphics
+  icon: resources/icon.png
+  synopsis: Lean screenshots, annotation and screen recording
+  description: Capture, annotate, pin, record and upload screenshots. Built with Electron.
+  executableArgs: []
+  desktop:
+    entry:
+      Name: anyshot
+      Comment: Screenshots, annotation and screen recording
+      Categories: Graphics;Utility;
+      StartupWMClass: anyshot
+deb:
+  depends: [libnss3, libgtk-3-0, libxss1, libxtst6, libnotify4, libsecret-1-0]

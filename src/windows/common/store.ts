@@ -34,14 +34,16 @@ export function createStore<T extends object>(initial: T): Store<T> {
 /** Subscribes a component to a slice of a store; re-renders only when the slice changes. */
 export function useStore<T, S>(store: Store<T>, select: (state: T) => S): S {
   const [value, setValue] = useState(() => select(store.get()));
-  useEffect(
-    () =>
-      store.subscribe((state) => {
-        const next = select(state);
-        setValue((prev) => (shallowEqual(prev, next) ? prev : next));
-      }),
-    [store],
-  );
+  useEffect(() => {
+    const update = (state: T) => {
+      const next = select(state);
+      setValue((prev) => (shallowEqual(prev, next) ? prev : next));
+    };
+    const unsubscribe = store.subscribe(update);
+    // Effects run after the first render: catch changes made in between.
+    update(store.get());
+    return unsubscribe;
+  }, [store]);
   return value;
 }
 

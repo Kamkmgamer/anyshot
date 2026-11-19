@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 10 (polish) — settings and instant capture done. Exact next action: `electron-builder.yml` (appId, NSIS x64, AppImage/deb/rpm x64, `asarUnpack: **/*.node`, exclude `@tesseract.js-data/eng/4.0.0/**`, icon from `resources/icon.png`, `extraResources` tray icons) + `scripts/after-pack.cjs` flipping fuses with `@electron/fuses`; try `bun run dist -- --linux dir` locally; then README (features, dev commands, Linux/Wayland notes) and a final pass over the logbook.
+**Next:** step 10 — packaging done. Exact next action: README below the credit block (features, dev commands, packaging, Linux/Wayland notes, Windows unverified), make CI also run the packaged-dir build, then final full verification on HEAD and regenerate docs screenshots.
 
 ## Status (v1 build order)
 
@@ -21,7 +21,15 @@
 | 7 Recording | done | MP4 (H.264, VP9/WebM fallback) via getDisplayMedia + Mediabunny streamed to disk, mic (untested here), GIF via intermediate MP4 + gifenc worker, e2e. No HUD/webcam/click highlights |
 | 8 OCR + uploads | done | OCR (idle-exiting utilityProcess, offline English), uploads: provider interface, HTTP multipart + S3 SigV4, keys via safeStorage; unit + e2e |
 | 9 Scroll capture | done | manual scrolling, HUD outside the region, stream sampled ~7 fps, stitch worker, quick action; unit + e2e (exact 600×1060). No auto-scroll/horizontal |
-| 10 Polish | partial | settings window, instant capture done; packaging, README pending |
+| 10 Polish | partial | settings window, instant capture, electron-builder + fuses done; README pending |
+
+## 2026-11-19 - step 10 packaging
+
+- `electron-builder.yml`: NSIS (x64) for Windows; AppImage, deb, rpm (x64) for Linux; `asarUnpack: **/*.node`; only the compact English OCR model ships; tray/app icons as extra resources.
+- Decision: fuses through electron-builder's built-in `electronFuses` (RunAsNode off, NODE_OPTIONS and inspector args off, cookie encryption on, ASAR integrity on, only load from ASAR, no extra file:// privileges) instead of an afterPack hook with `@electron/fuses` (removed).
+- Verified locally: `bun run dist:dir` builds `dist/linux-unpacked` (338 MB unpacked); `@electron/fuses read` shows the fuses; the fused binary started with `--capture` under Xvfb shows the overlay (checked with an X screen grab). Playwright can't attach to the fused build (inspector disabled), so packaged e2e is a smoke test only.
+- Found while checking the real X screen: `useStore` subscribed in `useEffect`, after the first render, so state set right after `render()` was lost — the overlay's instructions never showed. The hook now re-reads the store when it subscribes; covered by an e2e assertion.
+- Not done: code signing, auto-update (electron-updater), arm64 builds, rpm built here (needs rpmbuild).
 
 ## 2026-11-19 - step 10 instant capture
 

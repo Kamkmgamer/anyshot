@@ -90,6 +90,8 @@ const near = (a: readonly (number | undefined)[] | undefined, b: readonly number
 
 test('drag-select and copy puts the exact region on the clipboard', async () => {
   const page = await openOverlay();
+  // State set right after the first render must reach the UI (regression: hint never showed).
+  await expect(page.getByText(/Drag to select an area/)).toBeVisible();
   const { card } = FIXTURE;
   await dragSelect(
     page,
