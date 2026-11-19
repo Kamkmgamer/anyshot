@@ -72,7 +72,9 @@ export async function startCapture(mode: CaptureMode): Promise<void> {
   for (const display of single ? [cursor] : displays) {
     // Grab before creating the window so a new window can never be in the shot.
     const grab = grabDisplay(display);
-    const win = createOverlayWindow(display);
+    // Instant capture: the pre-loaded overlay serves the display under the pointer.
+    const reused = display.id === cursor.id ? takeWarm(display) : null;
+    const win = reused?.win ?? createOverlayWindow(display);
     const state: OverlayState = {
       win,
       display,
@@ -83,6 +85,7 @@ export async function startCapture(mode: CaptureMode): Promise<void> {
         return buildInit(mode, display, frameId, frame);
       }),
     };
+    reused?.claim(state.init);
     const contentsId = win.webContents.id;
     current.overlays.set(contentsId, state);
     win.once('closed', () => {
@@ -91,6 +94,7 @@ export async function startCapture(mode: CaptureMode): Promise<void> {
       if (current.overlays.size === 0 && session === current) {
         session = null;
         current.end();
+        schedulePrewarm();
       }
     });
     // Wait for this grab before grabbing the next display, so overlays never land in other grabs.
@@ -167,6 +171,56 @@ export function endCapture(): void {
     if (!win.isDestroyed()) win.destroy();
   }
   current.overlays.clear();
+  schedulePrewarm();
+}
+
+// ---------------------------------------------------------------- instant capture
+
+interface Warm {
+  win: BrowserWindow;
+  /** The warm overlay's pending `overlay:init`; resolved when a capture claims it. */
+  init: Promise<OverlayInit>;
+  claim(init: Promise<OverlayInit>): void;
+}
+
+let warm: Warm | null = null;
+
+/**
+ * Instant capture keeps one hidden overlay loaded. Its renderer has already
+ * started and asked for its init, which stays pending until a capture claims it.
+ * Costs one renderer of memory and no CPU while hidden.
+ */
+export function prewarm(): void {
+  if (!getSettings().capture.instantCapture || warm || session) return;
+  const win = createOverlayWindow(screen.getPrimaryDisplay());
+  let claim: (init: Promise<OverlayInit>) => void = () => {};
+  const init = new Promise<OverlayInit>((resolve, reject) => {
+    claim = (p) => p.then(resolve, reject);
+  });
+  const entry: Warm = { win, init, claim };
+  warm = entry;
+  win.once('closed', () => {
+    if (warm === entry) warm = null;
+  });
+}
+
+function takeWarm(display: Display): Warm | null {
+  const w = warm;
+  if (!w || w.win.isDestroyed()) return null;
+  warm = null;
+  w.win.setBounds(display.bounds);
+  return w;
+}
+
+export function dropWarm(): void {
+  const w = warm;
+  warm = null;
+  if (w && !w.win.isDestroyed()) w.win.destroy();
+}
+
+function schedulePrewarm(): void {
+  // Let the finished capture's windows go first, then load the next overlay in the background.
+  setTimeout(prewarm, 300);
 }
 
 /** Hides overlays immediately (e.g. while an image is being encoded) without destroying them. */
@@ -179,7 +233,7 @@ export function overlayDisplay(win: BrowserWindow): Display | undefined {
   return session?.overlays.get(win.webContents.id)?.display;
 }
 
-handle('overlay:init', (_req, { win }) => stateOf(win).init);
+handle('overlay:init', (_req, { win }) => (warm?.win === win ? warm.init : stateOf(win).init));
 
 handle('overlay:painted', (_req, { win }) => {
   if (!session) return;

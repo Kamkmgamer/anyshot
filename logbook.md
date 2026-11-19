@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 10 (polish) — settings window done. Exact next action: instant capture (`capture.instantCapture`: keep one hidden overlay loaded; on capture reuse it for the cursor display via an `overlay:reset` event instead of creating a window; e2e checks one renderer at idle when on and faster hotkey→overlay), then electron-builder config + fuses, README, CI check, final logbook.
+**Next:** step 10 (polish) — settings and instant capture done. Exact next action: `electron-builder.yml` (appId, NSIS x64, AppImage/deb/rpm x64, `asarUnpack: **/*.node`, exclude `@tesseract.js-data/eng/4.0.0/**`, icon from `resources/icon.png`, `extraResources` tray icons) + `scripts/after-pack.cjs` flipping fuses with `@electron/fuses`; try `bun run dist -- --linux dir` locally; then README (features, dev commands, Linux/Wayland notes) and a final pass over the logbook.
 
 ## Status (v1 build order)
 
@@ -21,7 +21,12 @@
 | 7 Recording | done | MP4 (H.264, VP9/WebM fallback) via getDisplayMedia + Mediabunny streamed to disk, mic (untested here), GIF via intermediate MP4 + gifenc worker, e2e. No HUD/webcam/click highlights |
 | 8 OCR + uploads | done | OCR (idle-exiting utilityProcess, offline English), uploads: provider interface, HTTP multipart + S3 SigV4, keys via safeStorage; unit + e2e |
 | 9 Scroll capture | done | manual scrolling, HUD outside the region, stream sampled ~7 fps, stitch worker, quick action; unit + e2e (exact 600×1060). No auto-scroll/horizontal |
-| 10 Polish | partial | settings window (all tabs, shortcut recorder, secrets, upload test, launch at login) done; instant capture, packaging, README pending |
+| 10 Polish | partial | settings window, instant capture done; packaging, README pending |
+
+## 2026-11-19 - step 10 instant capture
+
+- With instant capture on, one hidden overlay is loaded at startup and after every capture. Its `overlay:init` stays pending until a capture claims the window for the display under the pointer, so the renderer start-up is off the hotkey path. Idle cost: one renderer, no CPU.
+- Measured under Xvfb: hotkey → overlay shown 68–92 ms (instant) vs 91–119 ms (low memory). The gap is small here because Xvfb renderers start fast; expect a larger gain on real Windows hardware.
 
 ## 2026-11-19 - step 10 settings
 

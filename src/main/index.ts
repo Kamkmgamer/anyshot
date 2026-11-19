@@ -50,6 +50,11 @@ app.whenReady().then(async () => {
   registerHotkeys(settings.hotkeys, (action) => dispatch(action));
   onSettingsChanged((next, prev) => {
     refreshTray(next);
+    if (next.capture.instantCapture !== prev.capture.instantCapture) {
+      void import('./capture/session').then((m) =>
+        next.capture.instantCapture ? m.prewarm() : m.dropWarm(),
+      );
+    }
     if (next.general.launchAtLogin !== prev.general.launchAtLogin) {
       void import('./login-item').then((m) => m.applyLaunchAtLogin(next.general.launchAtLogin));
     }
@@ -59,5 +64,6 @@ app.whenReady().then(async () => {
   });
   onAppState(() => refreshTray(getSettings()));
   if (isTest) (await import('./test-hooks')).installTestHooks(dispatch);
+  if (settings.capture.instantCapture) (await import('./capture/session')).prewarm();
   for (const command of parseCli(process.argv)) dispatch(command.action, command.file);
 });
