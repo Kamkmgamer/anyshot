@@ -56,7 +56,9 @@ app.whenReady().then(async () => {
       );
     }
     if (next.general.launchAtLogin !== prev.general.launchAtLogin) {
-      void import('./login-item').then((m) => m.applyLaunchAtLogin(next.general.launchAtLogin));
+      void import('./login-item')
+        .then((m) => m.applyLaunchAtLogin(next.general.launchAtLogin))
+        .catch((error) => console.error('[login-item] could not update autostart', error));
     }
     if (JSON.stringify(next.hotkeys) !== JSON.stringify(prev.hotkeys)) {
       registerHotkeys(next.hotkeys, (action) => dispatch(action));

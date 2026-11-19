@@ -6,7 +6,7 @@ import { dispatch, type Launched, launch, pageOf, windowKinds } from './harness'
 let ctx: Launched;
 
 test.beforeEach(async () => {
-  ctx = await launch();
+  ctx = await launch([], {});
 });
 
 test.afterEach(async () => {
@@ -17,6 +17,7 @@ test.afterEach(async () => {
 test('settings persist atomically, shortcuts re-register, secrets stay out of settings', async () => {
   await dispatch(ctx.app, 'settings');
   const page = await pageOf(ctx.app, 'settings');
+  await expect(page.getByRole('checkbox', { name: 'Launch at login' })).toBeVisible();
   await page.getByTestId('tab-capture').click();
   await page.getByTestId('instant-capture').check();
   const file = join(ctx.userData, 'settings.json');
@@ -38,7 +39,7 @@ test('settings persist atomically, shortcuts re-register, secrets stay out of se
   ).toBe(false);
 
   await page.getByTestId('tab-uploads').click();
-  await page.locator('select').first().selectOption('http');
+  await page.getByRole('combobox', { name: 'Provider' }).selectOption('http');
   // Xvfb has no keyring: anyshot refuses to store secrets until the user opts in.
   await expect(page.getByText(/only be obfuscated/)).toBeVisible();
   await page.getByTestId('weak-secrets').check();
@@ -54,4 +55,22 @@ test('settings persist atomically, shortcuts re-register, secrets stay out of se
   // A second request focuses the existing window instead of opening another.
   await dispatch(ctx.app, 'settings');
   expect((await windowKinds(ctx.app)).filter((k) => k === 'settings')).toHaveLength(1);
+});
+
+test('rapid tool toggles each reach the saved settings', async () => {
+  await dispatch(ctx.app, 'settings');
+  const page = await pageOf(ctx.app, 'settings');
+  await page.getByTestId('tab-tools').click();
+  const checkboxes = page.getByRole('checkbox', { name: /^(Arrow|Rectangle)$/ });
+  await expect(checkboxes).toHaveCount(2);
+  await checkboxes.evaluateAll((elements) => {
+    for (const element of elements) if (element instanceof HTMLInputElement) element.click();
+  });
+  const file = join(ctx.userData, 'settings.json');
+  await expect
+    .poll(async () => {
+      const enabled = JSON.parse(await readFile(file, 'utf8')).tools.enabledTools;
+      return { arrow: enabled.includes('arrow'), rect: enabled.includes('rect') };
+    })
+    .toEqual({ arrow: false, rect: false });
 });

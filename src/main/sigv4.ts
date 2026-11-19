@@ -21,9 +21,16 @@ const hmac = (key: string | Buffer, data: string) =>
 
 /** RFC 3986 encoding as AWS wants it; `/` is kept in paths. */
 export function awsEncode(value: string, keepSlash = false): string {
-  return encodeURIComponent(value)
-    .replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
-    .replace(keepSlash ? /%2F/g : /$^/g, '/');
+  const encoded = encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return keepSlash ? encoded.replace(/%2F/g, '/') : encoded;
+}
+
+function compare(a: string, b: string): number {
+  if (a < b) return -1;
+  return a === b ? 0 : 1;
 }
 
 export function amzDate(date: Date): string {
@@ -47,8 +54,9 @@ export function signV4(input: SignInput): Record<string, string> {
   }
   const names = Object.keys(headers).sort();
   const query = [...input.url.searchParams.entries()]
-    .map(([k, v]) => `${awsEncode(k)}=${awsEncode(v)}`)
-    .sort()
+    .map(([name, value]) => ({ name: awsEncode(name), value: awsEncode(value) }))
+    .sort((a, b) => compare(a.name, b.name) || compare(a.value, b.value))
+    .map(({ name, value }) => `${name}=${value}`)
     .join('&');
   const canonical = [
     input.method.toUpperCase(),

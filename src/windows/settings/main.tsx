@@ -1,8 +1,7 @@
 import '../common/ui.css';
 import './settings.css';
-import type { ComponentChildren } from 'preact';
-import { render } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { cloneElement, type ComponentChildren, isValidElement, render } from 'preact';
+import { useEffect, useId, useState } from 'preact/hooks';
 import { expandTemplate } from '../../shared/filename';
 import type { InvokeRes } from '../../shared/ipc';
 import {
@@ -52,21 +51,48 @@ const HOTKEY_LABELS: Record<HotkeyAction, string> = {
 
 let patch: (p: DeepPartial<Settings>) => void = () => {};
 
-function Row(props: { label: string; hint?: string; children: ComponentChildren }) {
-  return (
-    <div class="row">
-      <div class="label">
-        <span>{props.label}</span>
+let submitSettings: (request: Promise<unknown>) => void = () => {};
+
+function Row(props: {
+  label: string;
+  hint?: string;
+  group?: boolean;
+  children: ComponentChildren;
+}) {
+  const id = useId();
+  const control =
+    !props.group && isValidElement(props.children)
+      ? cloneElement(props.children, { id })
+      : props.children;
+  const content = (
+    <>
+      <span class="label">
+        <span id={props.group ? id : undefined}>{props.label}</span>
         {props.hint && <small>{props.hint}</small>}
-      </div>
-      <div class="control">{props.children}</div>
-    </div>
+      </span>
+      <span class="control">{control}</span>
+    </>
+  );
+  return props.group ? (
+    <fieldset class="row-group" aria-labelledby={id}>
+      <div class="row">{content}</div>
+    </fieldset>
+  ) : (
+    <label class="row" htmlFor={id}>
+      {content}
+    </label>
   );
 }
 
-function Toggle(props: { value: boolean; onChange: (v: boolean) => void; testId?: string }) {
+function Toggle(props: {
+  id?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  testId?: string;
+}) {
   return (
     <input
+      id={props.id}
       type="checkbox"
       class="toggle"
       checked={props.value}
@@ -77,12 +103,14 @@ function Toggle(props: { value: boolean; onChange: (v: boolean) => void; testId?
 }
 
 function Select<T extends string>(props: {
+  id?: string;
   value: T;
   options: readonly (readonly [T, string])[];
   onChange: (v: T) => void;
 }) {
   return (
     <select
+      id={props.id}
       value={props.value}
       onChange={(e) => props.onChange((e.target as HTMLSelectElement).value as T)}
     >
@@ -96,6 +124,7 @@ function Select<T extends string>(props: {
 }
 
 function NumberField(props: {
+  id?: string;
   value: number;
   min: number;
   max: number;
@@ -106,6 +135,7 @@ function NumberField(props: {
   return (
     <span class="number">
       <input
+        id={props.id}
         type="number"
         min={props.min}
         max={props.max}
@@ -119,6 +149,7 @@ function NumberField(props: {
 }
 
 function Text(props: {
+  id?: string;
   value: string;
   placeholder?: string;
   onChange: (v: string) => void;
@@ -126,6 +157,7 @@ function Text(props: {
 }) {
   return (
     <input
+      id={props.id}
       type="text"
       value={props.value}
       placeholder={props.placeholder}
@@ -136,9 +168,15 @@ function Text(props: {
 }
 
 /** Write-only: the stored value is never sent to this window. */
-function Secret(props: { stored: boolean; placeholder?: string; onChange: (v: string) => void }) {
+function Secret(props: {
+  id?: string;
+  stored: boolean;
+  placeholder?: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <input
+      id={props.id}
       type="password"
       value=""
       placeholder={props.stored ? '•••••••• (stored)' : (props.placeholder ?? '')}
@@ -153,7 +191,10 @@ function Folder(props: { value: string; fallback: string; which: 'output' | 'rec
       <span class="path" title={props.value || props.fallback}>
         {props.value || props.fallback}
       </span>
-      <button type="button" onClick={() => void api.invoke('settings:choose-dir', props.which)}>
+      <button
+        type="button"
+        onClick={() => submitSettings(api.invoke('settings:choose-dir', props.which))}
+      >
         Choose…
       </button>
       {props.value && (
@@ -211,6 +252,7 @@ function Shortcut(props: { action: HotkeyAction; value: string }) {
         type="button"
         class={`keys${recording ? ' recording' : ''}`}
         data-testid={`hotkey-${props.action}`}
+        aria-label={`${HOTKEY_LABELS[props.action]} shortcut (${recording ? 'press keys' : props.value || 'none'})`}
         onClick={() => setRecording(true)}
         onBlur={() => setRecording(false)}
         onKeyDown={(e) => {
@@ -230,6 +272,7 @@ function Shortcut(props: { action: HotkeyAction; value: string }) {
           type="button"
           class="clear"
           title="Clear"
+          aria-label={`Clear ${HOTKEY_LABELS[props.action].toLowerCase()} shortcut`}
           onClick={() => patch({ hotkeys: { [props.action]: '' } })}
         >
           ✕
@@ -242,8 +285,14 @@ function Shortcut(props: { action: HotkeyAction; value: string }) {
 function Uploads({ s }: { s: Settings }) {
   const [status, setStatus] = useState<InvokeRes<'secrets:status'> | null>(null);
   const [test, setTest] = useState<string | null>(null);
-  const refresh = () => void api.invoke('secrets:status').then(setStatus);
-  useEffect(refresh, []);
+  const refresh = () =>
+    void api
+      .invoke('secrets:status')
+      .then(setStatus)
+      .catch((error: unknown) => {
+        setTest(String(error));
+      });
+  useEffect(refresh, [s.uploads.allowWeakSecretStorage]);
   const setSecret = async (key: string, value: string) => {
     try {
       await api.invoke('secrets:set', { key, value });
@@ -283,10 +332,7 @@ function Uploads({ s }: { s: Settings }) {
             <Toggle
               value={u.allowWeakSecretStorage}
               testId="weak-secrets"
-              onChange={(v) => {
-                patch({ uploads: { allowWeakSecretStorage: v } });
-                setTimeout(refresh, 200);
-              }}
+              onChange={(v) => patch({ uploads: { allowWeakSecretStorage: v } })}
             />
           </Row>
         </>
@@ -386,7 +432,7 @@ function Uploads({ s }: { s: Settings }) {
         </>
       )}
       {u.provider !== 'none' && (
-        <Row label="Test">
+        <Row label="Test" group>
           <button
             type="button"
             onClick={async () => {
@@ -563,7 +609,7 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
               onChange={(saveAction) => patch({ output: { saveAction } })}
             />
           </Row>
-          <Row label="Folder">
+          <Row label="Folder" group>
             <Folder value={o.saveDir} fallback="Pictures/anyshot" which="output" />
           </Row>
           <Row
@@ -627,7 +673,7 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
             desktop's keyboard settings instead.
           </p>
           {HOTKEY_ACTIONS.map((action) => (
-            <Row key={action} label={HOTKEY_LABELS[action]}>
+            <Row key={action} label={HOTKEY_LABELS[action]} group>
               <Shortcut action={action} value={s.hotkeys[action]} />
             </Row>
           ))}
@@ -644,11 +690,12 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
                   type="checkbox"
                   checked={s.tools.enabledTools.includes(tool)}
                   onChange={(e) => {
-                    const on = (e.target as HTMLInputElement).checked;
-                    const enabledTools = TOOL_IDS.filter((t) =>
-                      t === tool ? on : s.tools.enabledTools.includes(t),
+                    submitSettings(
+                      api.invoke('settings:set-tool-enabled', {
+                        tool,
+                        enabled: e.currentTarget.checked,
+                      }),
                     );
-                    patch({ tools: { enabledTools } });
                   }}
                 />
                 {TOOL_LABELS[tool]}
@@ -678,7 +725,7 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
               onChange={(v) => patch({ recording: { microphone: v } })}
             />
           </Row>
-          <Row label="Folder">
+          <Row label="Folder" group>
             <Folder value={s.recording.saveDir} fallback="Videos/anyshot" which="recording" />
           </Row>
           <Row label="File name">
@@ -738,6 +785,7 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
 function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [tab, setTab] = useState<Tab>('general');
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     void api.invoke('settings:get').then((s) => {
       setSettings(s);
@@ -748,7 +796,13 @@ function App() {
       applyTheme(s);
     });
   }, []);
-  patch = (p) => void api.invoke('settings:patch', p).then(setSettings);
+  submitSettings = (request) => {
+    setError(null);
+    void request.catch((failure: unknown) =>
+      setError(`Could not save settings. ${String(failure)}`),
+    );
+  };
+  patch = (p) => submitSettings(api.invoke('settings:patch', p));
   if (!settings) return null;
   return (
     <div class="settings">
@@ -767,6 +821,11 @@ function App() {
       </nav>
       <section>
         <h1>{TABS.find((t) => t.id === tab)?.label}</h1>
+        {error && (
+          <p class="warn" role="alert">
+            {error}
+          </p>
+        )}
         <Page tab={tab} s={settings} />
       </section>
     </div>

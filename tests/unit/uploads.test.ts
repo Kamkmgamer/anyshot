@@ -14,7 +14,7 @@ let server: Server | undefined;
 afterEach(() => server?.close());
 
 async function serve(
-  reply: (seen: Seen) => { status: number; body: string },
+  reply: (seen: Seen) => { status: number; body: string; location?: string },
 ): Promise<{ base: string; seen: Seen[] }> {
   const seen: Seen[] = [];
   server = createServer(async (req, res) => {
@@ -28,7 +28,12 @@ async function serve(
     };
     seen.push(entry);
     const out = reply(entry);
-    res.writeHead(out.status, { 'content-type': 'application/json' }).end(out.body);
+    res
+      .writeHead(out.status, {
+        'content-type': 'application/json',
+        ...(out.location ? { location: out.location } : {}),
+      })
+      .end(out.body);
   });
   await new Promise<void>((r) => server?.listen(0, '127.0.0.1', r));
   return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, seen };
@@ -81,7 +86,7 @@ describe('upload providers', () => {
         region: 'auto',
         bucket: 'shots',
         publicUrlBase: 'https://cdn.example',
-        pathPrefix: 'anyshot/{yyyy}/{MM}',
+        pathPrefix: 'team#1/{yyyy}/{MM}',
         publicRead: true,
       },
       { accessKeyId: 'AKID', secretAccessKey: 'SECRET' },
@@ -89,12 +94,39 @@ describe('upload providers', () => {
     ).upload(file);
     const req = seen[0];
     expect(req?.method).toBe('PUT');
-    expect(req?.url).toBe('/shots/anyshot/2026/11/shot.png');
+    expect(req?.url).toBe('/shots/team%231/2026/11/shot.png');
     expect([...(req?.body ?? [])]).toEqual([...file.bytes]);
     expect(req?.headers['x-amz-acl']).toBe('public-read');
     expect(req?.headers.authorization).toMatch(
       /^AWS4-HMAC-SHA256 Credential=AKID\/20261119\/auto\/s3\/aws4_request, SignedHeaders=content-type;host;x-amz-acl;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$/,
     );
-    expect(url).toBe('https://cdn.example/anyshot/2026/11/shot.png');
+    expect(url).toBe('https://cdn.example/team%231/2026/11/shot.png');
+  });
+
+  it('blocks remote cleartext uploads and does not follow redirects', async () => {
+    const { base, seen } = await serve(() => ({
+      status: 307,
+      body: '',
+      location: '/redirect-target',
+    }));
+    const http = (url: string) =>
+      httpProvider({ url, fileField: 'file', responseUrlPath: 'url' }, 'Bearer test');
+    const s3 = (endpoint: string) =>
+      s3Provider(
+        {
+          endpoint,
+          region: 'auto',
+          bucket: 'shots',
+          publicUrlBase: '',
+          pathPrefix: 'captures',
+          publicRead: false,
+        },
+        { accessKeyId: 'test', secretAccessKey: 'test' },
+      );
+    await expect(http('http://uploads.example').upload(file)).rejects.toThrow('require HTTPS');
+    await expect(s3('http://uploads.example').upload(file)).rejects.toThrow('require HTTPS');
+    await expect(http(`${base}/post`).upload(file)).rejects.toThrow('307');
+    await expect(s3(base).upload(file)).rejects.toThrow('307');
+    expect(seen.map(({ url }) => url)).toEqual(['/post', '/shots/captures/shot.png']);
   });
 });

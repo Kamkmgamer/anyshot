@@ -4,7 +4,7 @@
  * allowed to call it. Main rejects calls from any other sender.
  */
 import type { Rect, Size } from './geometry';
-import type { DeepPartial, Settings } from './settings';
+import type { DeepPartial, Settings, ToolId } from './settings';
 
 export const APP_ORIGIN = 'app://local';
 
@@ -251,6 +251,7 @@ export interface InvokeContract {
   'secrets:set': Channel<{ key: string; value: string }, void>;
   'uploads:test': Channel<void, DeliverResult>;
   'settings:choose-dir': Channel<'output' | 'recording', string | null>;
+  'settings:set-tool-enabled': Channel<{ tool: ToolId; enabled: boolean }, void>;
 }
 
 export type InvokeChannel = keyof InvokeContract;
@@ -325,6 +326,7 @@ export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind
   'secrets:set': ['settings'],
   'uploads:test': ['settings'],
   'settings:choose-dir': ['settings'],
+  'settings:set-tool-enabled': ['settings'],
 };
 
 /** Events pushed from main to windows. */

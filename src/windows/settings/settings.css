@@ -42,6 +42,12 @@ h1 {
   margin: 0 0 14px;
   font-size: 20px;
 }
+.row-group {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
 .row {
   display: flex;
   align-items: center;

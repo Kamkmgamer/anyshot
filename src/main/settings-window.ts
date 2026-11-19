@@ -1,4 +1,5 @@
 import { dialog } from 'electron';
+import { TOOL_IDS } from '../shared/settings';
 import { handle } from './ipc';
 import './secrets';
 import { patchSettings } from './settings-store';
@@ -28,4 +29,14 @@ handle('settings:choose-dir', async (which, { win }) => {
     which === 'output' ? { output: { saveDir: dir } } : { recording: { saveDir: dir } },
   );
   return dir;
+});
+
+handle('settings:set-tool-enabled', async ({ tool, enabled }) => {
+  await patchSettings((settings) => ({
+    tools: {
+      enabledTools: TOOL_IDS.filter((id) =>
+        id === tool ? enabled : settings.tools.enabledTools.includes(id),
+      ),
+    },
+  }));
 });

@@ -2,12 +2,19 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { app } from 'electron';
+import { serialQueue } from './serial';
+
+const serial = serialQueue();
 
 /**
  * Launch at login. Electron's login items cover Windows (and macOS); on Linux
  * we write an XDG autostart entry instead.
  */
-export async function applyLaunchAtLogin(enabled: boolean): Promise<void> {
+export function applyLaunchAtLogin(enabled: boolean): Promise<void> {
+  return serial(() => updateLoginItem(enabled));
+}
+
+async function updateLoginItem(enabled: boolean): Promise<void> {
   if (process.platform !== 'linux') {
     app.setLoginItemSettings({ openAtLogin: enabled });
     return;

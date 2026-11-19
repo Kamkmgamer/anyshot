@@ -1,6 +1,6 @@
 import { expandTemplate } from '../shared/filename';
 import type { Settings } from '../shared/settings';
-import { sha256Hex, signV4 } from './sigv4';
+import { awsEncode, sha256Hex, signV4 } from './sigv4';
 
 // Upload providers. No Electron imports, so they are unit-tested against a local server.
 
@@ -26,6 +26,16 @@ export function pickPath(value: unknown, path: string): unknown {
     );
 }
 
+function uploadUrl(value: string, missingMessage: string): URL {
+  const url = URL.parse(value);
+  if (!url) throw new Error(missingMessage);
+  const loopback = url.hostname === '127.0.0.1' || url.hostname === '[::1]';
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+    throw new Error('Uploads require HTTPS, except for HTTP on 127.0.0.1 or [::1].');
+  }
+  return url;
+}
+
 /** Generic HTTP: multipart POST, URL read from the JSON response (imgur/imgbb-style APIs, own servers). */
 export function httpProvider(
   config: Settings['uploads']['http'],
@@ -33,16 +43,16 @@ export function httpProvider(
 ): UploadProvider {
   return {
     async upload(file) {
-      if (!/^https?:\/\//.test(config.url))
-        throw new Error('Set an upload URL in Settings ▸ Uploads.');
+      const endpoint = uploadUrl(config.url, 'Set an upload URL in Settings ▸ Uploads.');
       const form = new FormData();
       form.append(
         config.fileField || 'file',
         new Blob([file.bytes as Uint8Array<ArrayBuffer>], { type: file.mime }),
         file.name,
       );
-      const response = await fetch(config.url, {
+      const response = await fetch(endpoint, {
         method: 'POST',
+        redirect: 'manual',
         body: form,
         headers: authorization ? { authorization } : {},
       });
@@ -70,16 +80,15 @@ export function s3Provider(
 ): UploadProvider {
   return {
     async upload(file) {
-      if (!/^https?:\/\//.test(config.endpoint) || !config.bucket) {
-        throw new Error('Set the S3 endpoint and bucket in Settings ▸ Uploads.');
-      }
+      const missing = 'Set the S3 endpoint and bucket in Settings ▸ Uploads.';
+      if (!config.bucket) throw new Error(missing);
+      const endpoint = uploadUrl(config.endpoint, missing);
       const date = now();
       const key = `${expandTemplate(config.pathPrefix, date)}/${file.name}`.replace(/^\/+/, '');
-      const base = config.endpoint.replace(/\/+$/, '');
+      const base = endpoint.href.replace(/\/+$/, '');
+      const encodedKey = awsEncode(key, true);
       // Path-style addressing works with every S3-compatible service.
-      const url = new URL(
-        `${base}/${config.bucket}/${key.split('/').map(encodeURIComponent).join('/')}`,
-      );
+      const url = new URL(`${base}/${config.bucket}/${encodedKey}`);
       const headers = signV4({
         method: 'PUT',
         url,
@@ -97,6 +106,7 @@ export function s3Provider(
       const { host: _host, ...sendHeaders } = headers;
       const response = await fetch(url, {
         method: 'PUT',
+        redirect: 'manual',
         body: file.bytes as Uint8Array<ArrayBuffer>,
         headers: sendHeaders,
       });
@@ -105,7 +115,7 @@ export function s3Provider(
           `S3 upload failed: ${response.status} ${(await response.text()).slice(0, 200)}`,
         );
       const publicBase = (config.publicUrlBase || `${base}/${config.bucket}`).replace(/\/+$/, '');
-      return `${publicBase}/${key}`;
+      return `${publicBase}/${encodedKey}`;
     },
   };
 }
