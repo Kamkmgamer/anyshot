@@ -93,3 +93,26 @@ test('moving a measurement stops at the image edge', async () => {
   expect(measure?.b).toEqual({ x: expect.closeTo(300, 6), y: expect.closeTo(200, 6) });
   expect(measure?.a).toEqual({ x: expect.closeTo(200, 0), y: expect.closeTo(200, 6) });
 });
+
+test('arrow-key nudges keep a measurement inside the image', async () => {
+  await pressClosing(await selectCard(ctx.app), 'e');
+  const editor = await pageOf(ctx.app, 'editor');
+  await expect(editor.getByTestId('editor-size')).toHaveText('300 × 200');
+  const box = await editor.locator('#clip').boundingBox();
+  if (!box) throw new Error('no canvas');
+  const s = box.width / 300;
+  const at = (x: number, y: number): [number, number] => [box.x + x * s, box.y + y * s];
+  await editor.getByTestId('tool-measure').click();
+  await drag(editor, at(50, 100), at(250, 100));
+  await editor.getByTestId('tool-select').click();
+  await editor.mouse.click(...at(150, 100));
+  // 10 × Shift+→ asks for 100 px; only 50 px are left before the right edge.
+  for (let i = 0; i < 10; i++) await editor.keyboard.press('Shift+ArrowRight');
+  const [measure] = await savedMeasures(editor);
+  // The right end stops at the edge; the line keeps its length and stays horizontal.
+  const a = measure?.a as { x: number; y: number };
+  const b = measure?.b as { x: number; y: number };
+  expect(b.x).toBeCloseTo(300, 6);
+  expect(b.x - a.x).toBeCloseTo(200, 0);
+  expect(b.y).toBe(a.y);
+});

@@ -517,7 +517,10 @@ export class CanvasView {
     if (nudge && hasSelection) {
       const step = (e.shiftKey ? 10 : 1) * this.unit;
       const [dx = 0, dy = 0] = nudge;
-      this.store.updateSelected((a) => translate(a, dx * step, dy * step));
+      const selected = this.store.doc.annotations.filter((a) => this.store.selected.has(a.id));
+      // Selected measurements stay inside the image, as when dragging them.
+      const d = clampMoveDelta(selected, { x: dx * step, y: dy * step }, this.imageArea());
+      if (d.x !== 0 || d.y !== 0) this.store.updateSelected((a) => translate(a, d.x, d.y));
       return true;
     }
     return false;
