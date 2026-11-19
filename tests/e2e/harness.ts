@@ -6,6 +6,8 @@ import type { WindowKind } from '../../src/shared/ipc';
 
 export interface Launched {
   app: ElectronApplication;
+  /** Main-process stdout/stderr, for diagnosing failures. */
+  mainLog: string[];
   userData: string;
   errors: string[];
   close(): Promise<void>;
@@ -40,11 +42,22 @@ export async function launch(
     });
   };
   app.context().on('page', watch);
+  const mainLog: string[] = [];
+  const proc = app.process();
+  for (const stream of [proc.stdout, proc.stderr]) {
+    stream?.on('data', (chunk: Buffer) => {
+      for (const line of chunk.toString().split('\n')) {
+        // Chromium's D-Bus noise under Xvfb is not interesting.
+        if (line.trim() && !/dbus|Failed to adjust OOM/.test(line)) mainLog.push(line);
+      }
+    });
+  }
   await expect
     .poll(() => app.evaluate(() => globalThis.__anyshot !== undefined), { timeout: 15_000 })
     .toBe(true);
   return {
     app,
+    mainLog,
     userData,
     errors,
     async close() {

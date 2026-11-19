@@ -8,6 +8,7 @@
   "packageManager": "bun@1.4.4",
   "type": "module",
   "dependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
     "gifenc": "^1.0.3",
     "mediabunny": "^1.66.1",
     "node-screenshots": "0.2.8",

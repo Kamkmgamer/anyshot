@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 8 (OCR + uploads). Exact next action: `src/utility/ocr.ts` (tesseract.js worker in a `utilityProcess`, English data shipped via `@tesseract.js-data/eng` or downloaded on first use — check licence/size), `src/main/ocr.ts` client that forks on demand and kills after 30 s idle (one-shot timer), OCR result window (`src/windows/ocr`, editable text + copy), then uploads (`src/main/uploads.ts`: provider interface, custom HTTP multipart + S3 SigV4, keys via `safeStorage` in `secrets.bin`). A small recording HUD (stop/pause) is still missing; Stop is in the tray.
+**Next:** step 8 uploads. Exact next action: `src/main/secrets.ts` (safeStorage-encrypted JSON in `secrets.bin`, report backend, refuse plaintext `basic_text` unless confirmed), `src/main/uploads.ts` replacing the stub (provider interface; `http` multipart POST with response URL path; `s3` PUT with SigV4 written with node:crypto and unit-tested against AWS's documented example), `uploads:test` handler, upload action from overlay/floating/history copying the URL; unit + e2e against a local HTTP server.
 
 ## Status (v1 build order)
 
@@ -19,9 +19,17 @@
 | 5 Editor | done | window, zoom/fit, undoable crop, `.anyshot` projects, history write-back, e2e. Flip and "add capture" layers not done |
 | 6 More tools | done | censor (WebGL pixelate/blur, solid), spotlight, magnify, measure, stamp, colour picker, invert, adjust (shader + presets), beautify. Auto-redact (OCR/PII) pending |
 | 7 Recording | done | MP4 (H.264, VP9/WebM fallback) via getDisplayMedia + Mediabunny streamed to disk, mic (untested here), GIF via intermediate MP4 + gifenc worker, e2e. No HUD/webcam/click highlights |
-| 8 OCR + uploads | pending | |
+| 8 OCR + uploads | partial | OCR done (tesseract.js in an idle-exiting utilityProcess, offline English, result window, e2e); uploads pending |
 | 9 Scroll capture | pending | |
 | 10 Polish | pending | |
+
+## 2026-11-19 - step 8 OCR
+
+- tesseract.js runs in a `utilityProcess` forked on first use and killed by a one-shot 30 s idle timer (tests shorten it with `ANYSHOT_OCR_IDLE_MS`). English data (`@tesseract.js-data/eng`, 4.0.0 best_int, ~3 MB gzipped, MIT) ships with the app so OCR works offline; packaging should exclude the unused 4.0.0 folder.
+- Under Xvfb the fixture's report text is recognised exactly ("Quarterly report", "Revenue grew 18% …").
+- Rolldown injects its own `require` shim into ESM output, so a local `const require = createRequire(...)` breaks the bundle; use another name.
+- e2e harness now captures main-process output (`ctx.mainLog`) for diagnosing failures.
+- Not done: QR code detection, other OCR languages, translation.
 
 ## 2026-11-19 - step 7 recording
 
