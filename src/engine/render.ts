@@ -16,8 +16,12 @@ import { markerWidth, TEXT_LINE_HEIGHT, textBox, textFont } from './shapes';
 
 export type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-/** Draws a censored version of `rect` of the source onto ctx. Provided by the GPU effects module. */
-export type CensorRenderer = (ctx: Ctx, source: CanvasImageSource, a: CensorAnnotation) => void;
+/** Samples a whole-pixel rectangle into a separate patch. */
+export type CensorRenderer = (
+  source: CanvasImageSource,
+  rect: Rect,
+  mode: Exclude<CensorAnnotation['mode'], 'solid'>,
+) => OffscreenCanvas | null;
 
 export interface RenderEnv {
   /** Base image in annotation coordinates; censor, magnify and spotlight read from it. */
@@ -56,28 +60,24 @@ export function drawAnnotations(
  * copies the censored areas onto ctx.
  */
 function drawCensors(ctx: Ctx, censors: readonly CensorAnnotation[], env: RenderEnv): RenderEnv {
-  if (!env.source) {
-    for (const a of censors) drawCensor(ctx, a, env);
+  const masks = censors.flatMap((a) => {
+    const rect = censorBounds(a.rect, env);
+    return rect ? [{ ...a, rect }] : [];
+  });
+  if (!env.source || masks.length === 0) {
+    for (const a of masks) paintCensor(ctx, a, env);
     return env;
   }
-  const censored = new OffscreenCanvas(Math.max(1, env.width), Math.max(1, env.height));
+  const censored = new OffscreenCanvas(env.width, env.height);
   const cctx = censored.getContext('2d');
   if (!cctx) throw new Error('2D context unavailable');
   cctx.drawImage(env.source, 0, 0);
   const censoredEnv: RenderEnv = { ...env, source: censored };
-  for (const a of censors) drawCensor(cctx, a, censoredEnv);
-  for (const a of censors) {
-    // Whole pixels, so an antialiased clip edge can't let the original show through.
-    const x = Math.floor(a.rect.x);
-    const y = Math.floor(a.rect.y);
-    const w = Math.ceil(a.rect.x + a.rect.width) - x;
-    const h = Math.ceil(a.rect.y + a.rect.height) - y;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x, y, w, h);
-    ctx.clip();
-    ctx.drawImage(censored, 0, 0);
-    ctx.restore();
+  for (const a of masks) paintCensor(cctx, a, censoredEnv);
+  for (const {
+    rect: { x, y, width, height },
+  } of masks) {
+    ctx.drawImage(censored, x, y, width, height, x, y, width, height);
   }
   return censoredEnv;
 }
@@ -123,7 +123,10 @@ export function drawAnnotation(ctx: Ctx, a: Annotation, env: RenderEnv): void {
       drawStamp(ctx, a);
       break;
     case 'censor':
-      drawCensor(ctx, a, env);
+      {
+        const rect = censorBounds(a.rect, env);
+        if (rect) paintCensor(ctx, { ...a, rect }, env);
+      }
       break;
     case 'spotlight':
       drawSpotlights(ctx, [a], env);
@@ -358,56 +361,68 @@ function drawMagnify(ctx: Ctx, a: MagnifyAnnotation, env: RenderEnv): void {
   ctx.stroke();
 }
 
-/** Canvas 2D fallback for censoring when WebGL isn't available. `a.rect` lies within the source. */
-export function censorFallback(ctx: Ctx, source: CanvasImageSource, a: CensorAnnotation): void {
-  const { x, y, width, height } = a.rect;
-  if (width < 1 || height < 1) return;
-  if (a.mode === 'solid') {
-    ctx.fillStyle = '#111111';
-    ctx.fillRect(x, y, width, height);
-    return;
-  }
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x, y, width, height);
-  ctx.clip();
-  if (a.mode === 'blur') {
-    // A blur fades to transparent at the edges of what is drawn, which would let
-    // the original show through: blur a margin around the rect, over an opaque
-    // fill that covers the image's own edges.
+/** Canvas 2D fallback for censoring when WebGL isn't available. */
+export const censorFallback: CensorRenderer = (source, rect, mode) => {
+  const { x, y, width, height } = rect;
+  const patch = new OffscreenCanvas(width, height);
+  const ctx = patch.getContext('2d');
+  if (!ctx) return null;
+  if (mode === 'blur') {
     const radius = Math.max(6, Math.min(width, height) * 0.08);
     const pad = radius * 3;
-    ctx.fillStyle = '#111111';
-    ctx.fillRect(x, y, width, height);
     ctx.filter = `blur(${radius}px)`;
-    const [px, py, pw, ph] = [x - pad, y - pad, width + pad * 2, height + pad * 2];
-    ctx.drawImage(source, px, py, pw, ph, px, py, pw, ph);
+    ctx.drawImage(
+      source,
+      x - pad,
+      y - pad,
+      width + pad * 2,
+      height + pad * 2,
+      -pad,
+      -pad,
+      width + pad * 2,
+      height + pad * 2,
+    );
   } else {
     const block = Math.max(6, Math.round(Math.min(width, height) / 12));
-    const w = Math.max(1, Math.ceil(width / block));
-    const h = Math.max(1, Math.ceil(height / block));
+    const w = Math.ceil(width / block);
+    const h = Math.ceil(height / block);
     const small = new OffscreenCanvas(w, h);
     const sctx = small.getContext('2d');
-    if (sctx) {
-      sctx.drawImage(source, x, y, width, height, 0, 0, w, h);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(small, 0, 0, w, h, x, y, w * block, h * block);
-    }
+    if (!sctx) return null;
+    sctx.drawImage(source, x, y, width, height, 0, 0, w, h);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(small, 0, 0, w, h, 0, 0, w * block, h * block);
   }
-  ctx.restore();
+  return patch;
+};
+
+function censorBounds(input: Rect, bounds: { width: number; height: number }): Rect | null {
+  const { x, y, width, height } = input;
+  const end = { x: x + width, y: y + height };
+  if (![x, y, end.x, end.y].every(Number.isFinite)) return null;
+  const rect = clampRect(rectFromPoints({ x, y }, end), bounds);
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  const left = Math.floor(rect.x);
+  const top = Math.floor(rect.y);
+  return {
+    x: left,
+    y: top,
+    width: Math.ceil(rect.x + rect.width) - left,
+    height: Math.ceil(rect.y + rect.height) - top,
+  };
 }
 
-function drawCensor(ctx: Ctx, a: CensorAnnotation, env: RenderEnv): void {
-  if (!env.source) {
-    ctx.fillStyle = 'rgba(17,17,17,0.6)';
-    ctx.fillRect(a.rect.x, a.rect.y, a.rect.width, a.rect.height);
-    return;
-  }
-  // A crop can cut through a censor. Sampling outside the image would read
-  // transparent pixels, and drawing those leaves the original visible below.
+function paintCensor(ctx: Ctx, a: CensorAnnotation, env: RenderEnv): void {
   const { x, y, width, height } = a.rect;
-  const rect = clampRect(rectFromPoints({ x, y }, { x: x + width, y: y + height }), env);
-  (env.censor ?? censorFallback)(ctx, env.source, { ...a, rect });
+  const patch =
+    env.source && a.mode !== 'solid'
+      ? (env.censor ?? censorFallback)(env.source, a.rect, a.mode)
+      : null;
+  // Sample first, then paint an opaque backing. The filtered alpha must never
+  // reveal the original on this canvas or on a separate layer beneath it.
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(x, y, width, height);
+  if (patch?.width === width && patch.height === height) ctx.drawImage(patch, x, y);
 }
 
 function drawSpotlights(ctx: Ctx, spots: readonly SpotlightAnnotation[], env: RenderEnv): void {

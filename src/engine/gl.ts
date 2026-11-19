@@ -1,6 +1,6 @@
-import { type Rect, roundRect } from '../shared/geometry';
-import type { Adjust, CensorAnnotation } from './model';
-import type { Ctx } from './render';
+import type { Rect } from '../shared/geometry';
+import type { Adjust } from './model';
+import type { CensorRenderer } from './render';
 
 const VERTEX = `
 attribute vec2 a_pos;
@@ -107,21 +107,15 @@ export class GlEffects {
     this.fbo = fbo;
   }
 
-  /** Censors `a.rect` (which lies within the source) and draws the result onto ctx. */
-  censor(ctx: Ctx, source: CanvasImageSource, a: CensorAnnotation): void {
-    const r = roundRect(a.rect);
-    if (r.width < 1 || r.height < 1) return;
-    if (a.mode === 'solid') {
-      ctx.fillStyle = '#111111';
-      ctx.fillRect(r.x, r.y, r.width, r.height);
-      return;
-    }
-    const out =
-      a.mode === 'pixelate'
-        ? this.pixelate(source, r, Math.max(6, Math.round(Math.min(r.width, r.height) / 12)))
-        : this.blur(source, r, Math.max(8, Math.min(r.width, r.height) * 0.12));
-    ctx.drawImage(out, r.x, r.y);
-  }
+  censor: CensorRenderer = (source, rect, mode) => {
+    if (this.gl.isContextLost()) return null;
+    const size = Math.min(rect.width, rect.height);
+    const patch =
+      mode === 'pixelate'
+        ? this.pixelate(source, rect, Math.max(6, Math.round(size / 12)))
+        : this.blur(source, rect, Math.max(8, size * 0.12));
+    return this.gl.getError() === this.gl.NO_ERROR && !this.gl.isContextLost() ? patch : null;
+  };
 
   pixelate(source: CanvasImageSource, r: Rect, block: number): OffscreenCanvas {
     this.upload(source, r);

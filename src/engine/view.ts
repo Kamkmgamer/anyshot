@@ -172,7 +172,7 @@ export class CanvasView {
       width: this.width,
       height: this.height,
       unit: this.unit,
-      censor: this.gl ? (c, s, a) => this.gl?.censor(c, s, a) : censorFallback,
+      censor: this.gl?.censor ?? censorFallback,
     };
   }
 

@@ -47,7 +47,7 @@ export async function composeInto(bitmap: ImageBitmap, rawDoc: unknown): Promise
     width,
     height,
     unit: doc.unit,
-    censor: fx ? (c, s, a) => fx.censor(c, s, a) : censorFallback,
+    censor: fx?.censor ?? censorFallback,
   };
   drawDoc(ctx, doc, env);
   if (!beautify.enabled) return canvas;
