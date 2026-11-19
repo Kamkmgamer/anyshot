@@ -69,13 +69,13 @@ test('clicking a capture opens a preview that moves with the arrows and runs act
   const history = await openHistory();
   const fullImages: string[] = [];
   history.on('request', (r) => {
-    if (r.url().endsWith('/image')) fullImages.push(r.url());
+    if (new URL(r.url()).pathname.endsWith('/image')) fullImages.push(r.url());
   });
   // The grid shows thumbnails only.
   for (const src of await history
     .locator('.grid img')
     .evaluateAll((imgs) => imgs.map((img) => img.getAttribute('src'))))
-    expect(src).toMatch(/\/thumb$/);
+    expect(src).toMatch(/\/thumb\?v=\d+$/);
 
   await history.getByTestId('history-card').first().click();
   const preview = history.getByTestId('preview');
@@ -131,4 +131,36 @@ test('double-clicking a capture opens it in the editor', async () => {
   const editor = await pageOf(ctx.app, 'editor');
   await expect(editor.getByTestId('editor-size')).toHaveText('200 × 100');
   await expect(history.getByTestId('preview')).toHaveCount(0);
+});
+
+test('the preview and thumbnail show the new pixels after an edit replaces the capture', async () => {
+  await capture(300, 200);
+  await dispatch(ctx.app, 'history');
+  const history = await pageOf(ctx.app, 'history');
+  const card = history.getByTestId('history-card');
+  await expect(card).toHaveCount(1);
+  const thumb = card.locator('img');
+  const thumbBefore = await thumb.getAttribute('src');
+  await card.click();
+  const image = history.getByTestId('preview-image');
+  const before = await image.getAttribute('src');
+  await history.getByTestId('preview-edit').click();
+  const editor = await pageOf(ctx.app, 'editor');
+  await expect(editor.getByTestId('editor-size')).toHaveText('300 × 200');
+  await editor.getByTestId('tool-rect').click();
+  const box = await editor.locator('#clip').boundingBox();
+  if (!box) throw new Error('no canvas');
+  await editor.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.2);
+  await editor.mouse.down();
+  await editor.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.6, { steps: 4 });
+  await editor.mouse.up();
+  await editor.keyboard.press('Control+s');
+  await expect(editor.getByTestId('editor-status')).toContainText('Saved');
+  // The grid and a reopened preview load the replaced files instead of the ones already loaded.
+  await expect(thumb).not.toHaveAttribute('src', thumbBefore ?? '');
+  await card.click();
+  await expect(image).not.toHaveAttribute('src', before ?? '');
+  await expect
+    .poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
+    .toBe(300);
 });

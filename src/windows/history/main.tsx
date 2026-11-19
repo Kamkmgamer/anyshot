@@ -7,6 +7,13 @@ import { Icon, type IconName } from '../common/icons';
 import { followTheme } from '../common/theme';
 
 const api = window.anyshot;
+
+/**
+ * An entry's image or thumbnail. Edits replace the files but keep the id, so
+ * the URL carries a version: otherwise the window keeps the old pixels it loaded.
+ */
+const mediaUrl = (entry: HistoryEntry, what: 'image' | 'thumb') =>
+  `/@history/${entry.id}/${what}?v=${entry.updatedAt ?? entry.createdAt}`;
 type Filter = 'all' | 'image' | 'video';
 
 function timeAgo(ms: number): string {
@@ -99,7 +106,7 @@ function Preview(props: {
           </button>
           <img
             key={entry.id}
-            src={`/@history/${entry.id}/image`}
+            src={mediaUrl(entry, 'image')}
             alt={`Capture from ${new Date(entry.createdAt).toLocaleString()}`}
             decoding="async"
             data-testid="preview-image"
@@ -294,7 +301,7 @@ function App() {
                   void run(entry, 'edit');
                 }}
               >
-                <img src={`/@history/${entry.id}/thumb`} alt="" loading="lazy" decoding="async" />
+                <img src={mediaUrl(entry, 'thumb')} alt="" loading="lazy" decoding="async" />
                 <span class="meta">
                   {`${entry.width} × ${entry.height}`} · {timeAgo(entry.createdAt)}
                 </span>

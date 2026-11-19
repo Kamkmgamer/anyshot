@@ -130,6 +130,8 @@ export interface HistoryEntry {
   kind: 'image' | 'video' | 'gif';
   /** Absolute path of the saved file if the user saved it somewhere. */
   savedPath: string | null;
+  /** When the image was last replaced by an edit (its id stays the same). */
+  updatedAt?: number;
 }
 
 export interface FloatingItem {

@@ -156,6 +156,8 @@ describe('history', () => {
       savedPath: '/tmp/a.png',
     });
     expect(updated).toMatchObject({ id: 'a', width: 2, height: 3, savedPath: '/tmp/a.png' });
+    expect(updated?.updatedAt).toEqual(expect.any(Number));
+    expect((await history.listEntries())[0]?.updatedAt).toBe(updated?.updatedAt);
     expect([...(await fs.readFile(history.imagePath('a')))]).toEqual([1, 2, 3]);
     expect((await fs.readdir(state.dir)).sort()).toEqual(['a.png', 'index.json']);
   });

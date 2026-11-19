@@ -320,6 +320,7 @@ export function replaceImage(
       ...entry,
       width: input.width,
       height: input.height,
+      updatedAt: Date.now(),
       ...(input.savedPath ? { savedPath: input.savedPath } : {}),
     };
     try {
