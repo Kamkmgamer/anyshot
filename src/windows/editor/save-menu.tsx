@@ -51,7 +51,8 @@ export function SaveSplitButton(props: {
   const onMenuKey = (e: KeyboardEvent) => {
     if (!open) return;
     const count = SAVE_MODES.length;
-    const i = items.current.findIndex((el) => el === document.activeElement);
+    const active = document.activeElement;
+    const i = active instanceof HTMLButtonElement ? items.current.indexOf(active) : -1;
     const focus = (j: number) => items.current[(j + count) % count]?.focus();
     if (e.key === 'ArrowDown') focus(i + 1);
     else if (e.key === 'ArrowUp') focus(i < 0 ? count - 1 : i - 1);
