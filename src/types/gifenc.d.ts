@@ -8,7 +8,7 @@ declare module 'gifenc' {
       options?: { palette?: Palette; delay?: number; repeat?: number; first?: boolean },
     ): void;
     finish(): void;
-    reset(): void;
+    stream: { reset(): void };
     bytesView(): Uint8Array;
   }
   export function GIFEncoder(options?: { auto?: boolean }): Encoder;

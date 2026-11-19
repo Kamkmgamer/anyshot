@@ -1,10 +1,11 @@
-import { type FileHandle, mkdir, open, rm, stat } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { type FileHandle, open, rm, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import { app, type BrowserWindow, type Display, Notification, shell } from 'electron';
 import { expandTemplate } from '../shared/filename';
 import { evenRect, type Rect, scaleRect } from '../shared/geometry';
 import type { RecorderInit, RecorderStatus } from '../shared/ipc';
 import { setAppState } from './app-state';
+import { createUniqueFile } from './atomic-file';
 import { copyText } from './clipboard';
 import { setCaptureDisplay } from './display-media';
 import { handle } from './ipc';
@@ -78,6 +79,11 @@ async function cleanup(recording: Recording, error?: string): Promise<void> {
   active = null;
   setAppState({ recording: false });
   for (const handle of recording.files.values()) await handle.close().catch(() => {});
+  if (recording.intermediatePath) {
+    await rm(recording.intermediatePath, { force: true }).catch((failure) =>
+      console.error('[recorder] failed to remove intermediate video', failure),
+    );
+  }
   if (!recording.win.isDestroyed()) recording.win.destroy();
   if (error) {
     new Notification({ title: 'Recording failed', body: error }).show();
@@ -91,10 +97,10 @@ async function cleanup(recording: Recording, error?: string): Promise<void> {
   else await copyText(path);
 }
 
-function recordingPath(ext: string): string {
+function recordingBase(): string {
   const settings = getSettings();
   const dir = settings.recording.saveDir || paths.defaultRecordingDir;
-  return join(dir, `${expandTemplate(settings.recording.filenameTemplate, new Date())}.${ext}`);
+  return join(dir, expandTemplate(settings.recording.filenameTemplate, new Date()));
 }
 
 function current(win: BrowserWindow): Recording {
@@ -108,11 +114,17 @@ handle('recorder:open-file', async ({ ext }, { win }) => {
   const recording = current(win);
   // A GIF is made from an intermediate MP4 kept in the temp folder.
   const intermediate = recording.init.gif && ext !== 'gif';
-  const path = intermediate
-    ? join(app.getPath('temp'), `anyshot-${Date.now()}.${ext}`)
-    : recordingPath(ext);
-  await mkdir(dirname(path), { recursive: true });
-  recording.files.set(path, await open(path, 'w'));
+  const base = intermediate ? join(app.getPath('temp'), `anyshot-${Date.now()}`) : recordingBase();
+  const { path, handle } = await createUniqueFile(base, ext);
+  if (active !== recording) {
+    try {
+      await handle.close();
+    } finally {
+      await rm(path, { force: true });
+    }
+    throw new Error('The recording ended before its output file opened.');
+  }
+  recording.files.set(path, handle);
   if (intermediate) recording.intermediatePath = path;
   else recording.finalPath = path;
   return path;
@@ -125,12 +137,11 @@ handle('recorder:write', async ({ path, data, position }, { win }) => {
   await file.write(data, 0, data.byteLength, position);
 });
 
-handle('recorder:close-file', async ({ path, remove }, { win }) => {
+handle('recorder:close-file', async ({ path }, { win }) => {
   const recording = current(win);
   const file = recording.files.get(path);
-  recording.files.delete(path);
   await file?.close();
-  if (remove) await rm(path, { force: true });
+  recording.files.delete(path);
 });
 
 handle('recorder:status', (status, { win }) => {

@@ -8,7 +8,8 @@ export type StitchMessage =
 export type StitchReply =
   | { type: 'progress'; width: number; height: number }
   | { type: 'done'; png: ArrayBuffer; thumb: ArrayBuffer; width: number; height: number }
-  | { type: 'empty' };
+  | { type: 'empty' }
+  | { type: 'lost-overlap' };
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 let stitcher: Stitcher | null = null;
@@ -17,12 +18,15 @@ scope.onmessage = async (event: MessageEvent<StitchMessage>) => {
   const message = event.data;
   if (message.type === 'frame') {
     stitcher ??= new Stitcher(message.width, message.height, message.maxHeight);
-    stitcher.push({
+    const rows = stitcher.push({
       data: new Uint8ClampedArray(message.rgba),
       width: message.width,
       height: message.height,
     });
-    const reply: StitchReply = { type: 'progress', width: stitcher.width, height: stitcher.height };
+    const reply: StitchReply =
+      rows === null
+        ? { type: 'lost-overlap' }
+        : { type: 'progress', width: stitcher.width, height: stitcher.height };
     scope.postMessage(reply);
     return;
   }

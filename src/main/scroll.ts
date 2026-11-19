@@ -1,4 +1,4 @@
-import type { BrowserWindow, Display } from 'electron';
+import { type BrowserWindow, type Display, Notification } from 'electron';
 import { evenRect, type Rect, scaleRect } from '../shared/geometry';
 import type { ScrollInit } from '../shared/ipc';
 import { setCaptureDisplay } from './display-media';
@@ -27,19 +27,33 @@ export async function startScrollCapture(display: Display, rect: Rect): Promise<
     scaleFactor,
     maxHeight: getSettings().scroll.maxHeight,
   };
-  const below = bounds.y + rect.y + rect.height + HUD.gap;
-  const above = bounds.y + rect.y - HUD.gap - HUD.height;
-  const y =
-    below + HUD.height <= workArea.y + workArea.height ? below : Math.max(workArea.y, above);
-  const x = Math.round(
-    Math.min(
-      workArea.x + workArea.width - HUD.width,
-      Math.max(workArea.x, bounds.x + rect.x + rect.width / 2 - HUD.width / 2),
-    ),
+  const left = bounds.x + rect.x;
+  const top = bounds.y + rect.y;
+  const right = left + rect.width;
+  const bottom = top + rect.height;
+  const maxX = workArea.x + workArea.width - HUD.width;
+  const maxY = workArea.y + workArea.height - HUD.height;
+  const x = Math.min(maxX, Math.max(workArea.x, left + (rect.width - HUD.width) / 2));
+  const y = Math.min(maxY, Math.max(workArea.y, top + (rect.height - HUD.height) / 2));
+  const positions = [
+    { x, y: bottom + HUD.gap },
+    { x, y: top - HUD.height - HUD.gap },
+    { x: right + HUD.gap, y },
+    { x: left - HUD.width - HUD.gap, y },
+  ];
+  const position = positions.find(
+    (p) => p.x >= workArea.x && p.x <= maxX && p.y >= workArea.y && p.y <= maxY,
   );
+  if (!position) {
+    new Notification({
+      title: 'Could not start scroll capture',
+      body: 'Select a smaller area to leave room for the scroll controls.',
+    }).show();
+    return;
+  }
   const win = createWindow('scroll', {
-    x,
-    y: Math.round(y),
+    x: Math.round(position.x),
+    y: Math.round(position.y),
     width: HUD.width,
     height: HUD.height,
     frame: false,

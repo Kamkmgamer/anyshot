@@ -80,6 +80,14 @@ async function run(init: ScrollInit): Promise<void> {
     video: { frameRate: { ideal: 10 } },
     audio: false,
   });
+  try {
+    await capture(stream, init);
+  } finally {
+    for (const track of stream.getTracks()) track.stop();
+  }
+}
+
+async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
   const track = stream.getVideoTracks()[0];
   const video = document.getElementById('video') as HTMLVideoElement;
   video.srcObject = stream;
@@ -99,57 +107,95 @@ async function run(init: ScrollInit): Promise<void> {
   const worker = new Worker(new URL('../../workers/stitch.worker.ts', import.meta.url), {
     type: 'module',
   });
-  let height = 0;
-  worker.onmessage = (event: MessageEvent<StitchReply>) => {
-    if (event.data.type === 'progress') {
-      height = event.data.height;
-      setState({ phase: 'capturing', width: event.data.width, height });
-    }
-  };
-  let busy = false;
-  // A renderer timer is fine: this window exists only during the capture.
-  const timer = setInterval(() => {
-    if (busy || video.readyState < 2) return;
-    busy = true;
-    ctx.drawImage(video, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
-    const rgba = ctx.getImageData(0, 0, crop.width, crop.height).data.buffer as ArrayBuffer;
-    const message: StitchMessage = {
-      type: 'frame',
-      rgba,
-      width: crop.width,
-      height: crop.height,
-      maxHeight: init.maxHeight,
-    };
-    worker.postMessage(message, [rgba]);
-    busy = false;
-  }, SAMPLE_MS);
+  let timer: ReturnType<typeof setInterval> | undefined;
+  try {
+    let busy = false;
+    let height = 0;
+    let finishing = false;
+    let fail: (error: Error) => void = () => {};
+    const failure = new Promise<never>((_resolve, reject) => {
+      fail = reject;
+    });
+    let finish: (reply: Extract<StitchReply, { type: 'done' | 'empty' }>) => void = () => {};
+    const finished = new Promise<Extract<StitchReply, { type: 'done' | 'empty' }>>((resolve) => {
+      finish = resolve;
+    });
 
-  const keep = await new Promise<boolean>((resolve) => {
-    stop = resolve;
-  });
-  clearInterval(timer);
-  for (const t of stream.getTracks()) t.stop();
-  if (!keep || height === 0) {
-    worker.terminate();
-    await api.invoke('scroll:finish', { image: null });
-    return;
-  }
-  setState({ phase: 'finishing', width: crop.width, height });
-  const done = await new Promise<StitchReply>((resolve) => {
-    worker.onmessage = (event: MessageEvent<StitchReply>) => {
-      if (event.data.type !== 'progress') resolve(event.data);
+    worker.onerror = (event) => {
+      event.preventDefault();
+      fail(new Error(event.message || 'The scroll worker stopped unexpectedly.'));
     };
+    worker.onmessage = ({ data }: MessageEvent<StitchReply>) => {
+      if (data.type === 'lost-overlap') {
+        fail(new Error('Frames stopped overlapping. Start again and scroll more slowly.'));
+      } else if (data.type === 'progress') {
+        busy = false;
+        height = data.height;
+        if (!finishing) setState({ phase: 'capturing', width: data.width, height });
+      } else {
+        finish(data);
+      }
+    };
+    timer = setInterval(() => {
+      if (busy || video.readyState < 2) return;
+      try {
+        busy = true;
+        ctx.drawImage(
+          video,
+          crop.x,
+          crop.y,
+          crop.width,
+          crop.height,
+          0,
+          0,
+          crop.width,
+          crop.height,
+        );
+        const rgba = ctx.getImageData(0, 0, crop.width, crop.height).data.buffer as ArrayBuffer;
+        const message: StitchMessage = {
+          type: 'frame',
+          rgba,
+          width: crop.width,
+          height: crop.height,
+          maxHeight: init.maxHeight,
+        };
+        worker.postMessage(message, [rgba]);
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(String(error)));
+      }
+    }, SAMPLE_MS);
+
+    const keep = await Promise.race([
+      new Promise<boolean>((resolve) => {
+        stop = resolve;
+      }),
+      failure,
+    ]);
+    stop = null;
+    clearInterval(timer);
+    for (const track of stream.getTracks()) track.stop();
+    if (!keep) {
+      await api.invoke('scroll:finish', { image: null });
+      return;
+    }
+    finishing = true;
+    setState({ phase: 'finishing', width: crop.width, height });
     worker.postMessage({ type: 'finish' } satisfies StitchMessage);
-  });
-  worker.terminate();
-  if (done.type !== 'done') {
-    await api.invoke('scroll:finish', { image: null });
-    return;
+    const done = await Promise.race([finished, failure]);
+    await api.invoke(
+      'scroll:finish',
+      done.type === 'done'
+        ? {
+            image: { bytes: done.png, mime: 'image/png', width: done.width, height: done.height },
+            thumb: done.thumb,
+          }
+        : { image: null },
+    );
+  } finally {
+    clearInterval(timer);
+    stop = null;
+    worker.terminate();
   }
-  await api.invoke('scroll:finish', {
-    image: { bytes: done.png, mime: 'image/png', width: done.width, height: done.height },
-    thumb: done.thumb,
-  });
 }
 
 render(<Hud />, document.getElementById('root') as HTMLElement);
@@ -158,7 +204,7 @@ void api
   .invoke('scroll:init')
   .then(run)
   .catch((error) => {
-    console.error('[scroll]', error);
+    console.warn('[scroll]', error);
     setState({
       phase: 'starting',
       width: 0,

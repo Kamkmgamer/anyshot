@@ -96,4 +96,23 @@ describe('scroll stitching', () => {
     stitcher.push(view(src, 300, 200));
     expect(stitcher.result().height).toBe(300);
   });
+
+  it('distinguishes lost overlap from an unchanged frame', () => {
+    const src = page(600);
+    const stitcher = new Stitcher(W, 200, 1000);
+    expect(stitcher.push(view(src, 0, 200))).toBe(200);
+    expect(stitcher.push(view(src, 0, 200))).toBe(0);
+    expect(stitcher.push(view(src, 200, 200))).toBeNull();
+    expect(stitcher.push(view(src, 220, 200))).toBeNull();
+  });
+
+  it('honors the height limit even when the first viewport is taller', () => {
+    const src = page(600);
+    const stitcher = new Stitcher(W, 200, 100);
+    expect(stitcher.push(view(src, 0, 200))).toBe(100);
+    expect(stitcher.push(view(src, 100, 200))).toBe(0);
+    const result = stitcher.result();
+    expect(result.height).toBe(100);
+    expect(result.data).toEqual(src.subarray(0, 100 * W * 4));
+  });
 });

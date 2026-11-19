@@ -80,6 +80,19 @@ async function record(init: RecorderInit): Promise<string> {
     });
     if (!codec) throw new Error('No supported video encoder (H.264, VP9 or VP8) is available');
     const mp4 = codec === 'avc';
+    let audioSource: MediaStreamAudioTrackSource | undefined;
+    if (init.microphone) {
+      const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      tracks.push(...mic.getTracks());
+      const audio = mic.getAudioTracks()[0];
+      if (!audio) throw new Error('No microphone audio track');
+      const audioCodec = await getFirstEncodableAudioCodec(mp4 ? ['aac', 'opus'] : ['opus']);
+      if (!audioCodec) throw new Error('No supported microphone audio encoder is available');
+      audioSource = new MediaStreamAudioTrackSource(audio as MediaStreamAudioTrack, {
+        codec: audioCodec,
+        quality: QUALITY_MEDIUM,
+      });
+    }
     const path = await api.invoke('recorder:open-file', { ext: mp4 ? 'mp4' : 'webm' });
     let bytes = 0;
     const output = new Output({
@@ -95,20 +108,7 @@ async function record(init: RecorderInit): Promise<string> {
     );
     output.addVideoTrack(source, { frameRate: init.fps });
 
-    if (init.microphone) {
-      const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      tracks.push(...mic.getTracks());
-      const audioCodec = await getFirstEncodableAudioCodec(mp4 ? ['aac', 'opus'] : ['opus']);
-      const audio = mic.getAudioTracks()[0];
-      if (audioCodec && audio) {
-        output.addAudioTrack(
-          new MediaStreamAudioTrackSource(audio as MediaStreamAudioTrack, {
-            codec: audioCodec,
-            quality: QUALITY_MEDIUM,
-          }),
-        );
-      }
-    }
+    if (audioSource) output.addAudioTrack(audioSource);
 
     await output.start();
     const t0 = performance.now();
@@ -119,11 +119,14 @@ async function record(init: RecorderInit): Promise<string> {
       1000,
     );
     const failure = source.errorPromise.then(() => undefined);
-    await Promise.race([stopped, failure]);
-    clearInterval(ticker);
+    try {
+      await Promise.race([stopped, failure]);
+    } finally {
+      clearInterval(ticker);
+    }
     report({ state: 'finishing', elapsedMs: performance.now() - t0, bytes });
     await output.finalize();
-    await api.invoke('recorder:close-file', { path, remove: false });
+    await api.invoke('recorder:close-file', { path });
     return path;
   } finally {
     for (const track of tracks) track.stop();
@@ -154,6 +157,7 @@ async function toGif(videoPath: string, init: RecorderInit): Promise<void> {
     type: 'module',
   });
   let position = 0;
+  let frame = 0;
   const encode = (message: GifMessage, transfer: Transferable[] = []) =>
     new Promise<void>((resolve, reject) => {
       worker.onmessage = async (event: MessageEvent<Uint8Array>) => {
@@ -164,6 +168,10 @@ async function toGif(videoPath: string, init: RecorderInit): Promise<void> {
         } catch (error) {
           reject(error);
         }
+      };
+      worker.onerror = (event) => {
+        event.preventDefault();
+        reject(new Error(event.message || 'The GIF worker stopped unexpectedly.'));
       };
       worker.postMessage(message, transfer);
     });
@@ -177,17 +185,18 @@ async function toGif(videoPath: string, init: RecorderInit): Promise<void> {
         | null;
       if (!ctx) continue;
       const rgba = ctx.getImageData(0, 0, width, height).data.buffer as ArrayBuffer;
-      await encode({ type: 'frame', rgba, width, height, delayMs: Math.round(step * 1000) }, [
-        rgba,
-      ]);
+      // GIF stores centiseconds. Round cumulative time to avoid drift.
+      const start = Math.round((frame * 100) / init.fps);
+      const end = Math.round(((frame + 1) * 100) / init.fps);
+      await encode({ type: 'frame', rgba, width, height, delayMs: (end - start) * 10 }, [rgba]);
+      frame++;
     }
     await encode({ type: 'finish' });
   } finally {
     worker.terminate();
     input.dispose();
   }
-  await api.invoke('recorder:close-file', { path: gifPath, remove: false });
-  await api.invoke('recorder:close-file', { path: videoPath, remove: true });
+  await api.invoke('recorder:close-file', { path: gifPath });
 }
 
 async function main(): Promise<void> {

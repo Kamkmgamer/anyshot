@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { ALL_FORMATS, BufferSource, EncodedPacketSink, Input } from 'mediabunny';
@@ -15,15 +15,22 @@ import {
 
 let ctx: Launched;
 let dir: string;
+let temp: string;
 
 test.beforeEach(async () => {
   ctx = await launch();
   dir = join(ctx.userData, 'videos');
-  await ctx.app.evaluate(async (_e, dir) => {
-    await globalThis.__anyshot?.patch({
-      recording: { saveDir: dir, whenDone: 'copyPath', fps: 15 },
-    });
-  }, dir);
+  temp = join(ctx.userData, 'tmp');
+  await mkdir(temp);
+  await ctx.app.evaluate(
+    async ({ app }, [dir, temp]) => {
+      app.setPath('temp', temp);
+      await globalThis.__anyshot?.patch({
+        recording: { saveDir: dir, whenDone: 'copyPath', fps: 15, filenameTemplate: 'clip' },
+      });
+    },
+    [dir, temp] as const,
+  );
   await showFixture(ctx.app);
 });
 
@@ -33,6 +40,7 @@ test.afterEach(async () => {
 });
 
 async function recordFor(action: 'recordArea' | 'recordGif', ms: number): Promise<string> {
+  const before = await readdir(dir).catch((): string[] => []);
   await dispatch(ctx.app, action);
   const overlay = await pageOf(ctx.app, 'overlay');
   await expect
@@ -57,13 +65,19 @@ async function recordFor(action: 'recordArea' | 'recordGif', ms: number): Promis
   await closeFixture(ctx.app);
   await dispatch(ctx.app, 'stopRecording');
   await expect.poll(() => windowKinds(ctx.app), { timeout: 30_000 }).toEqual([]);
-  const files = await readdir(dir);
+  const files = (await readdir(dir)).filter((name) => !before.includes(name));
   expect(files).toHaveLength(1);
   return join(dir, files[0] ?? '');
 }
 
 test('records an area to a playable file and stops cleanly', async () => {
+  await mkdir(dir);
+  for (const ext of ['mp4', 'webm']) await writeFile(join(dir, `clip.${ext}`), 'previous');
   const file = await recordFor('recordArea', 2500);
+  expect(file).toMatch(/clip \(2\)\.(mp4|webm)$/);
+  for (const ext of ['mp4', 'webm']) {
+    expect(await readFile(join(dir, `clip.${ext}`), 'utf8')).toBe('previous');
+  }
   const bytes = await readFile(file);
   expect(bytes.length).toBeGreaterThan(2000);
   const isMp4 = bytes.subarray(4, 8).toString('latin1') === 'ftyp';
@@ -95,5 +109,25 @@ test('records a GIF via an intermediate video that is removed afterwards', async
   const bytes = await readFile(file);
   expect(bytes.subarray(0, 6).toString('latin1')).toBe('GIF89a');
   expect(bytes[bytes.length - 1]).toBe(0x3b);
-  console.log(`gif: ${bytes.length} bytes`);
+  expect(await readdir(temp)).toEqual([]);
+  await dispatch(ctx.app, 'settings');
+  const page = await pageOf(ctx.app, 'settings');
+  const gif = await page.evaluate(async (base64) => {
+    const data = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+    const decoder = new ImageDecoder({ data, type: 'image/gif' });
+    try {
+      await decoder.tracks.ready;
+      const delays = [];
+      for (const frameIndex of [0, 1, 2]) {
+        const { image } = await decoder.decode({ frameIndex });
+        delays.push(image.duration);
+        image.close();
+      }
+      return { count: decoder.tracks.selectedTrack?.frameCount, delays };
+    } finally {
+      decoder.close();
+    }
+  }, bytes.toString('base64'));
+  expect(gif.count).toBeGreaterThan(10);
+  expect(gif.delays).toEqual([70_000, 60_000, 70_000]);
 });

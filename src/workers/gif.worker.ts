@@ -20,6 +20,6 @@ scope.onmessage = (event: MessageEvent<GifMessage>) => {
     gif.finish();
   }
   const bytes = gif.bytesView().slice();
-  gif.reset();
+  gif.stream.reset();
   scope.postMessage(bytes, [bytes.buffer]);
 };

@@ -234,7 +234,7 @@ export interface InvokeContract {
   'recorder:init': Channel<void, RecorderInit>;
   'recorder:open-file': Channel<{ ext: 'mp4' | 'webm' | 'gif' }, string>;
   'recorder:write': Channel<{ path: string; data: Uint8Array; position: number }, void>;
-  'recorder:close-file': Channel<{ path: string; remove: boolean }, void>;
+  'recorder:close-file': Channel<{ path: string }, void>;
   'recorder:status': Channel<RecorderStatus, void>;
   'recorder:finish': Channel<{ ok: boolean; error?: string }, void>;
   'recorder:control': Channel<'stop' | 'pause' | 'resume', void>;

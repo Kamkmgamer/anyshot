@@ -127,7 +127,7 @@ export function findShift(prev: Uint8Array, next: Uint8Array, height: number): S
 
 /** Accumulates scrolled frames into one tall image, keeping only new rows. */
 export class Stitcher {
-  private chunks: Uint8Array[] = [];
+  private chunks: RgbaFrame['data'][] = [];
   private rows = 0;
   private last: { frame: RgbaFrame; profile: Uint8Array } | null = null;
   private footer = 0;
@@ -142,20 +142,22 @@ export class Stitcher {
     return this.rows + this.footer;
   }
 
-  /** Adds a frame; returns how many rows it contributed (0 when nothing new or unknown). */
-  push(frame: RgbaFrame): number {
+  /** Adds a frame and returns its new rows, or null if the overlap is unknown. */
+  push(frame: RgbaFrame): number | null {
     if (frame.width !== this.width || frame.height !== this.frameHeight)
       throw new Error('Frame size changed');
+    if (this.height >= this.maxHeight) return 0;
     const profile = rowProfiles(frame);
     const rowBytes = this.width * 4;
     if (!this.last) {
-      this.chunks.push(frame.data.slice(0) as Uint8Array);
-      this.rows = frame.height;
+      this.rows = Math.min(frame.height, this.maxHeight);
+      this.chunks.push(frame.data.slice(0, this.rows * rowBytes));
       this.last = { frame, profile };
-      return frame.height;
+      return this.rows;
     }
     const found = findShift(this.last.profile, profile, frame.height);
-    if (!found || found.shift === 0) return 0;
+    if (!found) return null;
+    if (found.shift === 0) return 0;
     if (this.footer === 0 && found.fixedBottom > 0) {
       // The first frame's bottom rows were a sticky footer: hold them back until the end.
       this.trimRows(found.fixedBottom);
@@ -166,10 +168,7 @@ export class Stitcher {
     const take = Math.max(0, Math.min(found.shift, room));
     if (take > 0) {
       this.chunks.push(
-        frame.data.slice(
-          (end - found.shift) * rowBytes,
-          (end - found.shift + take) * rowBytes,
-        ) as Uint8Array,
+        frame.data.slice((end - found.shift) * rowBytes, (end - found.shift + take) * rowBytes),
       );
       this.rows += take;
     }
@@ -181,7 +180,8 @@ export class Stitcher {
     const rowBytes = this.width * 4;
     let remove = n;
     while (remove > 0 && this.chunks.length > 0) {
-      const lastChunk = this.chunks[this.chunks.length - 1] as Uint8Array;
+      const lastChunk = this.chunks[this.chunks.length - 1];
+      if (!lastChunk) break;
       const chunkRows = lastChunk.length / rowBytes;
       if (chunkRows <= remove) {
         this.chunks.pop();
