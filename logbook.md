@@ -25,7 +25,10 @@ Items in order 2, 6, 3, 4, 1, 7, 5.
 - **5 History preview.** Clicking a card selects it and opens a quick look inside the History window (`role="dialog"`, focus moves in): the full image, size, date/time, "n / total", ←/→ (and the side arrows) to move, and Copy / Edit / Pin / Save as… / Delete. Esc, Space, the ✕ or a click on the backdrop close it and focus returns to the card. Only the previewed entry's full image is fetched (`/@history/<id>/image`, one `<img>` at a time); the grid stays thumbnails with `content-visibility`. Mapping change: double-click now opens the editor (was copy). Enter (and now Ctrl+C) still copies, Delete deletes, Ctrl+E edits, Space toggles the preview. A double-click's first click opens the preview, so the backdrop ignores clicks with `detail ≥ 2` and the preview handles `dblclick` (not on its buttons) as Edit; that keeps double-click deterministic without delaying single clicks. Deleting from the preview stays open on the next entry. e2e: `history-preview.spec.ts` (thumbnails only in the grid, one full image on preview, arrows, copy result size, delete, Esc, Space, outside click, double-click → editor).
 - **Screenshots** (`ANYSHOT_SCREENSHOTS=1 xvfb-run -a bun run test:e2e tests/e2e/screenshots.spec.ts`): added `settings-theme-light.png`, `settings-theme-dark.png`, `settings-tools-reset.png`, `history-preview.png`, `editor-save-menu.png`, `measure-clamped.png`; `overlay.png`/`editor.png` regenerated.
 
-**Next:** final verification (format, lint, typecheck, test, build, full e2e twice) and record the SHA.
+- **Final verification** on `b7a53ab` under Xvfb: `bun run format:check`, `lint`, `typecheck`, `test` (18 files, 93 unit tests), `build` all pass; `xvfb-run -a bun run test:e2e` twice → 45 passed, 4 skipped (the opt-in screenshot generator) both times; the generator itself passes (4/4). The following commit only refreshes two screenshots (timestamps) and this logbook.
+- Not verifiable here: Windows (Ctrl+Alt+S is AltGr+S on some keyboard layouts, which may type a character instead; native radio/checkbox rendering), real system theme switching (Xvfb reports dark/no preference), touch input for press-and-hold.
+
+**Next:** supervisor review and PR for `feat/user-feedback`; then verify on Windows (see above).
 
 ## 2026-11-19 - PR #1 review fixes
 
