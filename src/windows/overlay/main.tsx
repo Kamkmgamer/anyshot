@@ -174,11 +174,13 @@ function onPointerMove(e: PointerEvent): void {
       );
       return;
     }
-    case 'resize':
+    case 'resize': {
       if (!selection) return;
-      drag = { type: 'resize', handle: flippedHandle(selection, drag.handle, p) };
-      setSelection(resizeSelection(selection, drag.handle, p, screenSize()), false);
+      const { handle } = drag;
+      drag = { type: 'resize', handle: flippedHandle(selection, handle, p) };
+      setSelection(resizeSelection(selection, handle, p, screenSize()), false);
       return;
+    }
     case 'move':
       setSelection(
         moveSelection(drag.origin, p.x - drag.start.x, p.y - drag.start.y, screenSize()),
@@ -332,7 +334,7 @@ async function finish(action: DeliverAction): Promise<void> {
     });
   } catch (error) {
     console.error('[overlay] finish failed', error);
-    ui.set({ busy: false, toast: 'Something went wrong; please try again.' });
+    await api.invoke('overlay:cancel');
   }
 }
 

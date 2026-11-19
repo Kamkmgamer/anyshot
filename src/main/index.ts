@@ -32,8 +32,8 @@ function refreshTray(settings: Settings): void {
   if (isTest) Menu.setApplicationMenu(menu);
 }
 
-app.on('second-instance', (_event, argv) => {
-  for (const command of parseCli(argv)) dispatch(command.action, command.file);
+app.on('second-instance', (_event, argv, workingDirectory) => {
+  for (const command of parseCli(argv, workingDirectory)) dispatch(command.action, command.file);
 });
 
 // Stay in the tray when the last window closes.

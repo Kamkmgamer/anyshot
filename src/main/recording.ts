@@ -47,7 +47,6 @@ export async function startRecording(display: Display, rect: Rect, gif: boolean)
     microphone: settings.recording.microphone && !gif,
     gif,
   };
-  setCaptureDisplay(display.id);
   // Only the recorder keeps running while hidden; every other window throttles.
   const win = createWindow('recorder', {
     show: false,
@@ -56,6 +55,7 @@ export async function startRecording(display: Display, rect: Rect, gif: boolean)
     skipTaskbar: true,
     webPreferences: { backgroundThrottling: false },
   });
+  setCaptureDisplay(win.webContents, display.id);
   active = {
     win,
     init,

@@ -28,6 +28,7 @@ interface Session {
 }
 
 let session: Session | null = null;
+let delaying = false;
 let lastArea: { displayId: number; rect: Rect } | null = null;
 
 const isLinux = process.platform === 'linux';
@@ -47,7 +48,13 @@ export async function startCapture(mode: CaptureMode): Promise<void> {
     return;
   }
   const delay = appState.delaySeconds;
-  if (delay > 0 && mode !== 'last') await new Promise((r) => setTimeout(r, delay * 1000));
+  if (delaying) return;
+  if (delay > 0 && mode !== 'last') {
+    delaying = true;
+    await new Promise((resolve) => setTimeout(resolve, delay * 1000));
+    delaying = false;
+    if (session) return;
+  }
 
   const startedAt = performance.now();
   let end = () => {};
@@ -80,11 +87,14 @@ export async function startCapture(mode: CaptureMode): Promise<void> {
       display,
       frameId: null,
       init: grab.then((frame) => {
+        if (session !== current || win.isDestroyed()) throw new Error('Capture ended');
         const frameId = putFrame(frame);
         state.frameId = frameId;
         return buildInit(mode, display, frameId, frame);
       }),
     };
+    // The renderer may close before it asks for the grab result.
+    void state.init.catch(() => undefined);
     reused?.claim(state.init);
     const contentsId = win.webContents.id;
     current.overlays.set(contentsId, state);
@@ -161,9 +171,11 @@ function focusFirstOverlay(): void {
 }
 
 /** Closes every overlay (destroying its renderer) and ends the session. */
-export function endCapture(): void {
+export function endCapture(owner?: BrowserWindow): void {
   const current = session;
-  if (!current) return;
+  if (!current || (owner && ![...current.overlays.values()].some(({ win }) => win === owner))) {
+    return;
+  }
   session = null;
   current.end();
   for (const { win, frameId } of current.overlays.values()) {
@@ -197,6 +209,7 @@ export function prewarm(): void {
   const init = new Promise<OverlayInit>((resolve, reject) => {
     claim = (p) => p.then(resolve, reject);
   });
+  void init.catch(() => undefined);
   const entry: Warm = { win, init, claim };
   warm = entry;
   win.once('closed', () => {
@@ -236,18 +249,17 @@ export function overlayDisplay(win: BrowserWindow): Display | undefined {
 handle('overlay:init', (_req, { win }) => (warm?.win === win ? warm.init : stateOf(win).init));
 
 handle('overlay:painted', (_req, { win }) => {
-  if (!session) return;
+  const state = session?.overlays.get(win.webContents.id);
+  if (!session || session.finishing || !state) return;
   if (!session.shown) {
     session.shown = true;
     recordTiming('hotkeyToOverlay', performance.now() - session.startedAt);
   }
-  // X11 window managers keep panels above plain always-on-top windows; full
-  // screen covers them. Set only now: a full-screen window is shown at once.
+  // X11 window managers keep panels above plain always-on-top windows.
   if (isLinux) win.setFullScreen(true);
   win.show();
-  // The display under the pointer keeps focus so keyboard shortcuts work at once.
   const cursor = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  if (stateOf(win).display.id === cursor.id) win.focus();
+  if (state.display.id === cursor.id) win.focus();
 });
 
 handle('overlay:selection-start', (_req, { win }) => {
@@ -256,8 +268,10 @@ handle('overlay:selection-start', (_req, { win }) => {
   }
 });
 
-handle('overlay:cancel', () => endCapture());
-handle('overlay:hide', () => hideOverlays());
+handle('overlay:cancel', (_req, { win }) => endCapture(win));
+handle('overlay:hide', (_req, { win }) => {
+  if (overlayDisplay(win)) hideOverlays();
+});
 
 handle('capture:remember-area', ({ rect }, { win }) => {
   const display = overlayDisplay(win);

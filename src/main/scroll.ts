@@ -16,7 +16,6 @@ let active: { win: BrowserWindow; init: ScrollInit } | null = null;
  */
 export async function startScrollCapture(display: Display, rect: Rect): Promise<void> {
   if (active) return;
-  setCaptureDisplay(display.id);
   const { bounds, scaleFactor, workArea } = display;
   const init: ScrollInit = {
     displayId: display.id,
@@ -51,6 +50,7 @@ export async function startScrollCapture(display: Display, rect: Rect): Promise<
     // Frames must keep flowing while the user works in another window.
     webPreferences: { backgroundThrottling: false },
   });
+  setCaptureDisplay(win.webContents, display.id);
   win.setAlwaysOnTop(true, 'screen-saver');
   // Show without focus so the page being scrolled keeps keyboard and wheel focus.
   win.once('ready-to-show', () => win.showInactive());

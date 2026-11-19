@@ -16,4 +16,11 @@ describe('command line', () => {
     expect(parseCli(['--open=/tmp/b.png'])).toEqual([{ action: 'openImage', file: '/tmp/b.png' }]);
     expect(parseCli(['--open', '--capture'])).toEqual([{ action: 'captureArea' }]);
   });
+
+  it('resolves relative files against the requesting instance directory', () => {
+    expect(parseCli(['--open', 'shot.png', '--open=/tmp/b.png'], '/tmp/caller')).toEqual([
+      { action: 'openImage', file: '/tmp/caller/shot.png' },
+      { action: 'openImage', file: '/tmp/b.png' },
+    ]);
+  });
 });

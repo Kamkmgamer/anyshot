@@ -17,9 +17,9 @@ export function registerIpc(): void {
   handle('clipboard:text', (text) => copyText(text));
   // Registered here, not by the capture session: editors opened from history,
   // files or the clipboard deliver too, without any capture having run.
-  handle('capture:deliver', async (request, { kind }) => {
+  handle('capture:deliver', async (request, { kind, win }) => {
     // The overlay has already encoded everything it needs; close it right away.
-    if (kind === 'overlay') (await import('./capture/session')).endCapture();
+    if (kind === 'overlay') (await import('./capture/session')).endCapture(win);
     return (await import('./deliver')).deliver(request);
   });
   handle('shell:open-url', async (url) => {

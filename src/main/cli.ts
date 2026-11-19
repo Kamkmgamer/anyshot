@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import type { HotkeyAction } from '../shared/settings';
 
 export type AppAction =
@@ -34,8 +35,12 @@ const FLAGS: Record<string, AppAction> = {
  * `anyshot --capture` in their desktop's keyboard settings when global
  * shortcuts aren't available (most Wayland sessions).
  */
-export function parseCli(argv: readonly string[]): CliCommand[] {
+export function parseCli(argv: readonly string[], workingDirectory?: string): CliCommand[] {
   const commands: CliCommand[] = [];
+  const openFile = (file: string): CliCommand => ({
+    action: 'openImage',
+    file: file && workingDirectory ? resolve(workingDirectory, file) : file,
+  });
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i] ?? '';
     const action = FLAGS[arg];
@@ -43,11 +48,11 @@ export function parseCli(argv: readonly string[]): CliCommand[] {
     else if (arg === '--open') {
       const file = argv[i + 1];
       if (file && !file.startsWith('--')) {
-        commands.push({ action: 'openImage', file });
+        commands.push(openFile(file));
         i++;
       }
     } else if (arg.startsWith('--open=')) {
-      commands.push({ action: 'openImage', file: arg.slice('--open='.length) });
+      commands.push(openFile(arg.slice('--open='.length)));
     }
   }
   return commands;
