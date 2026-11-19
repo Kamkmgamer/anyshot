@@ -7,7 +7,7 @@ import { isProject, PROJECT_EXTENSION, unpackProject } from '../shared/project';
 import { readPng } from './clipboard';
 import { writeBytes } from './deliver';
 import { type Frame, putFrame, releaseFrame } from './frames';
-import { getRetainedEntry, readEditable, release } from './history';
+import { getRetainedEntry, readEditable, release, retain } from './history';
 import { handle } from './ipc';
 import { registerMediaRoute } from './protocol';
 import { getSettings } from './settings-store';
@@ -16,6 +16,8 @@ import { createWindow } from './windows';
 interface EditorState {
   init: EditorInit;
   dirty: boolean;
+  /** The history entry this editor works on, retained so pruning keeps it while open. */
+  held: string | null;
 }
 
 const editors = new Map<number, EditorState>();
@@ -37,10 +39,12 @@ function servedSource(bytes: Uint8Array, mime: string): { source: EditorSource; 
   return { source: { kind: 'url', url: `/@editor-src/${token}` }, token };
 }
 
+/** `held` is an entry the caller already retained; the editor releases it on close. */
 function open(
   init: Omit<EditorInit, 'settings'>,
   size: { width: number; height: number },
   cleanup: () => void,
+  held: string | null = null,
 ) {
   const { workArea, scaleFactor } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   // Fit the image at its native size if possible, with room for the toolbars.
@@ -59,12 +63,14 @@ function open(
     backgroundColor: '#111113',
   });
   const id = win.webContents.id;
-  editors.set(id, { init: { ...init, settings: getSettings() }, dirty: false });
+  editors.set(id, { init: { ...init, settings: getSettings() }, dirty: false, held });
   win.once('ready-to-show', () => win.show());
   win.on('close', (event) => confirmClose(win, event));
   win.once('closed', () => {
+    const state = editors.get(id);
     editors.delete(id);
     cleanup();
+    if (state?.held) release(state.held);
   });
   return win;
 }
@@ -119,10 +125,8 @@ export async function openHistoryEntry(id: string): Promise<void> {
       open(
         { source, doc: project.doc, title, projectPath: null, historyId: id },
         project.image,
-        () => {
-          sources.delete(token);
-          release(id);
-        },
+        () => sources.delete(token),
+        id,
       );
       return;
     }
@@ -135,12 +139,27 @@ export async function openHistoryEntry(id: string): Promise<void> {
         historyId: id,
       },
       entry,
-      () => release(id),
+      () => {},
+      id,
     );
   } catch (error) {
     release(id);
     throw error;
   }
+}
+
+/**
+ * Moves an editor's hold to the entry its edits now go to (the first save of
+ * a fresh capture, Save as copy). The new entry is retained before the old
+ * one is released, so a shared entry is never dropped in between.
+ */
+export function holdEntry(win: BrowserWindow, id: string): void {
+  if (win.isDestroyed()) return;
+  const state = editors.get(win.webContents.id);
+  if (!state || state.held === id) return;
+  retain(id);
+  if (state.held) release(state.held);
+  state.held = id;
 }
 
 /** Opens an image or `.anyshot` project; asks for a file when none is given. */

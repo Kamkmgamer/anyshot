@@ -99,8 +99,13 @@ export function quickSteps(settings: Settings): DeliverAction[] {
 /**
  * Finishes a capture: runs the requested action, records the image in
  * history and shows the follow-up UI (floating preview, pin, OCR, upload).
+ * `onEntry` gets the resulting entry id while this delivery still holds it,
+ * so a caller (an editor) can take its own hold first.
  */
-export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
+export async function deliver(
+  request: DeliverRequest,
+  onEntry?: (id: string) => void,
+): Promise<DeliverResult> {
   const settings = getSettings();
   const png = new Uint8Array(request.image.bytes);
   const steps = request.action === 'quick' ? quickSteps(settings) : [request.action];
@@ -131,6 +136,7 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
     : undefined;
   if (existing) {
     result.historyId = existing.id;
+    onEntry?.(existing.id);
     if (steps.includes('pin')) await (await import('./pins')).pinEntry(existing.id);
     return result;
   }
@@ -138,6 +144,7 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
   result.historyId = entry.id;
 
   try {
+    onEntry?.(entry.id);
     const followUp = steps.includes('pin')
       ? (await import('./pins')).pinEntry(entry.id, request.screenRect as Rectangle | undefined)
       : steps.includes('ocr')

@@ -152,3 +152,27 @@ test('captures without a history entry keep the plain Save button', async () => 
   await expect(editor.getByTestId('editor-save')).toBeVisible();
   await expect(editor.getByTestId('save-menu-toggle')).toHaveCount(0);
 });
+
+test('the editor holds the copy it works on, not the original', async () => {
+  const { editor, original } = await editHistoryCapture();
+  await ctx.app.evaluate(async () => {
+    await globalThis.__anyshot?.patch({ output: { historySize: 1 } });
+  });
+  await editor.getByTestId('save-menu-toggle').click();
+  await editor.getByTestId('save-copy').click();
+  await expect(editor.getByTestId('editor-status')).toContainText('Saved a copy to');
+  // The editor's hold moved to the copy, so the original falls out of the
+  // one-entry history while the copy it now edits stays.
+  await expect.poll(historyIds).not.toContain(original);
+  const [copy = ''] = await historyIds();
+  expect(copy).not.toBe('');
+  // A new capture still can't push the held copy out.
+  await pressClosing(await selectCard(ctx.app), 'Control+c');
+  await expect.poll(historyIds).toHaveLength(2);
+  expect(await historyIds()).toContain(copy);
+  expect((await readFile(historyFile(`${copy}.anyshot`))).length).toBeGreaterThan(0);
+  // Closing the editor lets the copy go too.
+  await pressClosing(editor, 'Control+w');
+  await expect.poll(historyIds).toHaveLength(1);
+  expect(await historyIds()).not.toContain(copy);
+});
