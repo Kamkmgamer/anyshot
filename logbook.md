@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 9 (scroll capture). Exact next action: write the stitch algorithm as a pure module `src/shared/stitch.ts` (find vertical overlap between consecutive frames by comparing row hashes/diffs, ignore fixed header/footer rows, append only new rows, cap at `scroll.maxHeight`) with Vitest tests, then `src/main/scroll.ts` + `src/windows/scroll/` (small visible HUD outside the region with Stop/Cancel, `getDisplayMedia` stream sampled ~8 fps, crop, stitch in `src/workers/stitch.worker.ts`, finish → encode PNG → `capture:deliver`), e2e scrolling the fixture.
+**Next:** step 9 (scroll capture) — the stitcher `src/shared/stitch.ts` is done and unit-tested. Exact next action: `src/main/scroll.ts` (replace stub: visible HUD window `scroll` placed outside the region, `scroll:init` with crop/display size, `scroll:finish` → deliver), `src/windows/scroll/` (getDisplayMedia, sample ~6 fps with MediaStreamTrackProcessor or a video element + OffscreenCanvas, crop, push to `src/workers/stitch.worker.ts`, show W×H, Stop/Cancel), then encode PNG via `exportImage`-like path and `capture:deliver` quick action; e2e that scrolls a tall fixture window via `webContents.executeJavaScript('scrollBy')`.
 
 ## Status (v1 build order)
 
@@ -20,7 +20,7 @@
 | 6 More tools | done | censor (WebGL pixelate/blur, solid), spotlight, magnify, measure, stamp, colour picker, invert, adjust (shader + presets), beautify. Auto-redact (OCR/PII) pending |
 | 7 Recording | done | MP4 (H.264, VP9/WebM fallback) via getDisplayMedia + Mediabunny streamed to disk, mic (untested here), GIF via intermediate MP4 + gifenc worker, e2e. No HUD/webcam/click highlights |
 | 8 OCR + uploads | done | OCR (idle-exiting utilityProcess, offline English), uploads: provider interface, HTTP multipart + S3 SigV4, keys via safeStorage; unit + e2e |
-| 9 Scroll capture | pending | |
+| 9 Scroll capture | partial | stitcher (luma-profile matching, sticky header/footer, height cap) unit-tested; window pending |
 | 10 Polish | pending | |
 
 ## 2026-11-19 - step 8 uploads
