@@ -1,0 +1,144 @@
+body {
+  color: var(--bar-fg);
+}
+.editor {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  height: 100%;
+}
+#top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--bar-bg);
+  border-bottom: 1px solid var(--bar-border);
+}
+#top .title {
+  font-weight: 600;
+  margin-right: 6px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#top .size {
+  color: var(--bar-muted);
+  font-variant-numeric: tabular-nums;
+}
+#top .spacer {
+  flex: 1;
+}
+#top .zoom {
+  min-width: 52px;
+  text-align: center;
+  color: var(--bar-fg);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+#top .done {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font:
+    600 13px system-ui,
+    sans-serif;
+  cursor: pointer;
+  margin-left: 6px;
+}
+#tools {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #18181b;
+}
+#tools .options {
+  box-shadow: none;
+}
+#tools .popover {
+  top: 48px;
+  left: 10px;
+}
+#viewport {
+  position: relative;
+  overflow: auto;
+  display: grid;
+  place-items: center;
+  background: repeating-conic-gradient(#1c1c1f 0% 25%, #222226 0% 50%) 50% / 20px 20px;
+}
+#clip {
+  position: relative;
+  overflow: hidden;
+  margin: 24px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+#stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+#stage .layer {
+  width: 100%;
+  height: 100%;
+}
+#crop {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  z-index: 5;
+}
+#crop-box {
+  position: absolute;
+  outline: 1px solid #fff;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55);
+  background-image:
+    linear-gradient(
+      to right,
+      transparent calc(33.33% - 0.5px),
+      rgba(255, 255, 255, 0.5) calc(33.33% - 0.5px),
+      rgba(255, 255, 255, 0.5) calc(33.33% + 0.5px),
+      transparent calc(33.33% + 0.5px),
+      transparent calc(66.66% - 0.5px),
+      rgba(255, 255, 255, 0.5) calc(66.66% - 0.5px),
+      rgba(255, 255, 255, 0.5) calc(66.66% + 0.5px),
+      transparent calc(66.66% + 0.5px)
+    ),
+    linear-gradient(
+      to bottom,
+      transparent calc(33.33% - 0.5px),
+      rgba(255, 255, 255, 0.5) calc(33.33% - 0.5px),
+      rgba(255, 255, 255, 0.5) calc(33.33% + 0.5px),
+      transparent calc(33.33% + 0.5px),
+      transparent calc(66.66% - 0.5px),
+      rgba(255, 255, 255, 0.5) calc(66.66% - 0.5px),
+      rgba(255, 255, 255, 0.5) calc(66.66% + 0.5px),
+      transparent calc(66.66% + 0.5px)
+    );
+}
+.crop-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.crop-bar button {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--bar-hover);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.crop-bar button.primary {
+  background: var(--accent);
+  color: #fff;
+}
