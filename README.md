@@ -18,8 +18,8 @@ Status: v1 in development. Linux (X11) is tested under Xvfb; Windows builds but 
 - **Annotate** with select/move, pencil, line, arrow, rectangle, ellipse, marker, text, numbered badges, censor (pixelate, blur or solid), spotlight, magnifier, measure, stamps and a colour picker. Undo/redo, duplicate, nudge, restyle selected annotations.
 - **Image effects:** invert, colour adjustments with presets, and a Beautify frame (gradient background, padding, rounded corners, shadow). Censor and adjustments run as WebGL shaders.
 - **Finish** with copy, save (PNG, JPEG or WebP, filename templates), pin to screen, open in the editor, OCR or upload. Enter runs your quick action.
-- **After the capture:** floating preview with copy/save/pin/edit and drag-out, a history window, and pinned images you can move and zoom.
-- **Editor** for captures, history entries, image files and the clipboard: zoom, undoable crop, and editable `.anyshot` project files.
+- **After the capture:** floating preview with copy/save/pin/edit and drag-out, a history window with a quick-look preview, and pinned images you can move and zoom.
+- **Editor** for captures, history entries, image files and the clipboard: zoom (hold the buttons to keep zooming), undoable crop, and editable `.anyshot` project files. Annotated captures stay editable in history; saving an edited history capture can replace it or save a copy (Ctrl+S / Ctrl+Alt+S).
 - **Record** an area to MP4 (H.264, falling back to VP9/VP8 WebM) or GIF, written to disk as it records. Optional microphone. System audio on Windows.
 - **Scroll capture:** select an area, scroll it, and get one stitched image.
 - **OCR** offline (English) in a background process that exits when idle.
