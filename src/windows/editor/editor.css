@@ -143,3 +143,83 @@ body {
   background: var(--accent);
   color: #fff;
 }
+.split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  height: 32px;
+  border-radius: 7px;
+  background: var(--bar-hover);
+}
+.split button {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.split > button:hover:not(:disabled) {
+  background: var(--bar-hover);
+}
+.split > button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.split > button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.split .split-main {
+  gap: 6px;
+  padding: 0 10px 0 7px;
+  border-radius: 7px 0 0 7px;
+}
+.split .split-toggle {
+  justify-content: center;
+  width: 24px;
+  border-left: 1px solid var(--bar-border);
+  border-radius: 0 7px 7px 0;
+}
+.split .menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 250px;
+  padding: 4px;
+  background: var(--window-bg);
+  color: var(--bar-fg);
+  border: 1px solid var(--bar-border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
+}
+.split .menu button {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 8px;
+  padding: 7px 10px 7px 8px;
+  border-radius: 6px;
+  text-align: left;
+  outline: none;
+}
+.split .menu button:hover,
+.split .menu button:focus-visible,
+.split .menu button:focus {
+  background: var(--accent);
+  color: #fff;
+}
+.split .menu .check {
+  display: grid;
+  place-items: center;
+}
+.split .menu kbd {
+  color: inherit;
+  opacity: 0.7;
+  font:
+    12px ui-monospace,
+    monospace;
+}

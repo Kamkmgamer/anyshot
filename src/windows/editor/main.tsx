@@ -13,6 +13,8 @@ import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
 import { followTheme } from '../common/theme';
 import { Bar, Button, ColorPopover, OptionsRow, RepeatButton, ToolStrip } from '../common/toolbar';
+import { SaveSplitButton } from './save-menu';
+import { modeForShortcut, type SaveMode } from './save-mode';
 
 const api = window.anyshot;
 
@@ -24,6 +26,7 @@ interface EditorUi {
   busy: boolean;
   status: string | null;
   crop: Rect | null;
+  saveMode: SaveMode;
 }
 
 const ui = createStore<EditorUi>({
@@ -34,6 +37,7 @@ const ui = createStore<EditorUi>({
   busy: false,
   status: null,
   crop: null,
+  saveMode: 'replace',
 });
 
 const viewport = el('viewport');
@@ -203,8 +207,12 @@ async function editableSource(doc: Doc): Promise<EditableSource | undefined> {
   return isBlankDoc(doc) ? undefined : { doc, source: await encodedSource() };
 }
 
-/** Exports and hands the image to main; true when the action succeeded. */
-async function deliver(action: DeliverAction, label: string): Promise<boolean> {
+/**
+ * Exports and hands the image to main; true when the action succeeded. The
+ * result updates this editor's history entry, or with `asCopy` becomes a new
+ * entry that the editor then works on.
+ */
+async function deliver(action: DeliverAction, label: string, asCopy = false): Promise<boolean> {
   if (ui.get().busy) return false;
   ui.set({ busy: true, status: null });
   try {
@@ -221,15 +229,17 @@ async function deliver(action: DeliverAction, label: string): Promise<boolean> {
       quiet: true,
       ...(out.save ? { saveImage: out.save } : {}),
       ...(edit ? { edit } : {}),
-      ...(historyId ? { historyId } : {}),
+      ...(historyId && !asCopy ? { historyId } : {}),
     });
     if (result.historyId) {
       historyId = result.historyId;
       // History now holds these edits (editable), so closing loses nothing.
       markSaved(doc);
     }
-    if (result.ok) ui.set({ status: result.path ? `Saved to ${result.path}` : label });
-    else if (result.error !== 'cancelled') ui.set({ status: result.error ?? 'Failed' });
+    if (result.ok) {
+      const saved = asCopy ? 'Saved a copy' : 'Saved';
+      ui.set({ status: result.path ? `${saved} to ${result.path}` : label });
+    } else if (result.error !== 'cancelled') ui.set({ status: result.error ?? 'Failed' });
     return result.ok;
   } catch (error) {
     ui.set({ status: `Failed: ${String(error)}` });
@@ -237,6 +247,20 @@ async function deliver(action: DeliverAction, label: string): Promise<boolean> {
   } finally {
     ui.set({ busy: false });
   }
+}
+
+/** Saves an edited history capture over its entry or as a new one, and remembers the choice. */
+function saveEdits(mode: SaveMode): void {
+  if (ui.get().busy) return;
+  if (ui.get().saveMode !== mode) {
+    ui.set({ saveMode: mode });
+    void api
+      .invoke('settings:patch', { editor: { saveMode: mode } })
+      .catch((error: unknown) =>
+        console.error('[editor] could not remember the save choice', error),
+      );
+  }
+  void deliver('save', 'Saved', mode === 'copy');
 }
 
 /** Records `doc` as written; edits made while it was being written stay unsaved. */
@@ -297,6 +321,7 @@ function TopBar() {
     cropping: s.cropping,
     busy: s.busy,
     crop: s.crop,
+    saveMode: s.saveMode,
   }));
   const region = s.crop ?? { width: size.width, height: size.height };
   return (
@@ -374,13 +399,17 @@ function TopBar() {
         onClick={() => void deliver('copy', 'Copied to the clipboard')}
         testId="editor-copy"
       />
-      <Button
-        icon="save"
-        label="Save image (Ctrl+S)"
-        disabled={s.busy}
-        onClick={() => void deliver('save', 'Saved')}
-        testId="editor-save"
-      />
+      {init.historyId ? (
+        <SaveSplitButton primary={s.saveMode} disabled={s.busy} onSave={saveEdits} />
+      ) : (
+        <Button
+          icon="save"
+          label="Save image (Ctrl+S)"
+          disabled={s.busy}
+          onClick={() => void deliver('save', 'Saved')}
+          testId="editor-save"
+        />
+      )}
       <Button
         icon="pin"
         label="Pin to screen"
@@ -436,8 +465,11 @@ function onKeyDown(e: KeyboardEvent): void {
     else if (e.key === 'Escape') endCrop(false);
     return;
   }
-  if (mod && key === 's') void (e.shiftKey ? saveProject(e.altKey) : deliver('save', 'Saved'));
-  else if (mod && key === 'c' && annotator.docs.selected.size === 0)
+  if (mod && key === 's') {
+    if (e.shiftKey) void saveProject(e.altKey);
+    else if (init.historyId) saveEdits(modeForShortcut(e.altKey, ui.get().saveMode));
+    else void deliver('save', 'Saved');
+  } else if (mod && key === 'c' && annotator.docs.selected.size === 0)
     void deliver('copy', 'Copied to the clipboard');
   else if (mod && key === 'o') void api.invoke('editor:open');
   else if (mod && key === 'w') void api.invoke('window:close');
@@ -540,7 +572,7 @@ async function boot(): Promise<void> {
       layout();
     }
   });
-  ui.set({ title: init.title, crop: doc.crop });
+  ui.set({ title: init.title, crop: doc.crop, saveMode: init.settings.editor.saveMode });
   render(<TopBar />, el('top'));
   render(<Tools />, el('tools'));
   wirePointer();

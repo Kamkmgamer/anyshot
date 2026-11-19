@@ -201,6 +201,7 @@ const ICONS = {
     </>
   ),
   chevronDown: <path d="M6 8l4 4 4-4" />,
+  check: <path d="M4.5 10.5l3.5 3.5 7.5-8" />,
 } satisfies Record<string, JSX.Element>;
 
 export type IconName = keyof typeof ICONS;
