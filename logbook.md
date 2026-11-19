@@ -17,6 +17,7 @@
 - Pins: zoom-out stops where one row of controls still fits (measured, never above 100 %); the row wraps for smaller pins; Close is first (`ffb3c17`).
 
 - Second CodeRabbit pass (on `e1a228b`): arrow-key nudges of a selection with measurements go through `clampMoveDelta` too (e2e: 10 × Shift+→ stops at the edge, keeps the length); added a rollback test for an overwritten image, thumbnail and project when the index write fails.
+- Fresh-clone e2e on `519eb02` failed once in `history-preview.spec.ts`: Space pressed right after closing the preview reached a stale key listener (re-subscribed in a deferred `useEffect`, so it still saw `previewing = true`). The listener now updates in a `useLayoutEffect`. `--repeat-each=10` of the spec: 20/20.
 - GitHub Actions is disabled for this repository (`actions/permissions` → `enabled: false`), so no CI has run since the v1 pushes at 20:40; a manual dispatch stays queued. Checks were run on the box instead.
 
 **Next:** re-enable Actions (repo Settings ▸ Actions) to get Linux + Windows CI on PR #2; verify on Windows (see the user-feedback entry); merge PR #2 after review.

@@ -1,7 +1,7 @@
 import '../common/ui.css';
 import './history.css';
 import { render } from 'preact';
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { HistoryEntry, ItemAction } from '../../shared/ipc';
 import { Icon, type IconName } from '../common/icons';
 import { followTheme } from '../common/theme';
@@ -194,7 +194,9 @@ function App() {
     [reload],
   );
 
-  useEffect(() => {
+  // A layout effect: the listener must see the new state as soon as it commits,
+  // or a key pressed right after closing the preview acts on the old state.
+  useLayoutEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const current = shown[selected];
       const mod = e.ctrlKey || e.metaKey;
