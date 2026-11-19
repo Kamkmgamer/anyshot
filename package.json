@@ -1,0 +1,48 @@
+{
+  "name": "anyshot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lean screenshot, annotation and screen-recording app for Windows and Linux",
+  "license": "MIT",
+  "main": "./out/main/index.js",
+  "packageManager": "bun@1.4.4",
+  "type": "module",
+  "dependencies": {
+    "gifenc": "^1.0.3",
+    "mediabunny": "^1.66.1",
+    "node-screenshots": "0.2.8",
+    "preact": "^11.2.0",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@electron/fuses": "2.1.3",
+    "@playwright/test": "1.65.1",
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "22",
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0",
+    "electron-vite": "6.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.1"
+  },
+  "trustedDependencies": [
+    "electron",
+    "esbuild"
+  ],
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "check": "biome check .",
+    "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "icons": "node scripts/make-icons.mjs",
+    "dist": "electron-vite build && electron-builder"
+  }
+}

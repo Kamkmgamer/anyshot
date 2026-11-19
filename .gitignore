@@ -2,3 +2,11 @@
 AGENTS.md
 CLAUDE.md
 .claude/
+
+# build output and local state
+node_modules/
+out/
+dist/
+test-results/
+playwright-report/
+*.log
