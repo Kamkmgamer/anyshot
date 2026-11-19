@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 3 (engine) — code is written and exercised by e2e (rect draw + undo/redo); exact next action: add Vitest unit tests for `src/engine` (hit-testing, history apply/invert, DocStore undo/redo, parseDoc round-trip), then commit step 3 and start step 4 (floating thumbnail, history store, pins).
+**Next:** step 4 (after capture). Exact next action: write `src/main/history.ts` (files + JSON index + WebP thumbs under userData/history, pruning to `output.historySize`, `onDelivered` hook), `app://local/@history/<id>/{image,thumb}` media route, floating thumbnail window (`src/windows/floating`, one shared window per corner, items via `floating:items`), pins (`src/main/pins.ts` + `src/windows/pin`), history window (`src/windows/history`, lazy list), then e2e.
 
 ## Status (v1 build order)
 
@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | 1 Skeleton | done | tray, hotkeys, single instance + argv, atomic settings, `app://`, typed IPC, Biome, Vitest, Playwright idle budget |
 | 2 Capture | done | node-screenshots + desktopCapturer fallback, overlay per display, select/resize/move, copy/save, e2e |
-| 3 Annotation engine | partial | all tools wired in overlay; unit tests pending |
+| 3 Annotation engine | done | plain TS in `src/engine`, 3 canvas layers, rAF + coalesced input, all tools, change-list undo, Vitest |
 | 4 After capture | pending | |
 | 5 Editor | pending | |
 | 6 More tools | pending | |
@@ -22,6 +22,13 @@
 | 8 OCR + uploads | pending | |
 | 9 Scroll capture | pending | |
 | 10 Polish | pending | |
+
+## 2026-11-19 - step 3 annotation engine
+
+- `src/engine` has no UI imports (guarded by a unit test). `DocStore` holds a serialisable `Doc` and a change list (`add`/`remove`/`update`/`effects`/`crop`/`batch`, each with an exact inverse). `CanvasView` owns the three layers; the committed layer redraws only on doc changes, the interaction layer once per animation frame while dragging. Moved annotations are hidden on the committed layer during the drag.
+- All step 6 tools (censor, spotlight, magnify, stamp, picker, measure) were cheap to add alongside the core ones, so they exist already; step 6 adds effects UI (beautify/adjust/invert) and polish.
+- Tests get their own `tsconfig.test.json` (DOM + Node) so main code still can't see DOM types.
+- Spotlight with one hole uses an even-odd path; several holes use a scratch layer with `destination-out`.
 
 ## 2026-11-19 - step 2 capture
 

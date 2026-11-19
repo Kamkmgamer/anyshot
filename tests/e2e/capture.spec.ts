@@ -16,8 +16,8 @@ import {
 let ctx: Launched;
 let saveDir: string;
 
-test.beforeEach(async (_fixtures, info) => {
-  const env: Record<string, string> = info.title.includes('desktopCapturer')
+test.beforeEach(async () => {
+  const env: Record<string, string> = test.info().title.includes('desktopCapturer')
     ? { ANYSHOT_CAPTURE_BACKEND: 'desktop-capturer' }
     : {};
   ctx = await launch([], {}, env);

@@ -361,6 +361,18 @@ function drawCensor(ctx: Ctx, a: CensorAnnotation, env: RenderEnv): void {
 }
 
 function drawSpotlights(ctx: Ctx, spots: readonly SpotlightAnnotation[], env: RenderEnv): void {
+  const only = spots.length === 1 ? spots[0] : undefined;
+  if (only) {
+    // One hole: an even-odd path is enough and avoids a full-size scratch canvas per frame.
+    const r = only.rect;
+    ctx.beginPath();
+    ctx.rect(0, 0, env.width, env.height);
+    ctx.roundRect(r.x, r.y, r.width, r.height, Math.min(16 * env.unit, r.width / 4, r.height / 4));
+    ctx.fillStyle = `rgba(0,0,0,${only.dim})`;
+    ctx.fill('evenodd');
+    return;
+  }
+  // Overlapping holes need real compositing: dim a layer, cut every hole out of it.
   const layer = new OffscreenCanvas(Math.max(1, env.width), Math.max(1, env.height));
   const lctx = layer.getContext('2d');
   if (!lctx) return;
