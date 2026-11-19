@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
-import { type BrowserWindow, dialog, Notification, screen } from 'electron';
+import { app, type BrowserWindow, dialog, Notification, screen } from 'electron';
 import type { EditorInit, EditorSource } from '../shared/ipc';
 import { isProject, PROJECT_EXTENSION, unpackProject } from '../shared/project';
 import { readPng } from './clipboard';
@@ -69,9 +69,15 @@ function open(
   return win;
 }
 
+// Quitting closes editors without asking per window; a blocking prompt here would stall quit.
+let quitting = false;
+app.on('before-quit', () => {
+  quitting = true;
+});
+
 function confirmClose(win: BrowserWindow, event: Electron.Event): void {
   const state = editors.get(win.webContents.id);
-  if (!state?.dirty) return;
+  if (quitting || !state?.dirty) return;
   const choice = dialog.showMessageBoxSync(win, {
     type: 'question',
     buttons: ['Discard changes', 'Cancel'],

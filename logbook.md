@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 5 (editor) — editor window, project files (`src/shared/project.ts`, tested) and history write-back are written but the editor has no e2e yet. Exact next action: add `tests/e2e/editor.spec.ts` (overlay → E opens editor with annotations carried over; crop + undo; Ctrl+S saves the cropped size; save/open `.anyshot` round-trip via `globalThis.__anyshot`), fix what it finds, then mark step 5 done.
+**Next:** docs screenshots, then step 6 (more tools). Exact next action: add `tests/e2e/screenshots.spec.ts` (runs only with `ANYSHOT_SCREENSHOTS=1`; overlay with selection + arrow/rect/text/number, then editor) writing `docs/screenshots/overlay.png` and `editor.png`, inspect them, commit; then step 6: Beautify/Adjust/Invert controls in the toolbar (effects already render via `src/engine/gl.ts`/`beautify.ts`) + an e2e check that censor pixelates.
 
 ## Status (v1 build order)
 
@@ -16,12 +16,20 @@
 | 2 Capture | done | node-screenshots + desktopCapturer fallback, overlay per display, select/resize/move, copy/save, e2e |
 | 3 Annotation engine | done | plain TS in `src/engine`, 3 canvas layers, rAF + coalesced input, all tools, change-list undo, Vitest |
 | 4 After capture | done | history store + window (lazy grid), floating preview (one shared window), pins, e2e |
-| 5 Editor | partial | window, zoom/fit, crop (undoable), project files, history write-back written; e2e pending |
+| 5 Editor | done | window, zoom/fit, undoable crop, `.anyshot` projects, history write-back, e2e. Flip and "add capture" layers not done |
 | 6 More tools | pending | |
 | 7 Recording | pending | |
 | 8 OCR + uploads | pending | |
 | 9 Scroll capture | pending | |
 | 10 Polish | pending | |
+
+## 2026-11-19 - step 5 editor
+
+- Crop is non-destructive: `Doc.crop` changes through the change list, so it undoes in one step and annotations keep image coordinates. The view clips and translates the stage.
+- `.anyshot` = `ANYSHOT1` + uint32 JSON length + JSON (doc + image info) + PNG bytes. One file, no base64.
+- Copy/save/pin from an editor update one history entry (the first delivery creates it, later ones replace its image) instead of adding a new entry each time, and never show the floating preview.
+- Closing a dirty editor asks Discard/Cancel. Quitting the app skips that prompt; otherwise the blocking dialog stalls quit (found by e2e teardown hanging).
+- Not done: flip, "add capture" layers, pasting images as layers.
 
 ## 2026-11-19 - step 4 after capture
 
