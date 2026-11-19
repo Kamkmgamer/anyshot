@@ -16,7 +16,10 @@
 - History preview: header and grid are `inert` while it's open, and Tab/Shift+Tab cycle inside the dialog (`4c5573b`).
 - Pins: zoom-out stops where one row of controls still fits (measured, never above 100 %); the row wraps for smaller pins; Close is first (`ffb3c17`).
 
-**Next:** supervisor re-review of PR #2; then verify on Windows (see the user-feedback entry).
+- Second CodeRabbit pass (on `e1a228b`): arrow-key nudges of a selection with measurements go through `clampMoveDelta` too (e2e: 10 × Shift+→ stops at the edge, keeps the length); added a rollback test for an overwritten image, thumbnail and project when the index write fails.
+- GitHub Actions is disabled for this repository (`actions/permissions` → `enabled: false`), so no CI has run since the v1 pushes at 20:40; a manual dispatch stays queued. Checks were run on the box instead.
+
+**Next:** re-enable Actions (repo Settings ▸ Actions) to get Linux + Windows CI on PR #2; verify on Windows (see the user-feedback entry); merge PR #2 after review.
 
 ## 2026-11-19 - user feedback (branch `feat/user-feedback`)
 
