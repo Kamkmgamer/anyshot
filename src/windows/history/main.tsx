@@ -41,6 +41,24 @@ function Preview(props: {
     // Focus moves into the dialog so keys and screen readers follow it.
     if (!dialog.current?.contains(document.activeElement)) dialog.current?.focus();
   }, [entry.id]);
+  useEffect(() => {
+    // Tab cycles through the dialog's controls. Handled for the whole window,
+    // so focus that fell to <body> (e.g. a button that became disabled) comes back.
+    const onTab = (e: KeyboardEvent) => {
+      const root = dialog.current;
+      if (e.key !== 'Tab' || !root) return;
+      const controls = [...root.querySelectorAll<HTMLElement>('button:not(:disabled)')];
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (!first || !last) return;
+      const i = controls.indexOf(document.activeElement as HTMLElement);
+      e.preventDefault();
+      if (e.shiftKey) (i <= 0 ? last : controls[i - 1])?.focus();
+      else (i === -1 || i === controls.length - 1 ? first : controls[i + 1])?.focus();
+    };
+    window.addEventListener('keydown', onTab, true);
+    return () => window.removeEventListener('keydown', onTab, true);
+  }, []);
   const action = (icon: IconName, label: string, a: ItemAction) => (
     <button type="button" data-testid={`preview-${a}`} onClick={() => props.run(a)}>
       <Icon name={icon} size={16} />
@@ -218,7 +236,8 @@ function App() {
 
   return (
     <div class="history">
-      <header>
+      {/* Behind an open preview: no focus, clicks or screen-reader access. */}
+      <header inert={previewing}>
         <h1>History</h1>
         <span class="count">{`${shown.length} capture${shown.length === 1 ? '' : 's'}`}</span>
         <div class="opt seg">
@@ -255,7 +274,7 @@ function App() {
       {shown.length === 0 ? (
         <p class="empty">No captures yet. Use the tray icon or your capture shortcut.</p>
       ) : (
-        <ul class="grid">
+        <ul class="grid" inert={previewing}>
           {shown.map((entry, i) => (
             <li key={entry.id}>
               <div

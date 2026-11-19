@@ -83,6 +83,15 @@ test('clicking a capture opens a preview that moves with the arrows and runs act
   await expect(preview).toBeVisible();
   await expect(meta).toContainText('100 × 50');
   await expect(history.getByRole('dialog')).toBeFocused();
+  // Focus stays in the dialog; the window behind it is inert.
+  const focusInDialog = () =>
+    history.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null);
+  for (const key of [...Array(9).fill('Tab'), ...Array(4).fill('Shift+Tab')] as string[]) {
+    await history.keyboard.press(key);
+    expect(await focusInDialog()).toBe(true);
+  }
+  await expect(history.locator('header')).toHaveAttribute('inert', '');
+  await expect(history.locator('.grid')).toHaveAttribute('inert', '');
   const image = history.getByTestId('preview-image');
   await expect
     .poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
