@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** docs screenshots, then step 6 (more tools). Exact next action: add `tests/e2e/screenshots.spec.ts` (runs only with `ANYSHOT_SCREENSHOTS=1`; overlay with selection + arrow/rect/text/number, then editor) writing `docs/screenshots/overlay.png` and `editor.png`, inspect them, commit; then step 6: Beautify/Adjust/Invert controls in the toolbar (effects already render via `src/engine/gl.ts`/`beautify.ts`) + an e2e check that censor pixelates.
+**Next:** step 6 (more tools). Tools already exist (censor/spotlight/magnify/stamp/picker/measure); exact next action: add Invert / Adjust (preset + sliders popover) / Beautify (options row) controls to the shared toolbar wired to `DocStore.setEffects` (render path exists in `gl.ts`, `beautify.ts`, `compose.ts`), add an e2e check that censor changes pixels and beautify grows the output, commit; then step 7 recording.
 
 ## Status (v1 build order)
 
@@ -22,6 +22,11 @@
 | 8 OCR + uploads | pending | |
 | 9 Scroll capture | pending | |
 | 10 Polish | pending | |
+
+## 2026-11-19 - docs screenshots
+
+- `docs/screenshots/overlay.png` and `editor.png` are produced by `ANYSHOT_SCREENSHOTS=1 xvfb-run -a bun run test:e2e tests/e2e/screenshots.spec.ts` (skipped otherwise) against the fixture desktop.
+- Making them found a real bug: the text box focused one frame late, so fast typing went to overlay shortcuts (Enter ran the quick action). It now focuses synchronously.
 
 ## 2026-11-19 - step 5 editor
 

@@ -539,7 +539,8 @@ export class CanvasView {
     this.textTarget = { existing, at, size, color };
     if (existing) this.skipIds([existing.id]);
     fitToContent();
-    requestAnimationFrame(() => editor.focus());
+    // Focus now, not on the next frame: keys typed right after the click must reach the box.
+    editor.focus();
   }
 
   private textTarget: {

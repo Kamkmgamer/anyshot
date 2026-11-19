@@ -156,6 +156,13 @@ const ICONS = {
       <path d="M12.2 12.2L17 17M6.5 8.5h4M8.5 6.5v4" />
     </>
   ),
+  zoomOut: (
+    <>
+      <circle cx="8.5" cy="8.5" r="5" />
+      <path d="M12.2 12.2L17 17M6.5 8.5h4" />
+    </>
+  ),
+  fit: <path d="M3.5 7.5v-4h4M12.5 3.5h4v4M16.5 12.5v4h-4M7.5 16.5h-4v-4" />,
   trash: <path d="M4.5 6h11M8 6V4h4v2M6 6l.8 10.5h6.4L14 6" />,
   folder: (
     <path d="M3.5 6V15a1 1 0 001 1h11a1 1 0 001-1V8a1 1 0 00-1-1H10L8.5 5H4.5a1 1 0 00-1 1z" />

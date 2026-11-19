@@ -282,12 +282,12 @@ function TopBar() {
         </span>
       )}
       <span class="spacer" />
-      <Button icon="undo" label="Zoom out (Ctrl+-)" onClick={() => setZoom(s.zoom / 1.25)} />
+      <Button icon="zoomOut" label="Zoom out (Ctrl+-)" onClick={() => setZoom(s.zoom / 1.25)} />
       <button type="button" class="zoom" title="Actual size (Ctrl+0)" onClick={() => setZoom(1)}>
         {`${Math.round(s.zoom * 100)}%`}
       </button>
-      <Button icon="redo" label="Zoom in (Ctrl+=)" onClick={() => setZoom(s.zoom * 1.25)} />
-      <Button icon="zoomIn" label="Fit (Ctrl+1)" onClick={() => setZoom(fitZoom())} />
+      <Button icon="zoomIn" label="Zoom in (Ctrl+=)" onClick={() => setZoom(s.zoom * 1.25)} />
+      <Button icon="fit" label="Fit (Ctrl+1)" onClick={() => setZoom(fitZoom())} />
       <span class="sep" />
       <Button
         icon="editor"
