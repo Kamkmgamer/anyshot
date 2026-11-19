@@ -178,3 +178,21 @@ registerMediaRoute('history', async (rest) => {
   }
   return null;
 });
+
+/** Replaces an entry's image (edits saved back from the editor). */
+export function replaceImage(
+  id: string,
+  input: { png: Uint8Array; thumb?: ArrayBuffer; width: number; height: number },
+): Promise<HistoryEntry | undefined> {
+  return serial(async () => {
+    const list = await load();
+    const entry = list.find((e) => e.id === id);
+    if (!entry) return undefined;
+    await writeFile(imagePath(id), input.png);
+    if (input.thumb) await writeFile(thumbPath(id), new Uint8Array(input.thumb));
+    const updated = { ...entry, width: input.width, height: input.height };
+    entries = list.map((e) => (e.id === id ? updated : e));
+    await persist();
+    return updated;
+  });
+}

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; connect-src 'self'"
+    />
+    <title>anyshot editor</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #111113; }
+    </style>
+  </head>
+  <body>
+    <div class="editor">
+      <header id="top"></header>
+      <div id="tools"></div>
+      <main id="viewport">
+        <div id="clip">
+          <div id="stage"></div>
+          <div id="crop" hidden><div id="crop-box"></div></div>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

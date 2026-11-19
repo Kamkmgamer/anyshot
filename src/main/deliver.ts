@@ -6,7 +6,7 @@ import { EXTENSIONS, expandTemplate } from '../shared/filename';
 import type { DeliverAction, DeliverRequest, DeliverResult, EncodedImage } from '../shared/ipc';
 import type { Settings } from '../shared/settings';
 import { copyPng, copyText } from './clipboard';
-import { addEntry, release } from './history';
+import { addEntry, release, replaceImage } from './history';
 import { paths } from './paths';
 import { getSettings } from './settings-store';
 
@@ -90,13 +90,19 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
     }
   }
 
-  const entry = await addEntry({
+  const image = {
     png,
     width: request.image.width,
     height: request.image.height,
-    savedPath: result.path ?? null,
     ...(request.thumb ? { thumb: request.thumb } : {}),
-  });
+  };
+  const existing = request.historyId ? await replaceImage(request.historyId, image) : undefined;
+  if (existing) {
+    result.historyId = existing.id;
+    if (steps.includes('pin')) await (await import('./pins')).pinEntry(existing);
+    return result;
+  }
+  const entry = await addEntry({ ...image, savedPath: result.path ?? null });
   result.historyId = entry.id;
 
   const followUp = steps.includes('pin')
@@ -105,7 +111,7 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
       ? (await import('./ocr')).recognizeEntry(entry.id)
       : steps.includes('upload')
         ? (await import('./uploads')).uploadEntry(entry.id)
-        : settings.capture.showThumbnail && request.action !== 'none'
+        : settings.capture.showThumbnail && request.action !== 'none' && !request.quiet
           ? (await import('./floating')).showFloating(entry)
           : undefined;
   await followUp;

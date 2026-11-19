@@ -75,8 +75,10 @@ export interface DeliverRequest {
   thumb?: ArrayBuffer;
   /** Screen-space rectangle (CSS px) the image came from, for pins in place. */
   screenRect?: Rect;
-  /** History entry being edited, so "Done" can write back. */
+  /** History entry being edited: its image is replaced instead of adding a new entry. */
   historyId?: string;
+  /** Skip the floating preview (the editor is already showing the image). */
+  quiet?: boolean;
 }
 
 export interface DeliverResult {
@@ -93,9 +95,12 @@ export interface RawImage {
   height: number;
 }
 
+export type EditorSource =
+  | { kind: 'frame'; frameId: string; width: number; height: number }
+  | { kind: 'url'; url: string };
+
 export interface EditorInit {
-  frameId: string | null;
-  frame: Size;
+  source: EditorSource;
   /** Serialised annotation document carried over from the overlay or a project. */
   doc: unknown;
   title: string;
@@ -211,7 +216,6 @@ export interface InvokeContract {
   'editor:open': Channel<void, boolean>;
   'editor:save-project': Channel<{ bytes: ArrayBuffer; saveAs: boolean }, string | null>;
   'editor:set-title': Channel<{ title: string; dirty: boolean }, void>;
-  'editor:capture-add': Channel<void, RawImage | null>;
 
   'history:list': Channel<void, HistoryEntry[]>;
   'history:clear': Channel<void, void>;
@@ -284,7 +288,6 @@ export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind
   'editor:open': ['editor'],
   'editor:save-project': ['editor'],
   'editor:set-title': ['editor'],
-  'editor:capture-add': ['editor'],
 
   'history:list': ['history'],
   'history:clear': ['history'],

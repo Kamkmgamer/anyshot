@@ -40,7 +40,8 @@ export async function runAction(action: AppAction, file?: string): Promise<void>
     case 'settings':
       return (await import('./settings-window')).openSettings();
     case 'openImage':
-      return (await import('./editor')).openImage(file);
+      await (await import('./editor')).openImage(file);
+      return;
     case 'openClipboard':
       return (await import('./editor')).openClipboard();
     case 'pinClipboard':

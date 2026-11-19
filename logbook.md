@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 5 (editor). Exact next action: replace the `src/main/editor.ts` stub with an editor window manager (`openEditorWithImage(frame, doc)` via `putFrame` + `editor:init`, `openHistoryEntry(id)` loading `/@history/<id>/image`, `openImage(file)` for PNG/JPEG/WebP and `.anyshot` projects, `openClipboard()`), write `src/windows/editor/` (same `createAnnotator`, zoom/fit, crop with undo via `DocStore.setCrop`, flip, copy/save/pin/Done) and `src/shared/project.ts` (single-file container: magic + JSON + PNG) with unit tests, then e2e.
+**Next:** step 5 (editor) — editor window, project files (`src/shared/project.ts`, tested) and history write-back are written but the editor has no e2e yet. Exact next action: add `tests/e2e/editor.spec.ts` (overlay → E opens editor with annotations carried over; crop + undo; Ctrl+S saves the cropped size; save/open `.anyshot` round-trip via `globalThis.__anyshot`), fix what it finds, then mark step 5 done.
 
 ## Status (v1 build order)
 
@@ -16,7 +16,7 @@
 | 2 Capture | done | node-screenshots + desktopCapturer fallback, overlay per display, select/resize/move, copy/save, e2e |
 | 3 Annotation engine | done | plain TS in `src/engine`, 3 canvas layers, rAF + coalesced input, all tools, change-list undo, Vitest |
 | 4 After capture | done | history store + window (lazy grid), floating preview (one shared window), pins, e2e |
-| 5 Editor | pending | |
+| 5 Editor | partial | window, zoom/fit, crop (undoable), project files, history write-back written; e2e pending |
 | 6 More tools | pending | |
 | 7 Recording | pending | |
 | 8 OCR + uploads | pending | |
