@@ -105,7 +105,12 @@ export function snap45(a: Point, b: Point): Point {
   const step = Math.PI / 4;
   const snapped = Math.round(angle / step) * step;
   const len = distance(a, b);
-  return { x: a.x + Math.cos(snapped) * len, y: a.y + Math.sin(snapped) * len };
+  // cos(π/2) is ~6e-17, not 0: axial snaps must not drift off their axis.
+  const exact = (v: number) => (Math.abs(v) < 1e-9 ? 0 : v);
+  return {
+    x: a.x + exact(Math.cos(snapped)) * len,
+    y: a.y + exact(Math.sin(snapped)) * len,
+  };
 }
 
 /** Constrains the b corner so the rectangle from a is square. */

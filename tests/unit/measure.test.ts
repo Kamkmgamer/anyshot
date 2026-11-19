@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampAlong, clampPoint } from '../../src/shared/geometry';
+import { clampAlong, clampPoint, snap45 } from '../../src/shared/geometry';
 import { measureEnd } from '../../src/engine/view';
 
 const image = { x: 0, y: 0, width: 300, height: 200 };
@@ -50,5 +50,22 @@ describe('measureEnd', () => {
       x: 100,
       y: 50,
     });
+  });
+
+  it('keeps axial snapped measurements that start on an edge', () => {
+    // Clamped onto the right edge, then dragged straight down with Shift.
+    const down = measureEnd({ x: 300, y: 50 }, { x: 305, y: 150 }, image, true);
+    expect(down.x).toBe(300);
+    expect(down.y).toBeCloseTo(150, 0);
+    // On the bottom edge, dragged left with Shift.
+    const left = measureEnd({ x: 200, y: 200 }, { x: 60, y: 210 }, image, true);
+    expect(left.y).toBe(200);
+    expect(left.x).toBeCloseTo(60, 0);
+  });
+
+  it('leaves diagonal snaps unchanged', () => {
+    const end = snap45({ x: 0, y: 0 }, { x: 10, y: 9 });
+    expect(end.x).toBeCloseTo(end.y, 12);
+    expect(end.x).not.toBe(0);
   });
 });
