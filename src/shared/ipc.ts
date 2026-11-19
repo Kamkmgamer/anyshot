@@ -229,6 +229,7 @@ export interface InvokeContract {
 
   'pin:init': Channel<void, PinInit>;
   'pin:move-by': Channel<{ dx: number; dy: number }, void>;
+  'pin:ready': Channel<void, void>;
 
   'recorder:init': Channel<void, RecorderInit>;
   'recorder:open-file': Channel<{ ext: 'mp4' | 'webm' | 'gif' }, string>;
@@ -305,6 +306,7 @@ export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind
 
   'pin:init': ['pin'],
   'pin:move-by': ['pin'],
+  'pin:ready': ['pin'],
 
   'recorder:init': ['recorder'],
   'recorder:open-file': ['recorder'],
@@ -331,6 +333,7 @@ export interface EventContract {
   'overlay:clear-selection': undefined;
   'overlay:reset': OverlayInit;
   'floating:items': FloatingItem[];
+  'history:changed': undefined;
   'recorder:command': 'stop' | 'pause' | 'resume';
   'recorder:status': RecorderStatus;
   'scroll:command': 'stop' | 'cancel' | 'copy';
@@ -342,6 +345,7 @@ export const EVENT_CHANNELS: readonly EventChannel[] = [
   'overlay:clear-selection',
   'overlay:reset',
   'floating:items',
+  'history:changed',
   'recorder:command',
   'recorder:status',
   'scroll:command',

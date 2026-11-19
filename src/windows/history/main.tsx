@@ -29,6 +29,7 @@ function App() {
   useEffect(() => {
     void api.invoke('settings:get').then(applyTheme);
     void reload();
+    return api.on('history:changed', () => void reload());
   }, [reload]);
 
   const shown = entries.filter(

@@ -6,6 +6,7 @@ import { readJson, writeFileAtomic } from './atomic-file';
 import { paths } from './paths';
 import { registerMediaRoute } from './protocol';
 import { getSettings } from './settings-store';
+import { send, windowsOf } from './windows';
 
 /**
  * Capture history: one PNG and one WebP thumbnail per entry plus a JSON index,
@@ -49,6 +50,8 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
 
 async function persist(): Promise<void> {
   await writeFileAtomic(indexFile(), JSON.stringify(entries ?? [], null, 1));
+  // Open history windows reload, so captures finished after they opened still appear.
+  for (const win of windowsOf('history')) send(win, 'history:changed', undefined);
 }
 
 /** Entries used by open pins or thumbnails survive pruning until released. */

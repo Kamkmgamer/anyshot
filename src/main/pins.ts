@@ -47,7 +47,6 @@ export async function pinEntry(
   win.setVisibleOnAllWorkspaces(true);
   const id = win.webContents.id;
   pins.set(id, entry);
-  win.once('ready-to-show', () => win.show());
   win.once('closed', () => {
     pins.delete(id);
     release(entry.id);
@@ -77,6 +76,10 @@ handle('pin:init', (_req, { win }): PinInit => {
     height: entry.height,
     historyId: entry.id,
   };
+});
+
+handle('pin:ready', (_req, { win }) => {
+  if (!win.isVisible()) win.show();
 });
 
 handle('pin:move-by', ({ dx, dy }, { win }) => {

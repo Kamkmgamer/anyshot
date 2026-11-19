@@ -134,4 +134,8 @@ test('history lists captures lazily and supports copy and delete', async () => {
   expect(await historyIndex()).toHaveLength(1);
   await dispatch(ctx.app, 'history');
   expect((await windowKinds(ctx.app)).filter((k) => k === 'history')).toHaveLength(1);
+  // A capture finished while History is open shows up without reopening it.
+  const overlay = await captureCard();
+  await pressClosing(overlay, 'Control+c');
+  await expect(history.getByTestId('history-card')).toHaveCount(2);
 });

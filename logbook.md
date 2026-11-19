@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** v1 build order complete as far as listed below; the draft PR is next (opened by the supervisor). Highest-value follow-ups: run on real Windows (mixed DPI, tray, shortcuts, H.264 hardware encode, loopback audio, NSIS install, SmartScreen/signing); test on Wayland (GNOME, KDE); recording HUD with pause/stop; auto-redact (OCR + PII patterns); QR detection; editor flip and image layers; auto-update.
+**Next:** v1 complete as listed below; draft PR next (supervisor). Follow-ups: run on real Windows (mixed DPI, tray, shortcuts, H.264 hardware encode, loopback audio, NSIS, signing); test Wayland (GNOME, KDE); recording HUD; auto-redact; QR detection; editor flip and image layers; auto-update.
 
 ## Status (v1 build order)
 
@@ -22,6 +22,13 @@
 | 8 OCR + uploads | done | OCR (idle-exiting utilityProcess, offline English), uploads: provider interface, HTTP multipart + S3 SigV4, keys via safeStorage; unit + e2e |
 | 9 Scroll capture | done | manual scrolling, HUD outside the region, stream sampled ~7 fps, stitch worker, quick action; unit + e2e (exact 600×1060). No auto-scroll/horizontal |
 | 10 Polish | partial | settings window, instant capture, electron-builder + fuses, README done. No auto-update, signing, translations |
+
+## 2026-11-19 - flaky after-capture e2e fixed in the app
+
+- Independent verification of `c8fe54b` found `after-capture.spec.ts` flaky (pin not closing on Esc; history count wrong). Baseline here with `--repeat-each=10`: 5/10 failures of the pin test.
+- Pin root cause: the window was shown on `ready-to-show` (first paint of an empty page) while its Esc handler was attached only after the `pin:init` round trip and the first render, so a key pressed as the pin appeared was lost. Users could hit it too. Fix: keys are handled from the moment the script runs, and main shows the pin only when its image has loaded (`pin:ready`), so it never appears blank or deaf.
+- History root cause: the window listed entries once when it opened; a capture still being delivered (or finished later) never appeared. Fix: main sends `history:changed` after every index write and open history windows reload. New e2e check: a capture made while History is open appears without reopening it.
+- Result: `--repeat-each=10` of after-capture → 40/40 twice; full e2e twice → 23 passed, 1 skipped each.
 
 ## 2026-11-19 - final verification
 
