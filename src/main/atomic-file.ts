@@ -12,15 +12,13 @@ export async function writeFileAtomic(path: string, data: string | Uint8Array): 
   const temp = `${path}.${randomBytes(4).toString('hex')}.tmp`;
   const handle = await open(temp, 'wx');
   try {
-    try {
-      await handle.writeFile(data);
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
+    await handle.writeFile(data);
+    await handle.sync();
+    await handle.close();
     await renameWithRetry(temp, path);
   } catch (error) {
-    // Keep the original error even if the partial temp file can't be removed.
+    // Cleanup must preserve the error that caused the write to fail.
+    await handle.close().catch(() => undefined);
     await rm(temp, { force: true }).catch(() => undefined);
     throw error;
   }
