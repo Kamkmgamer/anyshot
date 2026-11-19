@@ -3,7 +3,7 @@ import './overlay.css';
 import type { ComponentChildren } from 'preact';
 import { render } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { translateDoc } from '../../engine/document';
+import { isBlankDoc, translateDoc } from '../../engine/document';
 import { emptyDoc } from '../../engine/model';
 import type { Point, Rect } from '../../shared/geometry';
 import type { DeliverAction, OverlayInit, RawImage } from '../../shared/ipc';
@@ -309,19 +309,23 @@ async function finish(action: DeliverAction): Promise<void> {
     }
     await api.invoke('overlay:hide');
     const format = init.settings.output.imageFormat;
-    const out = await exportImage({
-      source: bitmap,
-      region,
-      doc,
-      ...(wantsSaveFormat(action)
-        ? {
-            save: {
-              mime: format === 'jpeg' ? ('image/jpeg' as const) : ('image/webp' as const),
-              quality: init.settings.output.imageQuality,
-            },
-          }
-        : {}),
-    });
+    const [out, original] = await Promise.all([
+      exportImage({
+        source: bitmap,
+        region,
+        doc,
+        ...(wantsSaveFormat(action)
+          ? {
+              save: {
+                mime: format === 'jpeg' ? ('image/jpeg' as const) : ('image/webp' as const),
+                quality: init.settings.output.imageQuality,
+              },
+            }
+          : {}),
+      }),
+      // Annotated captures also keep their original pixels, so history reopens them editable.
+      isBlankDoc(doc) ? null : exportImage({ source: bitmap, region, thumbMax: 16 }),
+    ]);
     const screenRect = {
       x: init.bounds.x + selection.x,
       y: init.bounds.y + selection.y,
@@ -334,6 +338,7 @@ async function finish(action: DeliverAction): Promise<void> {
       thumb: out.thumb,
       screenRect,
       ...(out.save ? { saveImage: out.save } : {}),
+      ...(original ? { edit: { doc, source: original.png } } : {}),
     });
   } catch (error) {
     console.error('[overlay] finish failed', error);

@@ -7,7 +7,7 @@ import { isProject, PROJECT_EXTENSION, unpackProject } from '../shared/project';
 import { readPng } from './clipboard';
 import { writeBytes } from './deliver';
 import { type Frame, putFrame, releaseFrame } from './frames';
-import { getRetainedEntry, release } from './history';
+import { getRetainedEntry, readEditable, release } from './history';
 import { handle } from './ipc';
 import { registerMediaRoute } from './protocol';
 import { getSettings } from './settings-store';
@@ -84,7 +84,8 @@ function confirmClose(win: BrowserWindow, event: Electron.Event): void {
     defaultId: 1,
     cancelId: 1,
     message: 'Close without saving your edits?',
-    detail: 'Use Save project (Ctrl+Shift+S) to keep annotations editable.',
+    detail:
+      'Saving, copying or pinning keeps the edits editable in History; Save project (Ctrl+Shift+S) writes them to a file.',
   });
   if (choice === 1) event.preventDefault();
 }
@@ -110,11 +111,26 @@ export async function openHistoryEntry(id: string): Promise<void> {
   if (!entry) return;
   // Held while the editor is open: it loads the image and saves edits back to the entry.
   try {
+    const title = new Date(entry.createdAt).toLocaleString();
+    // Annotated entries reopen as their original pixels with editable annotations.
+    const project = await readEditable(id);
+    if (project) {
+      const { source, token } = servedSource(project.bytes, project.image.mime);
+      open(
+        { source, doc: project.doc, title, projectPath: null, historyId: id },
+        project.image,
+        () => {
+          sources.delete(token);
+          release(id);
+        },
+      );
+      return;
+    }
     open(
       {
         source: { kind: 'url', url: `/@history/${id}/image` },
         doc: null,
-        title: new Date(entry.createdAt).toLocaleString(),
+        title,
         projectPath: null,
         historyId: id,
       },

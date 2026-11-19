@@ -145,4 +145,86 @@ describe('history', () => {
     expect([...(await fs.readFile(history.imagePath('a')))]).toEqual([1, 2, 3]);
     expect((await fs.readdir(state.dir)).sort()).toEqual(['a.png', 'index.json']);
   });
+
+  describe('editable entries', () => {
+    const source = { bytes: new Uint8Array([9, 8, 7]).buffer, mime: 'image/png' as const };
+    const doc = (annotations: unknown[], crop: unknown = null) => ({
+      version: 1,
+      unit: 1,
+      annotations,
+      crop,
+    });
+    const edit = (annotations: unknown[] = [{ id: 'a', kind: 'line' }]) => ({
+      doc: doc(annotations),
+      source: { ...source, width: 4, height: 3 },
+    });
+
+    it('keeps the original pixels and the document next to the rendered image', async () => {
+      const entry = await history.addEntry({ png, width: 4, height: 3, edit: edit() });
+      expect(existsSync(history.projectPath(entry.id))).toBe(true);
+      const project = await history.readEditable(entry.id);
+      expect(project?.doc).toEqual(doc([{ id: 'a', kind: 'line' }]));
+      expect(project?.image).toEqual({ mime: 'image/png', width: 4, height: 3 });
+      expect([...(project?.bytes ?? [])]).toEqual([9, 8, 7]);
+      // The rendered image is still what copy, pin and export use.
+      expect([...(await history.readImage(entry.id))]).toEqual([...png]);
+    });
+
+    it('re-saving replaces the document, and a plain save drops it', async () => {
+      const entry = await history.addEntry({ png, width: 4, height: 3, edit: edit() });
+      await history.replaceImage(entry.id, {
+        png,
+        width: 4,
+        height: 3,
+        edit: edit([{ id: 'b', kind: 'rect' }]),
+      });
+      expect((await history.readEditable(entry.id))?.doc).toEqual(doc([{ id: 'b', kind: 'rect' }]));
+      await history.replaceImage(entry.id, { png, width: 4, height: 3 });
+      expect(existsSync(history.projectPath(entry.id))).toBe(false);
+      expect(await history.readEditable(entry.id)).toBeNull();
+    });
+
+    it('treats entries without a document, or with a malformed one, as plain images', async () => {
+      await seed(['old', 'garbage', 'badcrop']);
+      expect(await history.readEditable('old')).toBeNull();
+      await fs.writeFile(history.projectPath('garbage'), 'not a project');
+      expect(await history.readEditable('garbage')).toBeNull();
+      const entry = await history.addEntry({ png, width: 4, height: 3, edit: edit() });
+      const packed = await fs.readFile(history.projectPath(entry.id));
+      const { packProject, unpackProject } = await import('../../src/shared/project');
+      const project = unpackProject(packed);
+      await fs.writeFile(
+        history.projectPath('badcrop'),
+        packProject({ ...project, doc: doc([], { x: 0, y: 0, width: 5, height: 3 }) }),
+      );
+      expect(await history.readEditable('badcrop')).toBeNull();
+    });
+
+    it('only accepts PNG sources with a well-formed document from windows', () => {
+      expect(history.checkEditable(edit())).toEqual(edit());
+      expect(history.checkEditable(undefined)).toBeUndefined();
+      expect(
+        history.checkEditable({ ...edit(), source: { ...edit().source, mime: 'image/jpeg' } }),
+      ).toBeUndefined();
+      expect(history.checkEditable({ ...edit(), doc: { version: 2 } })).toBeUndefined();
+      expect(history.checkEditable({ ...edit(), doc: 'nope' })).toBeUndefined();
+    });
+
+    it('delete, prune and clear remove the documents too', async () => {
+      const a = await history.addEntry({ png, width: 4, height: 3, edit: edit() });
+      const b = await history.addEntry({ png, width: 4, height: 3, edit: edit() });
+      const c = await history.addEntry({ png, width: 4, height: 3, edit: edit() });
+      for (const e of [a, b, c]) history.release(e.id);
+      await history.removeEntry(a.id);
+      expect(existsSync(history.projectPath(a.id))).toBe(false);
+      state.historySize = 1;
+      history.retain(c.id);
+      history.release(c.id); // schedules a prune down to the newest entry
+      await settle();
+      expect(existsSync(history.projectPath(b.id))).toBe(false);
+      expect(existsSync(history.projectPath(c.id))).toBe(true);
+      await history.clearHistory();
+      expect(await fs.readdir(state.dir)).toEqual(['index.json']);
+    });
+  });
 });

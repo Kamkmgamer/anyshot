@@ -65,6 +65,17 @@ export interface EncodedImage {
   height: number;
 }
 
+/**
+ * What keeps a capture editable in history: the original pixels (before
+ * annotations, effects and crop) and the annotation document, in the
+ * document's own coordinates.
+ */
+export interface EditableSource {
+  doc: unknown;
+  /** Lossless PNG of the original pixels. */
+  source: EncodedImage;
+}
+
 export interface DeliverRequest {
   action: DeliverAction;
   /** Lossless PNG master: clipboard, history and pins use this. */
@@ -75,6 +86,8 @@ export interface DeliverRequest {
   thumb?: ArrayBuffer;
   /** Screen-space rectangle (CSS px) the image came from, for pins in place. */
   screenRect?: Rect;
+  /** Present when annotations or effects were applied: history keeps them editable. */
+  edit?: EditableSource;
   /** History entry being edited: its image is replaced instead of adding a new entry. */
   historyId?: string;
   /** Skip the floating preview (the editor is already showing the image). */

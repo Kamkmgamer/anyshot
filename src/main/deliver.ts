@@ -7,7 +7,7 @@ import type { DeliverAction, DeliverRequest, DeliverResult, EncodedImage } from 
 import type { Settings } from '../shared/settings';
 import { createUniqueFile, writeFileAtomic } from './atomic-file';
 import { copyPng, copyText } from './clipboard';
-import { addEntry, release, replaceImage } from './history';
+import { addEntry, checkEditable, release, replaceImage } from './history';
 import { paths } from './paths';
 import { getSettings } from './settings-store';
 
@@ -115,11 +115,13 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
     }
   }
 
+  const edit = checkEditable(request.edit);
   const image = {
     png,
     width: request.image.width,
     height: request.image.height,
     ...(request.thumb ? { thumb: request.thumb } : {}),
+    ...(edit ? { edit } : {}),
   };
   const existing = request.historyId
     ? await replaceImage(request.historyId, {

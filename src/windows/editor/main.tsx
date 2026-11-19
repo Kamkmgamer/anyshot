@@ -1,10 +1,10 @@
 import '../common/ui.css';
 import './editor.css';
 import { render } from 'preact';
-import { parseDoc, translateDoc } from '../../engine/document';
+import { isBlankDoc, parseDoc, translateDoc } from '../../engine/document';
 import { type Doc, emptyDoc } from '../../engine/model';
 import { type Rect, rectFromPoints } from '../../shared/geometry';
-import type { DeliverAction, EditorInit } from '../../shared/ipc';
+import type { DeliverAction, EditableSource, EditorInit, EncodedImage } from '../../shared/ipc';
 import { packProject } from '../../shared/project';
 import { isRecord } from '../../shared/schema';
 import { type Annotator, createAnnotator, nativeInputOwnsKey } from '../common/annotator';
@@ -184,21 +184,50 @@ async function exportCurrent(withSaveFormat: boolean) {
   });
 }
 
+/** The original pixels as PNG, encoded once: history and projects keep them with the document. */
+let sourcePng: Promise<EncodedImage> | null = null;
+function encodedSource(): Promise<EncodedImage> {
+  if (!sourcePng) {
+    const encoding = exportImage({ source: bitmap, region: { x: 0, y: 0, ...size }, thumbMax: 16 });
+    sourcePng = encoding.then((out) => out.png);
+    // A failed encode is tried again next time.
+    encoding.catch(() => {
+      sourcePng = null;
+    });
+  }
+  return sourcePng;
+}
+
+/** What history needs to reopen the result editable; nothing for an unedited image. */
+async function editableSource(doc: Doc): Promise<EditableSource | undefined> {
+  return isBlankDoc(doc) ? undefined : { doc, source: await encodedSource() };
+}
+
 /** Exports and hands the image to main; true when the action succeeded. */
 async function deliver(action: DeliverAction, label: string): Promise<boolean> {
   if (ui.get().busy) return false;
   ui.set({ busy: true, status: null });
   try {
-    const out = await exportCurrent(action === 'save' || action === 'saveAs');
+    annotator.view.commitText();
+    const doc = annotator.docs.doc;
+    const [out, edit] = await Promise.all([
+      exportCurrent(action === 'save' || action === 'saveAs'),
+      editableSource(doc),
+    ]);
     const result = await api.invoke('capture:deliver', {
       action,
       image: out.png,
       thumb: out.thumb,
       quiet: true,
       ...(out.save ? { saveImage: out.save } : {}),
+      ...(edit ? { edit } : {}),
       ...(historyId ? { historyId } : {}),
     });
-    if (result.historyId) historyId = result.historyId;
+    if (result.historyId) {
+      historyId = result.historyId;
+      // History now holds these edits (editable), so closing loses nothing.
+      markSaved(doc);
+    }
     if (result.ok) ui.set({ status: result.path ? `Saved to ${result.path}` : label });
     else if (result.error !== 'cancelled') ui.set({ status: result.error ?? 'Failed' });
     return result.ok;
@@ -233,15 +262,11 @@ async function saveProject(saveAs: boolean): Promise<void> {
   const doc = annotator.docs.doc;
   ui.set({ busy: true, status: null });
   try {
-    const base = await exportImage({
-      source: bitmap,
-      region: { x: 0, y: 0, ...size },
-      thumbMax: 16,
-    });
+    const source = await encodedSource();
     const bytes = packProject({
       doc,
       image: { mime: 'image/png', width: size.width, height: size.height },
-      bytes: new Uint8Array(base.png.bytes),
+      bytes: new Uint8Array(source.bytes),
     });
     const path = await api.invoke('editor:save-project', {
       bytes: bytes.buffer as ArrayBuffer,

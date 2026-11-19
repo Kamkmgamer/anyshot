@@ -8,6 +8,7 @@ import {
   type Effects,
   emptyDoc,
   type FillMode,
+  isAdjustNeutral,
   type LineStyle,
   type Stroke,
 } from './model';
@@ -299,6 +300,18 @@ export function parseDoc(v: unknown): Doc {
     effects: parseEffects(v.effects),
     crop: rect(v.crop),
   };
+}
+
+/** True when the document changes nothing: no annotations, crop or effects. */
+export function isBlankDoc(doc: Doc): boolean {
+  const { invert, adjust, beautify } = doc.effects;
+  return (
+    doc.annotations.length === 0 &&
+    doc.crop === null &&
+    !invert &&
+    isAdjustNeutral(adjust) &&
+    !beautify.enabled
+  );
 }
 
 /** Moves every annotation by (dx, dy): used when a region becomes its own image. */

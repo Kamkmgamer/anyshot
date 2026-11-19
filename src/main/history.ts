@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { HistoryEntry } from '../shared/ipc';
+import type { EditableSource, HistoryEntry } from '../shared/ipc';
+import { isProjectDoc, type Project, packProject, unpackProject } from '../shared/project';
 import { readJson, writeFileAtomic } from './atomic-file';
 import { paths } from './paths';
 import { registerMediaRoute } from './protocol';
@@ -12,7 +13,9 @@ import { send, windowsOf } from './windows';
 /**
  * Capture history: one PNG and one WebP thumbnail per entry plus a JSON index,
  * all under userData/history. Thumbnails are written at capture time so the
- * history window never decodes full images.
+ * history window never decodes full images. Annotated entries also keep an
+ * `.anyshot` project (original pixels + annotation document) so they reopen
+ * editable; the PNG stays the rendered result used for copy, pin and export.
  */
 let entries: HistoryEntry[] | null = null;
 let loading: Promise<HistoryEntry[]> | null = null;
@@ -24,6 +27,7 @@ const holds = new Map<string, number>();
 const indexFile = () => join(paths.historyDir, 'index.json');
 export const imagePath = (id: string) => join(paths.historyDir, `${id}.png`);
 export const thumbPath = (id: string) => join(paths.historyDir, `${id}.thumb.webp`);
+export const projectPath = (id: string) => join(paths.historyDir, `${id}.anyshot`);
 
 function isEntry(v: unknown): v is HistoryEntry {
   const e = v as HistoryEntry;
@@ -79,6 +83,7 @@ function removeFiles(list: readonly HistoryEntry[]): Promise<unknown> {
     list.flatMap((e) => [
       rm(imagePath(e.id), { force: true }),
       rm(thumbPath(e.id), { force: true }),
+      rm(projectPath(e.id), { force: true }),
     ]),
   );
 }
@@ -96,12 +101,66 @@ async function prune(): Promise<void> {
   await removeFiles(drop);
 }
 
+/**
+ * Accepts an editable source from a window only if it is a PNG with a
+ * well-formed document; anything else is stored as a plain image.
+ */
+export function checkEditable(edit: EditableSource | undefined): EditableSource | undefined {
+  if (!edit) return undefined;
+  if (edit.source.mime === 'image/png' && isProjectDoc(edit.doc, edit.source)) return edit;
+  console.warn('[history] ignoring a malformed annotation document');
+  return undefined;
+}
+
+/** Writes (or, without an edit, removes) the entry's editable project. */
+async function writeEditable(id: string, edit: EditableSource | undefined): Promise<void> {
+  if (!edit) {
+    await rm(projectPath(id), { force: true });
+    return;
+  }
+  const { width, height, bytes } = edit.source;
+  await writeFileAtomic(
+    projectPath(id),
+    packProject({
+      doc: edit.doc,
+      image: { mime: 'image/png', width, height },
+      bytes: new Uint8Array(bytes),
+    }),
+  );
+}
+
+/**
+ * The entry's original pixels and annotation document, or null when it only
+ * has a rendered image (older entries, plain captures) or the stored project
+ * is malformed; callers then open the rendered image instead.
+ */
+export async function readEditable(id: string): Promise<Project | null> {
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(await readFile(projectPath(id)));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+      console.warn('[history] could not read the document of', id, error);
+    return null;
+  }
+  try {
+    const project = unpackProject(bytes);
+    if (project.image.mime === 'image/png' && isProjectDoc(project.doc, project.image))
+      return project;
+  } catch {
+    // Reported below like any other malformed project.
+  }
+  console.warn('[history] ignoring the malformed document of', id);
+  return null;
+}
+
 export function addEntry(input: {
   png: Uint8Array;
   thumb?: ArrayBuffer;
   width: number;
   height: number;
   savedPath?: string | null;
+  edit?: EditableSource;
 }): Promise<HistoryEntry> {
   return serial(async () => {
     const list = await load();
@@ -117,6 +176,7 @@ export function addEntry(input: {
     try {
       await writeFile(imagePath(entry.id), input.png);
       if (input.thumb) await writeFile(thumbPath(entry.id), new Uint8Array(input.thumb));
+      if (input.edit) await writeEditable(entry.id, input.edit);
       await persist([entry, ...list]);
     } catch (error) {
       await removeFiles([entry]).catch(() => undefined);
@@ -198,7 +258,8 @@ registerMediaRoute('history', async (rest) => {
 });
 
 /**
- * Replaces an entry's image (edits saved back from the editor). `savedPath` is
+ * Replaces an entry's image and editable document (edits saved back from the
+ * editor); without `edit` the entry becomes a plain image. `savedPath` is
  * updated when the edit was also saved to a file.
  */
 export function replaceImage(
@@ -209,6 +270,7 @@ export function replaceImage(
     width: number;
     height: number;
     savedPath?: string;
+    edit?: EditableSource;
   },
 ): Promise<HistoryEntry | undefined> {
   return serial(async () => {
@@ -218,6 +280,7 @@ export function replaceImage(
     // Atomic: a failed write must not leave the entry pointing at a torn image.
     await writeFileAtomic(imagePath(id), input.png);
     if (input.thumb) await writeFileAtomic(thumbPath(id), new Uint8Array(input.thumb));
+    await writeEditable(id, input.edit);
     const updated = {
       ...entry,
       width: input.width,
