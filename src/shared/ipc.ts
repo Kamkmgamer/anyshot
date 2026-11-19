@@ -243,7 +243,10 @@ export interface InvokeContract {
 
   'ocr:init': Channel<void, OcrResult>;
 
-  'secrets:status': Channel<void, { available: boolean; backend: string; keys: string[] }>;
+  'secrets:status': Channel<
+    void,
+    { available: boolean; backend: string; keys: string[]; weakOptIn: boolean }
+  >;
   'secrets:set': Channel<{ key: string; value: string }, void>;
   'uploads:test': Channel<void, DeliverResult>;
   'settings:choose-dir': Channel<'output' | 'recording', string | null>;

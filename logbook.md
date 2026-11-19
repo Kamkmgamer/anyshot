@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 10 (polish). Exact next action: settings window (`src/main/settings-window.ts` replacing the stub + `src/windows/settings/`: General/Capture/Output/Shortcuts/Recording/Uploads tabs over `settings:patch`, secrets via `secrets:set`, folder pickers via `settings:choose-dir`, upload test); then instant-capture (warm hidden overlay reused via `overlay:reset`), electron-builder config (NSIS, AppImage/deb/rpm, asarUnpack `**/*.node`, exclude tesseract 4.0.0 data) + fuses via afterPack, README features/dev/Wayland notes.
+**Next:** step 10 (polish) — settings window done. Exact next action: instant capture (`capture.instantCapture`: keep one hidden overlay loaded; on capture reuse it for the cursor display via an `overlay:reset` event instead of creating a window; e2e checks one renderer at idle when on and faster hotkey→overlay), then electron-builder config + fuses, README, CI check, final logbook.
 
 ## Status (v1 build order)
 
@@ -21,7 +21,14 @@
 | 7 Recording | done | MP4 (H.264, VP9/WebM fallback) via getDisplayMedia + Mediabunny streamed to disk, mic (untested here), GIF via intermediate MP4 + gifenc worker, e2e. No HUD/webcam/click highlights |
 | 8 OCR + uploads | done | OCR (idle-exiting utilityProcess, offline English), uploads: provider interface, HTTP multipart + S3 SigV4, keys via safeStorage; unit + e2e |
 | 9 Scroll capture | done | manual scrolling, HUD outside the region, stream sampled ~7 fps, stitch worker, quick action; unit + e2e (exact 600×1060). No auto-scroll/horizontal |
-| 10 Polish | pending | |
+| 10 Polish | partial | settings window (all tabs, shortcut recorder, secrets, upload test, launch at login) done; instant capture, packaging, README pending |
+
+## 2026-11-19 - step 10 settings
+
+- Settings window covers General, Capture, Output, Shortcuts (click and press keys; validated against the accelerator pattern), Tools (toolbar visibility), Recording, Uploads, About. Every change goes through `settings:patch` (validated, written atomically) and is broadcast to open windows.
+- Secrets are write-only from the window: it can set a value and see which keys exist, never read one.
+- Decision: on Linux without a keyring (Electron reports the `basic_text` backend as unavailable) anyshot refuses to store credentials unless the user turns on "Store credentials without a keyring (obfuscated only)", which calls `safeStorage.setUsePlainTextEncryption(true)`. Safer default than silently obfuscating.
+- Launch at login: Electron login items on Windows; an XDG autostart `.desktop` entry on Linux (uses `$APPIMAGE` when running as an AppImage).
 
 ## 2026-11-19 - step 9 scroll capture
 

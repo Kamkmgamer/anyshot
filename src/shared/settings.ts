@@ -132,6 +132,8 @@ export const settingsSchema = obj({
   uploads: obj({
     provider: oneOf(['none', 'http', 's3'], 'none'),
     confirmBeforeUpload: bool(true),
+    /** Linux without a keyring: allow obfuscated-only storage of credentials. */
+    allowWeakSecretStorage: bool(false),
     http: obj({
       url: str(''),
       fileField: str('file', 64),

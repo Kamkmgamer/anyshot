@@ -50,6 +50,9 @@ app.whenReady().then(async () => {
   registerHotkeys(settings.hotkeys, (action) => dispatch(action));
   onSettingsChanged((next, prev) => {
     refreshTray(next);
+    if (next.general.launchAtLogin !== prev.general.launchAtLogin) {
+      void import('./login-item').then((m) => m.applyLaunchAtLogin(next.general.launchAtLogin));
+    }
     if (JSON.stringify(next.hotkeys) !== JSON.stringify(prev.hotkeys)) {
       registerHotkeys(next.hotkeys, (action) => dispatch(action));
     }

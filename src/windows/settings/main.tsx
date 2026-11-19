@@ -1,0 +1,776 @@
+import '../common/ui.css';
+import './settings.css';
+import type { ComponentChildren } from 'preact';
+import { render } from 'preact';
+import { useEffect, useState } from 'preact/hooks';
+import { expandTemplate } from '../../shared/filename';
+import type { InvokeRes } from '../../shared/ipc';
+import {
+  ACCELERATOR,
+  type DeepPartial,
+  HOTKEY_ACTIONS,
+  type HotkeyAction,
+  type Settings,
+  TOOL_IDS,
+} from '../../shared/settings';
+import { applyTheme } from '../common/theme';
+import { TOOL_LABELS } from '../common/tools';
+
+const api = window.anyshot;
+type Tab =
+  | 'general'
+  | 'capture'
+  | 'output'
+  | 'shortcuts'
+  | 'tools'
+  | 'recording'
+  | 'uploads'
+  | 'about';
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'capture', label: 'Capture' },
+  { id: 'output', label: 'Output' },
+  { id: 'shortcuts', label: 'Shortcuts' },
+  { id: 'tools', label: 'Tools' },
+  { id: 'recording', label: 'Recording' },
+  { id: 'uploads', label: 'Uploads' },
+  { id: 'about', label: 'About' },
+];
+
+const HOTKEY_LABELS: Record<HotkeyAction, string> = {
+  captureArea: 'Capture area',
+  captureScreen: 'Capture screen',
+  captureOcr: 'Capture text (OCR)',
+  quickCapture: 'Quick capture',
+  captureLastArea: 'Capture last area',
+  scrollCapture: 'Scroll capture',
+  recordArea: 'Record area (again to stop)',
+  recordGif: 'Record GIF',
+  history: 'History',
+  pinClipboard: 'Pin from clipboard',
+};
+
+let patch: (p: DeepPartial<Settings>) => void = () => {};
+
+function Row(props: { label: string; hint?: string; children: ComponentChildren }) {
+  return (
+    <div class="row">
+      <div class="label">
+        <span>{props.label}</span>
+        {props.hint && <small>{props.hint}</small>}
+      </div>
+      <div class="control">{props.children}</div>
+    </div>
+  );
+}
+
+function Toggle(props: { value: boolean; onChange: (v: boolean) => void; testId?: string }) {
+  return (
+    <input
+      type="checkbox"
+      class="toggle"
+      checked={props.value}
+      data-testid={props.testId}
+      onChange={(e) => props.onChange((e.target as HTMLInputElement).checked)}
+    />
+  );
+}
+
+function Select<T extends string>(props: {
+  value: T;
+  options: readonly (readonly [T, string])[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <select
+      value={props.value}
+      onChange={(e) => props.onChange((e.target as HTMLSelectElement).value as T)}
+    >
+      {props.options.map(([value, label]) => (
+        <option key={value} value={value}>
+          {label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function NumberField(props: {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <span class="number">
+      <input
+        type="number"
+        min={props.min}
+        max={props.max}
+        step={props.step ?? 1}
+        value={props.value}
+        onChange={(e) => props.onChange(Number((e.target as HTMLInputElement).value))}
+      />
+      {props.suffix && <span>{props.suffix}</span>}
+    </span>
+  );
+}
+
+function Text(props: {
+  value: string;
+  placeholder?: string;
+  onChange: (v: string) => void;
+  testId?: string;
+}) {
+  return (
+    <input
+      type="text"
+      value={props.value}
+      placeholder={props.placeholder}
+      data-testid={props.testId}
+      onChange={(e) => props.onChange((e.target as HTMLInputElement).value)}
+    />
+  );
+}
+
+/** Write-only: the stored value is never sent to this window. */
+function Secret(props: { stored: boolean; placeholder?: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="password"
+      value=""
+      placeholder={props.stored ? '•••••••• (stored)' : (props.placeholder ?? '')}
+      onChange={(e) => props.onChange((e.target as HTMLInputElement).value)}
+    />
+  );
+}
+
+function Folder(props: { value: string; fallback: string; which: 'output' | 'recording' }) {
+  return (
+    <span class="folder">
+      <span class="path" title={props.value || props.fallback}>
+        {props.value || props.fallback}
+      </span>
+      <button type="button" onClick={() => void api.invoke('settings:choose-dir', props.which)}>
+        Choose…
+      </button>
+      {props.value && (
+        <button
+          type="button"
+          onClick={() =>
+            patch(
+              props.which === 'output'
+                ? { output: { saveDir: '' } }
+                : { recording: { saveDir: '' } },
+            )
+          }
+        >
+          Default
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** Turns a key press into an Electron accelerator such as `Alt+Shift+X`. */
+export function acceleratorFor(e: KeyboardEvent): string | null {
+  const named: Record<string, string> = {
+    ' ': 'Space',
+    ArrowUp: 'Up',
+    ArrowDown: 'Down',
+    ArrowLeft: 'Left',
+    ArrowRight: 'Right',
+    Enter: 'Return',
+    Escape: 'Escape',
+    '+': 'Plus',
+    '-': 'Minus',
+  };
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return null;
+  const key = named[e.key] ?? (e.key.length === 1 ? e.key.toUpperCase() : e.key);
+  const parts = [
+    e.ctrlKey && 'CommandOrControl',
+    e.altKey && 'Alt',
+    e.shiftKey && 'Shift',
+    e.metaKey && 'Super',
+    key,
+  ].filter(Boolean) as string[];
+  const accel = parts.join('+');
+  // Function keys and Print Screen may stand alone; everything else needs a modifier.
+  const standalone = /^F\d+$|^PrintScreen$/.test(key);
+  if (!standalone && parts.length < 2) return null;
+  return ACCELERATOR.test(accel) ? accel : null;
+}
+
+function Shortcut(props: { action: HotkeyAction; value: string }) {
+  const [recording, setRecording] = useState(false);
+  return (
+    <span class="shortcut">
+      <button
+        type="button"
+        class={`keys${recording ? ' recording' : ''}`}
+        data-testid={`hotkey-${props.action}`}
+        onClick={() => setRecording(true)}
+        onBlur={() => setRecording(false)}
+        onKeyDown={(e) => {
+          if (!recording) return;
+          e.preventDefault();
+          if (e.key === 'Escape') return setRecording(false);
+          const accel = acceleratorFor(e);
+          if (!accel) return;
+          setRecording(false);
+          patch({ hotkeys: { [props.action]: accel } });
+        }}
+      >
+        {recording ? 'Press keys…' : props.value || 'None'}
+      </button>
+      {props.value && (
+        <button
+          type="button"
+          class="clear"
+          title="Clear"
+          onClick={() => patch({ hotkeys: { [props.action]: '' } })}
+        >
+          ✕
+        </button>
+      )}
+    </span>
+  );
+}
+
+function Uploads({ s }: { s: Settings }) {
+  const [status, setStatus] = useState<InvokeRes<'secrets:status'> | null>(null);
+  const [test, setTest] = useState<string | null>(null);
+  const refresh = () => void api.invoke('secrets:status').then(setStatus);
+  useEffect(refresh, []);
+  const setSecret = async (key: string, value: string) => {
+    try {
+      await api.invoke('secrets:set', { key, value });
+    } catch (error) {
+      setTest(String(error));
+    }
+    refresh();
+  };
+  const has = (key: string) => status?.keys.includes(key) ?? false;
+  const u = s.uploads;
+  return (
+    <>
+      <Row label="Provider">
+        <Select
+          value={u.provider}
+          options={[
+            ['none', 'None'],
+            ['http', 'HTTP endpoint (multipart POST)'],
+            ['s3', 'S3-compatible storage'],
+          ]}
+          onChange={(provider) => patch({ uploads: { provider } })}
+        />
+      </Row>
+      <Row label="Ask before uploading">
+        <Toggle
+          value={u.confirmBeforeUpload}
+          onChange={(v) => patch({ uploads: { confirmBeforeUpload: v } })}
+        />
+      </Row>
+      {status?.weakOptIn && (
+        <>
+          <p class="warn">
+            No keyring service was found, so credentials can only be obfuscated on disk, not
+            encrypted. Install gnome-keyring or KWallet to encrypt them.
+          </p>
+          <Row label="Store credentials without a keyring" hint="Obfuscated only">
+            <Toggle
+              value={u.allowWeakSecretStorage}
+              testId="weak-secrets"
+              onChange={(v) => {
+                patch({ uploads: { allowWeakSecretStorage: v } });
+                setTimeout(refresh, 200);
+              }}
+            />
+          </Row>
+        </>
+      )}
+      {status && !status.available && !status.weakOptIn && (
+        <p class="warn">No system keychain is available, so credentials can't be stored.</p>
+      )}
+      {u.provider === 'http' && (
+        <>
+          <Row label="Upload URL">
+            <Text
+              value={u.http.url}
+              placeholder="https://example.com/upload"
+              onChange={(url) => patch({ uploads: { http: { url } } })}
+            />
+          </Row>
+          <Row label="File field">
+            <Text
+              value={u.http.fileField}
+              onChange={(fileField) => patch({ uploads: { http: { fileField } } })}
+            />
+          </Row>
+          <Row label="URL in response" hint="JSON path, e.g. data.url">
+            <Text
+              value={u.http.responseUrlPath}
+              onChange={(responseUrlPath) => patch({ uploads: { http: { responseUrlPath } } })}
+            />
+          </Row>
+          <Row
+            label="Authorization header"
+            hint={has('httpAuthorization') ? 'Stored in the system keychain' : 'Optional'}
+          >
+            <Secret
+              stored={has('httpAuthorization')}
+              placeholder="Bearer …"
+              onChange={(v) => void setSecret('httpAuthorization', v)}
+            />
+          </Row>
+        </>
+      )}
+      {u.provider === 's3' && (
+        <>
+          <Row label="Endpoint">
+            <Text
+              value={u.s3.endpoint}
+              placeholder="https://<account>.r2.cloudflarestorage.com"
+              onChange={(endpoint) => patch({ uploads: { s3: { endpoint } } })}
+            />
+          </Row>
+          <Row label="Region">
+            <Text
+              value={u.s3.region}
+              onChange={(region) => patch({ uploads: { s3: { region } } })}
+            />
+          </Row>
+          <Row label="Bucket">
+            <Text
+              value={u.s3.bucket}
+              onChange={(bucket) => patch({ uploads: { s3: { bucket } } })}
+            />
+          </Row>
+          <Row label="Access key">
+            <Secret
+              stored={has('s3AccessKeyId')}
+              placeholder=""
+              onChange={(v) => void setSecret('s3AccessKeyId', v)}
+            />
+          </Row>
+          <Row label="Secret key">
+            <Secret
+              stored={has('s3SecretAccessKey')}
+              placeholder=""
+              onChange={(v) => void setSecret('s3SecretAccessKey', v)}
+            />
+          </Row>
+          <Row label="Public URL" hint="Base of the copied link; empty uses the endpoint">
+            <Text
+              value={u.s3.publicUrlBase}
+              onChange={(publicUrlBase) => patch({ uploads: { s3: { publicUrlBase } } })}
+            />
+          </Row>
+          <Row
+            label="Path prefix"
+            hint={`e.g. ${expandTemplate(u.s3.pathPrefix || 'anyshot', new Date())}/…`}
+          >
+            <Text
+              value={u.s3.pathPrefix}
+              onChange={(pathPrefix) => patch({ uploads: { s3: { pathPrefix } } })}
+            />
+          </Row>
+          <Row label="Public-read ACL" hint="Needed for AWS S3, Spaces, MinIO, B2; not for R2">
+            <Toggle
+              value={u.s3.publicRead}
+              onChange={(publicRead) => patch({ uploads: { s3: { publicRead } } })}
+            />
+          </Row>
+        </>
+      )}
+      {u.provider !== 'none' && (
+        <Row label="Test">
+          <button
+            type="button"
+            onClick={async () => {
+              setTest('Uploading a 1×1 test image…');
+              const r = await api.invoke('uploads:test');
+              setTest(r.ok ? `Works: ${r.url}` : `Failed: ${r.error}`);
+            }}
+          >
+            Test connection
+          </button>
+        </Row>
+      )}
+      {test && <p class="note">{test}</p>}
+    </>
+  );
+}
+
+function Page({ tab, s }: { tab: Tab; s: Settings }) {
+  const c = s.capture;
+  const o = s.output;
+  switch (tab) {
+    case 'general':
+      return (
+        <>
+          <Row label="Launch at login">
+            <Toggle
+              value={s.general.launchAtLogin}
+              onChange={(v) => patch({ general: { launchAtLogin: v } })}
+            />
+          </Row>
+          <Row label="Toolbar theme">
+            <Select
+              value={s.general.toolbarTheme}
+              options={[
+                ['dark', 'Dark'],
+                ['light', 'Light'],
+                ['system', 'Follow system'],
+              ]}
+              onChange={(toolbarTheme) => patch({ general: { toolbarTheme } })}
+            />
+          </Row>
+          <Row label="Accent colour">
+            <input
+              type="color"
+              value={s.general.accent}
+              onChange={(e) => patch({ general: { accent: (e.target as HTMLInputElement).value } })}
+            />
+          </Row>
+        </>
+      );
+    case 'capture':
+      return (
+        <>
+          <Row label="Enter / quick capture">
+            <Select
+              value={c.quickAction}
+              options={[
+                ['copy', 'Copy to clipboard'],
+                ['save', 'Save to file'],
+                ['copy+save', 'Save and copy'],
+                ['save+copyPath', 'Save and copy the path'],
+                ['none', 'Do nothing'],
+              ]}
+              onChange={(quickAction) => patch({ capture: { quickAction } })}
+            />
+          </Row>
+          <Row label="Also open in the editor after quick capture">
+            <Toggle
+              value={c.openEditorAfterQuick}
+              onChange={(v) => patch({ capture: { openEditorAfterQuick: v } })}
+            />
+          </Row>
+          <Row
+            label="Instant capture"
+            hint="Keeps one hidden overlay ready: faster, costs one renderer of memory"
+          >
+            <Toggle
+              value={c.instantCapture}
+              onChange={(v) => patch({ capture: { instantCapture: v } })}
+              testId="instant-capture"
+            />
+          </Row>
+          <Row label="Double-click selection to copy">
+            <Toggle
+              value={c.doubleClickToCopy}
+              onChange={(v) => patch({ capture: { doubleClickToCopy: v } })}
+            />
+          </Row>
+          <Row label="Dim outside the selection">
+            <Toggle value={c.dimOutside} onChange={(v) => patch({ capture: { dimOutside: v } })} />
+          </Row>
+          <Row label="Hide capture instructions">
+            <Toggle
+              value={c.hideInstructions}
+              onChange={(v) => patch({ capture: { hideInstructions: v } })}
+            />
+          </Row>
+          <Row label="Remember the last tool">
+            <Toggle
+              value={c.rememberLastTool}
+              onChange={(v) => patch({ capture: { rememberLastTool: v } })}
+            />
+          </Row>
+          <Row label="Floating preview after capture">
+            <Toggle
+              value={c.showThumbnail}
+              onChange={(v) => patch({ capture: { showThumbnail: v } })}
+            />
+          </Row>
+          <Row label="Preview closes after" hint="0 keeps it until closed">
+            <NumberField
+              value={c.thumbnailDismissSeconds}
+              min={0}
+              max={60}
+              suffix="s"
+              onChange={(v) => patch({ capture: { thumbnailDismissSeconds: v } })}
+            />
+          </Row>
+          <Row label="Preview corner">
+            <Select
+              value={c.thumbnailCorner}
+              options={[
+                ['bottom-right', 'Bottom right'],
+                ['bottom-left', 'Bottom left'],
+                ['top-right', 'Top right'],
+                ['top-left', 'Top left'],
+              ]}
+              onChange={(thumbnailCorner) => patch({ capture: { thumbnailCorner } })}
+            />
+          </Row>
+          <Row label="Several previews">
+            <Select
+              value={c.thumbnailStacking}
+              options={[
+                ['stack', 'Stack them'],
+                ['replace', 'Show only the latest'],
+              ]}
+              onChange={(thumbnailStacking) => patch({ capture: { thumbnailStacking } })}
+            />
+          </Row>
+          <Row label="Pins appear">
+            <Select
+              value={c.pinPlacement}
+              options={[
+                ['original', 'Where the capture was taken'],
+                ['center', 'In the centre of the screen'],
+              ]}
+              onChange={(pinPlacement) => patch({ capture: { pinPlacement } })}
+            />
+          </Row>
+          <Row label="Text capture (OCR)">
+            <Select
+              value={c.ocrAction}
+              options={[
+                ['window+copy', 'Show window and copy'],
+                ['window', 'Show window only'],
+                ['copy', 'Copy only'],
+              ]}
+              onChange={(ocrAction) => patch({ capture: { ocrAction } })}
+            />
+          </Row>
+        </>
+      );
+    case 'output':
+      return (
+        <>
+          <Row label="Save">
+            <Select
+              value={o.saveAction}
+              options={[
+                ['default-folder', 'To the folder below'],
+                ['ask', 'Ask where to save'],
+              ]}
+              onChange={(saveAction) => patch({ output: { saveAction } })}
+            />
+          </Row>
+          <Row label="Folder">
+            <Folder value={o.saveDir} fallback="Pictures/anyshot" which="output" />
+          </Row>
+          <Row
+            label="File name"
+            hint={`${expandTemplate(o.filenameTemplate, new Date())}.${o.imageFormat === 'jpeg' ? 'jpg' : o.imageFormat}`}
+          >
+            <Text
+              value={o.filenameTemplate}
+              onChange={(filenameTemplate) => patch({ output: { filenameTemplate } })}
+            />
+          </Row>
+          <p class="note">
+            Tokens:{' '}
+            {'{date} {time} {timestamp} {unix} {yyyy} {MM} {dd} {HH} {mm} {ss} {ms} {random}'}; a /
+            makes sub-folders.
+          </p>
+          <Row label="Format">
+            <Select
+              value={o.imageFormat}
+              options={[
+                ['png', 'PNG'],
+                ['jpeg', 'JPEG'],
+                ['webp', 'WebP'],
+              ]}
+              onChange={(imageFormat) => patch({ output: { imageFormat } })}
+            />
+          </Row>
+          {o.imageFormat !== 'png' && (
+            <Row label="Quality">
+              <NumberField
+                value={o.imageQuality}
+                min={10}
+                max={100}
+                suffix="%"
+                onChange={(v) => patch({ output: { imageQuality: v } })}
+              />
+            </Row>
+          )}
+          <Row label="Copy the path after saving">
+            <Toggle
+              value={o.copyPathAfterSave}
+              onChange={(v) => patch({ output: { copyPathAfterSave: v } })}
+            />
+          </Row>
+          <Row label="History size" hint="0 turns history off">
+            <NumberField
+              value={o.historySize}
+              min={0}
+              max={1000}
+              onChange={(v) => patch({ output: { historySize: v } })}
+            />
+          </Row>
+        </>
+      );
+    case 'shortcuts':
+      return (
+        <>
+          <p class="note">
+            Click a shortcut, then press the new keys. If a shortcut does nothing, another app may
+            already use it. On Wayland, bind commands such as <code>anyshot --capture</code> in your
+            desktop's keyboard settings instead.
+          </p>
+          {HOTKEY_ACTIONS.map((action) => (
+            <Row key={action} label={HOTKEY_LABELS[action]}>
+              <Shortcut action={action} value={s.hotkeys[action]} />
+            </Row>
+          ))}
+        </>
+      );
+    case 'tools':
+      return (
+        <>
+          <p class="note">Tools shown in the toolbar. Hidden tools still work with their keys.</p>
+          <div class="tools">
+            {TOOL_IDS.map((tool) => (
+              <label key={tool}>
+                <input
+                  type="checkbox"
+                  checked={s.tools.enabledTools.includes(tool)}
+                  onChange={(e) => {
+                    const on = (e.target as HTMLInputElement).checked;
+                    const enabledTools = TOOL_IDS.filter((t) =>
+                      t === tool ? on : s.tools.enabledTools.includes(t),
+                    );
+                    patch({ tools: { enabledTools } });
+                  }}
+                />
+                {TOOL_LABELS[tool]}
+              </label>
+            ))}
+          </div>
+        </>
+      );
+    case 'recording':
+      return (
+        <>
+          <Row label="Frame rate">
+            <Select
+              value={String(s.recording.fps) as '15' | '24' | '30' | '60'}
+              options={[
+                ['15', '15 fps'],
+                ['24', '24 fps'],
+                ['30', '30 fps'],
+                ['60', '60 fps'],
+              ]}
+              onChange={(v) => patch({ recording: { fps: Number(v) } })}
+            />
+          </Row>
+          <Row label="Record microphone">
+            <Toggle
+              value={s.recording.microphone}
+              onChange={(v) => patch({ recording: { microphone: v } })}
+            />
+          </Row>
+          <Row label="Folder">
+            <Folder value={s.recording.saveDir} fallback="Videos/anyshot" which="recording" />
+          </Row>
+          <Row label="File name">
+            <Text
+              value={s.recording.filenameTemplate}
+              onChange={(filenameTemplate) => patch({ recording: { filenameTemplate } })}
+            />
+          </Row>
+          <Row label="When done">
+            <Select
+              value={s.recording.whenDone}
+              options={[
+                ['reveal', 'Show in folder'],
+                ['open', 'Open the video'],
+                ['copyPath', 'Copy the path'],
+              ]}
+              onChange={(whenDone) => patch({ recording: { whenDone } })}
+            />
+          </Row>
+          <Row label="Scroll capture height limit">
+            <NumberField
+              value={s.scroll.maxHeight}
+              min={1000}
+              max={100000}
+              step={1000}
+              suffix="px"
+              onChange={(v) => patch({ scroll: { maxHeight: v } })}
+            />
+          </Row>
+        </>
+      );
+    case 'uploads':
+      return <Uploads s={s} />;
+    case 'about':
+      return (
+        <div class="about">
+          <h2>anyshot</h2>
+          <p>A lean screenshot, annotation and screen-recording app for Windows and Linux.</p>
+          <p>
+            Released under the MIT licence. Feature ideas come from{' '}
+            <button
+              type="button"
+              class="link"
+              onClick={() =>
+                void api.invoke('shell:open-url', 'https://github.com/sw33tLie/macshot')
+              }
+            >
+              macshot
+            </button>
+            ; anyshot shares no code or artwork with it.
+          </p>
+        </div>
+      );
+  }
+}
+
+function App() {
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [tab, setTab] = useState<Tab>('general');
+  useEffect(() => {
+    void api.invoke('settings:get').then((s) => {
+      setSettings(s);
+      applyTheme(s);
+    });
+    return api.on('settings:changed', (s) => {
+      setSettings(s);
+      applyTheme(s);
+    });
+  }, []);
+  patch = (p) => void api.invoke('settings:patch', p).then(setSettings);
+  if (!settings) return null;
+  return (
+    <div class="settings">
+      <nav>
+        {TABS.map((t) => (
+          <button
+            type="button"
+            key={t.id}
+            class={t.id === tab ? 'active' : ''}
+            onClick={() => setTab(t.id)}
+            data-testid={`tab-${t.id}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+      <section>
+        <h1>{TABS.find((t) => t.id === tab)?.label}</h1>
+        <Page tab={tab} s={settings} />
+      </section>
+    </div>
+  );
+}
+
+render(<App />, document.getElementById('root') as HTMLElement);
