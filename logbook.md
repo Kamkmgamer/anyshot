@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 7 (recording). Exact next action: replace `src/main/recording.ts` stub: hidden recorder window (`backgroundThrottling: false` only there), `setDisplayMediaRequestHandler` picking the overlay's display, permission handler allowing `media` only for the recorder page, `recorder:open-file`/`recorder:write` (positional writes to an fd) /`recorder:finish`; renderer `src/windows/recorder/` using Mediabunny `MediaStreamVideoTrackSource` (crop via `transform.crop`, H.264 MP4, VP9/WebM fallback via `VideoEncoder.isConfigSupported`) + `StreamTarget`; tray Stop item; then e2e that records ~2 s under Xvfb and checks the MP4 header/size.
+**Next:** step 8 (OCR + uploads). Exact next action: `src/utility/ocr.ts` (tesseract.js worker in a `utilityProcess`, English data shipped via `@tesseract.js-data/eng` or downloaded on first use — check licence/size), `src/main/ocr.ts` client that forks on demand and kills after 30 s idle (one-shot timer), OCR result window (`src/windows/ocr`, editable text + copy), then uploads (`src/main/uploads.ts`: provider interface, custom HTTP multipart + S3 SigV4, keys via `safeStorage` in `secrets.bin`). A small recording HUD (stop/pause) is still missing; Stop is in the tray.
 
 ## Status (v1 build order)
 
@@ -18,10 +18,20 @@
 | 4 After capture | done | history store + window (lazy grid), floating preview (one shared window), pins, e2e |
 | 5 Editor | done | window, zoom/fit, undoable crop, `.anyshot` projects, history write-back, e2e. Flip and "add capture" layers not done |
 | 6 More tools | done | censor (WebGL pixelate/blur, solid), spotlight, magnify, measure, stamp, colour picker, invert, adjust (shader + presets), beautify. Auto-redact (OCR/PII) pending |
-| 7 Recording | pending | |
+| 7 Recording | done | MP4 (H.264, VP9/WebM fallback) via getDisplayMedia + Mediabunny streamed to disk, mic (untested here), GIF via intermediate MP4 + gifenc worker, e2e. No HUD/webcam/click highlights |
 | 8 OCR + uploads | pending | |
 | 9 Scroll capture | pending | |
 | 10 Polish | pending | |
+
+## 2026-11-19 - step 7 recording
+
+- Hidden recorder window (`backgroundThrottling: false` only there). Main answers `getDisplayMedia` through `setDisplayMediaRequestHandler` with the overlay's display (loopback audio on Windows). Media permissions are granted only to recorder/scroll windows; everything else is denied.
+- Mediabunny `MediaStreamVideoTrackSource` crops in the encoder pipeline (`transform.crop`); the crop is scaled from display pixels to the stream's actual size. Codec: first encodable of H.264 → VP9 → VP8 (MP4 for H.264, WebM otherwise). Under Xvfb H.264 encodes in software: 400×200, 15 fps, 2.4 s → 36 frames.
+- `StreamTarget` chunks (1 MiB) go to main and are written at their file offsets (`fd.write(data, position)`), so a recording is never held in memory and the MP4 index can be patched at the end.
+- GIF: record an intermediate MP4 to temp, read it back through a Range-capable `app://local/@recording/` route (only that file, only while recording), decode with `CanvasSink`, encode each frame in a gifenc worker and stream bytes to disk; the intermediate file is deleted.
+- Mediabunny creates a `blob:` worker (Chromium exposes `MediaStreamTrackProcessor` only in workers), so the recorder page alone allows `worker-src blob:`.
+- The recorder bundle is ~1.2 MB (Mediabunny); it loads only when recording starts.
+- Not done: recording HUD with pause/stop (tray has Stop), webcam bubble, click highlights, keystrokes, system audio on Linux.
 
 ## 2026-11-19 - step 6 more tools
 

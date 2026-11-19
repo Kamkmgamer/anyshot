@@ -154,6 +154,8 @@ export interface RecordRequest {
 
 export interface RecorderInit {
   displayId: number;
+  /** Physical pixel size of the whole display, to scale the crop to the stream's size. */
+  displaySize: Size;
   /** Crop region in physical pixels of the captured display stream. */
   crop: Rect;
   scaleFactor: number;
@@ -229,7 +231,8 @@ export interface InvokeContract {
 
   'recorder:init': Channel<void, RecorderInit>;
   'recorder:open-file': Channel<{ ext: 'mp4' | 'webm' | 'gif' }, string>;
-  'recorder:write': Channel<{ data: Uint8Array; position: number }, void>;
+  'recorder:write': Channel<{ path: string; data: Uint8Array; position: number }, void>;
+  'recorder:close-file': Channel<{ path: string; remove: boolean }, void>;
   'recorder:status': Channel<RecorderStatus, void>;
   'recorder:finish': Channel<{ ok: boolean; error?: string }, void>;
   'recorder:control': Channel<'stop' | 'pause' | 'resume', void>;
@@ -302,6 +305,7 @@ export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind
   'recorder:init': ['recorder'],
   'recorder:open-file': ['recorder'],
   'recorder:write': ['recorder'],
+  'recorder:close-file': ['recorder'],
   'recorder:status': ['recorder'],
   'recorder:finish': ['recorder'],
   'recorder:control': ['recorder'],

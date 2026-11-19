@@ -20,7 +20,7 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export type MediaResolver = (path: string) => Promise<Response | null>;
+export type MediaResolver = (path: string, request: Request) => Promise<Response | null>;
 const mediaRoutes = new Map<string, MediaResolver>();
 
 /** Registers a resolver for `app://local/@<prefix>/...` URLs (history images, pins). */
@@ -67,7 +67,7 @@ export function handleAppProtocol(): void {
       const prefix = pathname.slice(2, slash === -1 ? undefined : slash);
       const resolver = mediaRoutes.get(prefix);
       const rest = slash === -1 ? '' : pathname.slice(slash + 1);
-      return (resolver && (await resolver(rest))) ?? notFound();
+      return (resolver && (await resolver(rest, request))) ?? notFound();
     }
 
     return serveBundle(pathname);

@@ -25,11 +25,13 @@ function ensureSession(): void {
   if (sessionReady) return;
   sessionReady = true;
   handleAppProtocol();
-  // Deny every permission by default; the recorder opts in for media.
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) =>
-    callback(false),
+  // Every permission is denied except screen/microphone capture for the recorder page.
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback) =>
+    callback(mediaAllowed(wc, permission)),
   );
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  session.defaultSession.setPermissionCheckHandler((wc, permission) =>
+    wc ? mediaAllowed(wc, permission) : false,
+  );
   for (const hook of sessionHooks.splice(0)) hook();
 }
 
@@ -77,6 +79,14 @@ export function createWindow(kind: WindowKind, options: WindowOptions = {}): Bro
   const search = query ? `?${new URLSearchParams(query).toString()}` : '';
   void win.loadURL(`${APP_ORIGIN}/${kind}/index.html${search}`);
   return win;
+}
+
+const MEDIA_PERMISSIONS = new Set(['media', 'display-capture']);
+
+function mediaAllowed(wc: WebContents, permission: string): boolean {
+  const kinds: WindowKind[] = ['recorder', 'scroll'];
+  const kind = registry.get(wc.id)?.kind;
+  return MEDIA_PERMISSIONS.has(permission) && kind !== undefined && kinds.includes(kind);
 }
 
 function hardenContents(contents: WebContents) {
