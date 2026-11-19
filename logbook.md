@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 8 uploads. Exact next action: `src/main/secrets.ts` (safeStorage-encrypted JSON in `secrets.bin`, report backend, refuse plaintext `basic_text` unless confirmed), `src/main/uploads.ts` replacing the stub (provider interface; `http` multipart POST with response URL path; `s3` PUT with SigV4 written with node:crypto and unit-tested against AWS's documented example), `uploads:test` handler, upload action from overlay/floating/history copying the URL; unit + e2e against a local HTTP server.
+**Next:** step 9 (scroll capture). Exact next action: write the stitch algorithm as a pure module `src/shared/stitch.ts` (find vertical overlap between consecutive frames by comparing row hashes/diffs, ignore fixed header/footer rows, append only new rows, cap at `scroll.maxHeight`) with Vitest tests, then `src/main/scroll.ts` + `src/windows/scroll/` (small visible HUD outside the region with Stop/Cancel, `getDisplayMedia` stream sampled ~8 fps, crop, stitch in `src/workers/stitch.worker.ts`, finish → encode PNG → `capture:deliver`), e2e scrolling the fixture.
 
 ## Status (v1 build order)
 
@@ -19,9 +19,16 @@
 | 5 Editor | done | window, zoom/fit, undoable crop, `.anyshot` projects, history write-back, e2e. Flip and "add capture" layers not done |
 | 6 More tools | done | censor (WebGL pixelate/blur, solid), spotlight, magnify, measure, stamp, colour picker, invert, adjust (shader + presets), beautify. Auto-redact (OCR/PII) pending |
 | 7 Recording | done | MP4 (H.264, VP9/WebM fallback) via getDisplayMedia + Mediabunny streamed to disk, mic (untested here), GIF via intermediate MP4 + gifenc worker, e2e. No HUD/webcam/click highlights |
-| 8 OCR + uploads | partial | OCR done (tesseract.js in an idle-exiting utilityProcess, offline English, result window, e2e); uploads pending |
+| 8 OCR + uploads | done | OCR (idle-exiting utilityProcess, offline English), uploads: provider interface, HTTP multipart + S3 SigV4, keys via safeStorage; unit + e2e |
 | 9 Scroll capture | pending | |
 | 10 Polish | pending | |
+
+## 2026-11-19 - step 8 uploads
+
+- Providers (`src/main/upload-providers.ts`, no Electron imports): generic HTTP multipart POST with the URL read from a JSON path (covers imgbb/imgur-style APIs and self-hosted endpoints) and S3-compatible PUT (path-style, works with AWS, R2, MinIO, B2, Spaces).
+- SigV4 is ~60 lines on `node:crypto` (`src/main/sigv4.ts`) instead of the AWS SDK or aws4fetch; it reproduces AWS's published "get-vanilla" signature exactly.
+- Credentials live in `secrets.bin`, encrypted with `safeStorage`, never in settings and never sent to windows (windows can only set them and see which keys exist). If no keychain is available anyshot refuses to store them; on Linux the `basic_text` backend is reported to the settings window so it can warn.
+- Google Drive (OAuth) is not implemented.
 
 ## 2026-11-19 - step 8 OCR
 
