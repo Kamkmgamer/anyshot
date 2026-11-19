@@ -1,25 +1,18 @@
 import { type FileHandle, mkdir, open, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import {
-  app,
-  type BrowserWindow,
-  type Display,
-  desktopCapturer,
-  Notification,
-  session,
-  shell,
-} from 'electron';
+import { app, type BrowserWindow, type Display, Notification, shell } from 'electron';
 import { expandTemplate } from '../shared/filename';
 import { evenRect, type Rect, scaleRect } from '../shared/geometry';
 import type { RecorderInit, RecorderStatus } from '../shared/ipc';
 import { setAppState } from './app-state';
 import { copyText } from './clipboard';
+import { setCaptureDisplay } from './display-media';
 import { handle } from './ipc';
 import { paths } from './paths';
 import { registerMediaRoute } from './protocol';
 import { getSettings } from './settings-store';
 import { recordTiming } from './test-hooks';
-import { createWindow, onSessionReady, send } from './windows';
+import { createWindow, send } from './windows';
 
 interface Recording {
   win: BrowserWindow;
@@ -36,27 +29,6 @@ let active: Recording | null = null;
 export function isRecording(): boolean {
   return active !== null;
 }
-
-// The recorder page calls getDisplayMedia; main picks the source here, so no
-// system picker is shown (except on Wayland, where the portal always asks).
-onSessionReady(() => {
-  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
-    try {
-      const sources = await desktopCapturer.getSources({ types: ['screen'] });
-      const wanted = active ? String(active.init.displayId) : '';
-      const source = sources.find((s) => s.display_id === wanted) ?? sources[0];
-      if (!source) return callback({});
-      // Windows can add system audio as loopback; Linux has no equivalent here.
-      callback({
-        video: source,
-        ...(process.platform === 'win32' ? { audio: 'loopback' as const } : {}),
-      });
-    } catch (error) {
-      console.error('[recording] no screen source', error);
-      callback({});
-    }
-  });
-});
 
 /** Starts recording a region (CSS px, relative to the display) in a hidden recorder window. */
 export async function startRecording(display: Display, rect: Rect, gif: boolean): Promise<void> {
@@ -75,6 +47,7 @@ export async function startRecording(display: Display, rect: Rect, gif: boolean)
     microphone: settings.recording.microphone && !gif,
     gif,
   };
+  setCaptureDisplay(display.id);
   // Only the recorder keeps running while hidden; every other window throttles.
   const win = createWindow('recorder', {
     show: false,

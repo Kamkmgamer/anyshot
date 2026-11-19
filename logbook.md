@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 9 (scroll capture) — the stitcher `src/shared/stitch.ts` is done and unit-tested. Exact next action: `src/main/scroll.ts` (replace stub: visible HUD window `scroll` placed outside the region, `scroll:init` with crop/display size, `scroll:finish` → deliver), `src/windows/scroll/` (getDisplayMedia, sample ~6 fps with MediaStreamTrackProcessor or a video element + OffscreenCanvas, crop, push to `src/workers/stitch.worker.ts`, show W×H, Stop/Cancel), then encode PNG via `exportImage`-like path and `capture:deliver` quick action; e2e that scrolls a tall fixture window via `webContents.executeJavaScript('scrollBy')`.
+**Next:** step 10 (polish). Exact next action: settings window (`src/main/settings-window.ts` replacing the stub + `src/windows/settings/`: General/Capture/Output/Shortcuts/Recording/Uploads tabs over `settings:patch`, secrets via `secrets:set`, folder pickers via `settings:choose-dir`, upload test); then instant-capture (warm hidden overlay reused via `overlay:reset`), electron-builder config (NSIS, AppImage/deb/rpm, asarUnpack `**/*.node`, exclude tesseract 4.0.0 data) + fuses via afterPack, README features/dev/Wayland notes.
 
 ## Status (v1 build order)
 
@@ -20,8 +20,14 @@
 | 6 More tools | done | censor (WebGL pixelate/blur, solid), spotlight, magnify, measure, stamp, colour picker, invert, adjust (shader + presets), beautify. Auto-redact (OCR/PII) pending |
 | 7 Recording | done | MP4 (H.264, VP9/WebM fallback) via getDisplayMedia + Mediabunny streamed to disk, mic (untested here), GIF via intermediate MP4 + gifenc worker, e2e. No HUD/webcam/click highlights |
 | 8 OCR + uploads | done | OCR (idle-exiting utilityProcess, offline English), uploads: provider interface, HTTP multipart + S3 SigV4, keys via safeStorage; unit + e2e |
-| 9 Scroll capture | partial | stitcher (luma-profile matching, sticky header/footer, height cap) unit-tested; window pending |
+| 9 Scroll capture | done | manual scrolling, HUD outside the region, stream sampled ~7 fps, stitch worker, quick action; unit + e2e (exact 600×1060). No auto-scroll/horizontal |
 | 10 Polish | pending | |
+
+## 2026-11-19 - step 9 scroll capture
+
+- The HUD window sits just outside the selected region (below, else above) and is shown without focus, so the page being scrolled keeps the wheel. Frames come from `getDisplayMedia` via a muted `<video>`, cropped on an OffscreenCanvas every 150 ms and stitched in `stitch.worker.ts`; the worker also encodes the PNG and thumbnail at the end.
+- `src/main/display-media.ts` now owns `setDisplayMediaRequestHandler` for both recorder and scroll capture.
+- Not done: auto-scroll (needs an input-automation package), horizontal scrolling, live preview of the stitched image.
 
 ## 2026-11-19 - step 8 uploads
 

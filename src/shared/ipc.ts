@@ -173,6 +173,7 @@ export interface RecorderStatus {
 
 export interface ScrollInit {
   displayId: number;
+  displaySize: Size;
   crop: Rect;
   scaleFactor: number;
   maxHeight: number;
@@ -238,7 +239,7 @@ export interface InvokeContract {
   'recorder:control': Channel<'stop' | 'pause' | 'resume', void>;
 
   'scroll:init': Channel<void, ScrollInit>;
-  'scroll:finish': Channel<{ image: EncodedImage | null }, void>;
+  'scroll:finish': Channel<{ image: EncodedImage | null; thumb?: ArrayBuffer }, void>;
 
   'ocr:init': Channel<void, OcrResult>;
 
