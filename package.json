@@ -46,6 +46,9 @@
     "dist": "electron-vite build && electron-builder",
     "dist:dir": "electron-vite build && electron-builder --dir"
   },
-  "author": "anyshot contributors",
+  "author": {
+    "name": "anyshot contributors",
+    "email": "mgamergo@users.noreply.github.com"
+  },
   "homepage": "https://github.com/mgamergo/anyshot"
 }

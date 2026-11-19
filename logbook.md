@@ -6,7 +6,14 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** v1 complete as listed below; draft PR next (supervisor). Follow-ups: run on real Windows (mixed DPI, tray, shortcuts, H.264 hardware encode, loopback audio, NSIS, signing); test Wayland (GNOME, KDE); recording HUD; auto-redact; QR detection; editor flip and image layers; auto-update.
+## 2026-11-19 - PR #1 review fixes
+
+- Fixed all 65 CodeRabbit findings. Censors cover every intersecting pixel, including when filtered pixels are transparent. Magnifiers read the censored image. The editor rejects invalid project crops before displaying the source.
+- History retains images for active consumers and preserves indexes it cannot read. Project and settings saves report failures, and automatic saves and recordings reserve distinct filenames.
+- Scroll capture stops with a visible error if frames lose overlap and asks for a smaller selection when the controls cannot fit. Remote uploads require HTTPS, with HTTP allowed only on literal loopback addresses. Uploads do not follow redirects, and Linux users can turn weak credential storage back off.
+- Linux installer metadata uses the GitHub noreply address. The triage ledger and command results are in `/home/boxes/cr/`.
+
+**Next:** Verify mixed-DPI capture, recording, and installers on Windows, and run capture on GNOME and KDE Wayland.
 
 ## Status (v1 build order)
 
