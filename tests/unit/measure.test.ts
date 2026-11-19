@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { Annotation } from '../../src/engine/model';
+import { clampMoveDelta, measureEnd } from '../../src/engine/view';
 import { clampAlong, clampPoint, snap45 } from '../../src/shared/geometry';
-import { measureEnd } from '../../src/engine/view';
 
 const image = { x: 0, y: 0, width: 300, height: 200 };
 const selection = { x: 100, y: 50, width: 200, height: 100 };
@@ -67,5 +68,41 @@ describe('measureEnd', () => {
     const end = snap45({ x: 0, y: 0 }, { x: 10, y: 9 });
     expect(end.x).toBeCloseTo(end.y, 12);
     expect(end.x).not.toBe(0);
+  });
+});
+
+describe('clampMoveDelta', () => {
+  const stroke = { color: '#ff0000', width: 2, style: 'solid' as const };
+  const measure: Annotation = {
+    id: 'm',
+    kind: 'measure',
+    a: { x: 50, y: 50 },
+    b: { x: 250, y: 100 },
+    stroke,
+  };
+  const arrow: Annotation = { ...measure, id: 'r', kind: 'arrow' };
+
+  it('stops a measurement at the image edge on both axes', () => {
+    expect(clampMoveDelta([measure], { x: 500, y: 500 }, image)).toEqual({ x: 50, y: 100 });
+    expect(clampMoveDelta([measure], { x: -500, y: -500 }, image)).toEqual({ x: -50, y: -50 });
+    expect(clampMoveDelta([measure], { x: 10, y: -20 }, image)).toEqual({ x: 10, y: -20 });
+  });
+
+  it('moves the whole selection by the measurement-limited delta', () => {
+    const far: Annotation = { ...measure, id: 'm2', a: { x: 280, y: 10 }, b: { x: 290, y: 20 } };
+    expect(clampMoveDelta([measure, far, arrow], { x: 40, y: -30 }, image)).toEqual({
+      x: 10,
+      y: -10,
+    });
+  });
+
+  it('lets other kinds move freely', () => {
+    expect(clampMoveDelta([arrow], { x: 900, y: -900 }, image)).toEqual({ x: 900, y: -900 });
+  });
+
+  it('keeps a measurement that is already outside movable back in', () => {
+    const outside: Annotation = { ...measure, a: { x: 320, y: 50 }, b: { x: 350, y: 60 } };
+    expect(clampMoveDelta([outside], { x: 30, y: 0 }, image)).toEqual({ x: 0, y: 0 });
+    expect(clampMoveDelta([outside], { x: -60, y: 0 }, image)).toEqual({ x: -60, y: 0 });
   });
 });

@@ -444,7 +444,8 @@ export class CanvasView {
         d.radius = Math.max(70 * this.unit, distance(s.start, p));
       }
     } else if (s.type === 'move') {
-      s.delta = { x: p.x - s.start.x, y: p.y - s.start.y };
+      const delta = { x: p.x - s.start.x, y: p.y - s.start.y };
+      s.delta = clampMoveDelta(s.originals, delta, this.imageArea());
     } else if (s.type === 'handle') {
       const target = s.original.kind === 'measure' ? clampPoint(p, this.imageArea()) : p;
       s.current = dragHandle(s.original, s.handle, target);
@@ -652,6 +653,29 @@ function context(canvas: HTMLCanvasElement, options?: CanvasRenderingContext2DSe
   const ctx = canvas.getContext('2d', options);
   if (!ctx) throw new Error('2D canvas unavailable');
   return ctx;
+}
+
+/**
+ * Limits a move of the selection so every selected measurement stays inside
+ * `area`; the selection still moves as one. Other kinds move freely. Not
+ * moving is always allowed, so a measurement left outside (the overlay
+ * selection shrank) can still be moved back in.
+ */
+export function clampMoveDelta(selected: readonly Annotation[], delta: Point, area: Rect): Point {
+  const x = { lo: -Infinity, hi: Infinity };
+  const y = { lo: -Infinity, hi: Infinity };
+  for (const a of selected) {
+    if (a.kind !== 'measure') continue;
+    for (const p of [a.a, a.b]) {
+      x.lo = Math.max(x.lo, area.x - p.x);
+      x.hi = Math.min(x.hi, area.x + area.width - p.x);
+      y.lo = Math.max(y.lo, area.y - p.y);
+      y.hi = Math.min(y.hi, area.y + area.height - p.y);
+    }
+  }
+  const limit = (v: number, r: { lo: number; hi: number }) =>
+    Math.max(Math.min(r.lo, 0), Math.min(Math.max(r.hi, 0), v));
+  return { x: limit(delta.x, x), y: limit(delta.y, y) };
 }
 
 /**

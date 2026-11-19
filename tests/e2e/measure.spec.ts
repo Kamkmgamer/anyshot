@@ -74,3 +74,22 @@ test('measurements start and end at the image edge in the editor', async () => {
   expect(measure?.a).toEqual({ x: 0, y: expect.closeTo(80, 0) });
   expect(measure?.b).toEqual({ x: 300, y: expect.closeTo(80, 0) });
 });
+
+test('moving a measurement stops at the image edge', async () => {
+  await pressClosing(await selectCard(ctx.app), 'e');
+  const editor = await pageOf(ctx.app, 'editor');
+  await expect(editor.getByTestId('editor-size')).toHaveText('300 × 200');
+  const box = await editor.locator('#clip').boundingBox();
+  if (!box) throw new Error('no canvas');
+  const s = box.width / 300;
+  const at = (x: number, y: number): [number, number] => [box.x + x * s, box.y + y * s];
+  await editor.getByTestId('tool-measure').click();
+  await drag(editor, at(50, 100), at(150, 100));
+  await editor.getByTestId('tool-select').click();
+  // Grab the middle of the line and drag far below and to the right of the image.
+  await drag(editor, at(100, 100), at(400, 400));
+  const [measure] = await savedMeasures(editor);
+  // Float arithmetic on the clamped delta: exact to well below a pixel.
+  expect(measure?.b).toEqual({ x: expect.closeTo(300, 6), y: expect.closeTo(200, 6) });
+  expect(measure?.a).toEqual({ x: expect.closeTo(200, 0), y: expect.closeTo(200, 6) });
+});
