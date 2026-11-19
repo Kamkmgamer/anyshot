@@ -6,6 +6,18 @@
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
 - Branch `feat/user-feedback` (from `main` at `ea910ce`). To resume: read this logbook first, then continue from the "Next:" line below.
 
+## 2026-11-19 - PR #2 CodeRabbit fixes
+
+- `snap45` rounds near-zero axis components to 0, so a Shift-drag along an edge no longer collapses to zero length (`9b45e4a`).
+- Moving a selection with measurements limits the shared delta so the measurements stay inside the image (`clampMoveDelta`); other kinds move freely (`eb1fbd2`).
+- Editors track the entry they hold; deliveries report the resulting entry before releasing their own hold, and `holdEntry` retains the new entry before releasing the old one (Save as copy, first save) (`7125ee0`).
+- `replaceImage` snapshots the image, thumbnail and project, and restores them (or removes new ones) if any write or the index write fails, then rethrows (`57cf593`).
+- `checkEditable` validates `edit`/`edit.source` structurally (PNG, non-empty ArrayBuffer, positive integer size); malformed payloads are stored as plain images (`d03339b`).
+- History preview: header and grid are `inert` while it's open, and Tab/Shift+Tab cycle inside the dialog (`4c5573b`).
+- Pins: zoom-out stops where one row of controls still fits (measured, never above 100 %); the row wraps for smaller pins; Close is first (`ffb3c17`).
+
+**Next:** supervisor re-review of PR #2; then verify on Windows (see the user-feedback entry).
+
 ## 2026-11-19 - user feedback (branch `feat/user-feedback`)
 
 Items in order 2, 6, 3, 4, 1, 7, 5.
@@ -30,7 +42,7 @@ Items in order 2, 6, 3, 4, 1, 7, 5.
 - **Final verification** on `b7a53ab` under Xvfb: `bun run format:check`, `lint`, `typecheck`, `test` (18 files, 93 unit tests), `build` all pass; `xvfb-run -a bun run test:e2e` twice → 45 passed, 4 skipped (the opt-in screenshot generator) both times; the generator itself passes (4/4). The following commit only refreshes two screenshots (timestamps) and this logbook.
 - Not verifiable here: Windows (Ctrl+Alt+S is AltGr+S on some keyboard layouts, which may type a character instead; native radio/checkbox rendering), real system theme switching (Xvfb reports dark/no preference), touch input for press-and-hold.
 
-**Next:** supervisor review and PR for `feat/user-feedback`; then verify on Windows (see above).
+**Next:** see the PR #2 CodeRabbit fixes entry above.
 
 ## 2026-11-19 - PR #1 review fixes
 
