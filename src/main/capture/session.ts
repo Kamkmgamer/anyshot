@@ -115,8 +115,6 @@ function createOverlayWindow(display: Display): BrowserWindow {
     hasShadow: false,
     enableLargerThanScreen: true,
     alwaysOnTop: true,
-    // X11 window managers keep panels above plain always-on-top windows; full screen covers them.
-    ...(isLinux ? { fullscreen: true } : {}),
   });
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -164,6 +162,9 @@ handle('overlay:painted', (_req, { win }) => {
     session.shown = true;
     recordTiming('hotkeyToOverlay', performance.now() - session.startedAt);
   }
+  // X11 window managers keep panels above plain always-on-top windows; full
+  // screen covers them. Set only now: a full-screen window is shown at once.
+  if (isLinux) win.setFullScreen(true);
   win.show();
   // The display under the pointer keeps focus so keyboard shortcuts work at once.
   const cursor = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
@@ -182,4 +183,36 @@ handle('overlay:hide', () => hideOverlays());
 handle('capture:remember-area', ({ rect }, { win }) => {
   const display = overlayDisplay(win);
   if (display) lastArea = { displayId: display.id, rect };
+});
+
+handle('capture:deliver', async (request, { kind }) => {
+  // The overlay has already encoded everything it needs; close it right away.
+  if (kind === 'overlay') endCapture();
+  const { deliver } = await import('../deliver');
+  return deliver(request);
+});
+
+handle('capture:to-editor', async ({ image, doc }) => {
+  endCapture();
+  const { openEditorWithImage } = await import('../editor');
+  await openEditorWithImage(
+    { rgba: new Uint8Array(image.rgba), width: image.width, height: image.height },
+    doc,
+  );
+});
+
+handle('capture:record', async (request, { win }) => {
+  const display = overlayDisplay(win);
+  endCapture();
+  if (!display) return;
+  const { startRecording } = await import('../recording');
+  await startRecording(display, request.rect, request.gif);
+});
+
+handle('capture:scroll', async (request, { win }) => {
+  const display = overlayDisplay(win);
+  endCapture();
+  if (!display) return;
+  const { startScrollCapture } = await import('../scroll');
+  await startScrollCapture(display, request.rect);
 });

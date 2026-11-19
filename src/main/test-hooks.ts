@@ -1,7 +1,7 @@
 import { app } from 'electron';
 import type { AppAction } from './cli';
 import { frameCount } from './frames';
-import { getSettings } from './settings-store';
+import { getSettings, patchSettings } from './settings-store';
 import { allWindows } from './windows';
 
 export interface TestHooks {
@@ -10,6 +10,7 @@ export interface TestHooks {
   processTypes(): string[];
   frameCount(): number;
   settings(): unknown;
+  patch(patch: unknown): Promise<unknown>;
   timings: Record<string, number[]>;
 }
 
@@ -28,6 +29,7 @@ export function installTestHooks(dispatch: (action: AppAction, file?: string) =>
     processTypes: () => app.getAppMetrics().map((m) => m.type),
     frameCount,
     settings: getSettings,
+    patch: (patch) => patchSettings(patch as never),
     timings: {},
   };
 }

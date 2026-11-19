@@ -15,7 +15,11 @@ export interface Launched {
  * Launches the built app with an isolated profile. ANYSHOT_TEST exposes
  * `globalThis.__anyshot` in main, which tests drive through `app.evaluate`.
  */
-export async function launch(args: string[] = [], settings?: unknown): Promise<Launched> {
+export async function launch(
+  args: string[] = [],
+  settings?: unknown,
+  env: Record<string, string> = {},
+): Promise<Launched> {
   const userData = await mkdtemp(join(tmpdir(), 'anyshot-e2e-'));
   if (settings) await writeFile(join(userData, 'settings.json'), JSON.stringify(settings));
   const errors: string[] = [];
@@ -26,6 +30,7 @@ export async function launch(args: string[] = [], settings?: unknown): Promise<L
       ANYSHOT_TEST: '1',
       ANYSHOT_USER_DATA: userData,
       XDG_CONFIG_HOME: join(userData, 'config'),
+      ...env,
     },
   });
   const watch = (page: Page) => {
@@ -66,7 +71,8 @@ export async function dispatch(app: ElectronApplication, action: string, file?: 
 
 /** Waits for a window of the given kind and returns its page. */
 export async function pageOf(app: ElectronApplication, kind: WindowKind): Promise<Page> {
-  const match = () => app.windows().find((p) => p.url().includes(`app://local/${kind}/`));
+  const match = () =>
+    app.windows().find((p) => !p.isClosed() && p.url().includes(`app://local/${kind}/`));
   await expect.poll(() => match() !== undefined, { timeout: 15_000 }).toBe(true);
   const page = match();
   if (!page) throw new Error(`no ${kind} window`);
@@ -76,4 +82,11 @@ export async function pageOf(app: ElectronApplication, kind: WindowKind): Promis
 
 export function rendererCount(types: string[]): number {
   return types.filter((t) => t === 'Tab').length;
+}
+
+/** Presses a key that may close the page (e.g. Esc in the overlay). */
+export async function pressClosing(page: Page, key: string): Promise<void> {
+  await page.keyboard.press(key).catch((error: Error) => {
+    if (!/closed/i.test(error.message)) throw error;
+  });
 }

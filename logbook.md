@@ -6,15 +6,15 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 2/3 in progress. Main capture backend (`src/main/capture/*`, `deliver.ts`, `clipboard.ts`), engine (`src/engine/*`), export worker and shared toolbar UI are written. `src/windows/overlay/main.tsx` is a placeholder. Exact next action: write the overlay controller in `main.tsx` (boot from `overlay:init`, fetch `/@frame/<id>`, drag-select/resize/move, toolbars, finish → `exportImage` → `capture:deliver`), add the `capture:deliver`/`capture:to-editor` handlers in main, then e2e for capture+copy+save.
+**Next:** step 3 (engine) — code is written and exercised by e2e (rect draw + undo/redo); exact next action: add Vitest unit tests for `src/engine` (hit-testing, history apply/invert, DocStore undo/redo, parseDoc round-trip), then commit step 3 and start step 4 (floating thumbnail, history store, pins).
 
 ## Status (v1 build order)
 
 | Step | State | Notes |
 | --- | --- | --- |
 | 1 Skeleton | done | tray, hotkeys, single instance + argv, atomic settings, `app://`, typed IPC, Biome, Vitest, Playwright idle budget |
-| 2 Capture | partial | backend + deliver done; overlay controller pending |
-| 3 Annotation engine | partial | model, history, shapes, render, GL effects, view written; tests pending |
+| 2 Capture | done | node-screenshots + desktopCapturer fallback, overlay per display, select/resize/move, copy/save, e2e |
+| 3 Annotation engine | partial | all tools wired in overlay; unit tests pending |
 | 4 After capture | pending | |
 | 5 Editor | pending | |
 | 6 More tools | pending | |
@@ -22,6 +22,16 @@
 | 8 OCR + uploads | pending | |
 | 9 Scroll capture | pending | |
 | 10 Polish | pending | |
+
+## 2026-11-19 - step 2 capture
+
+- Grab order: display under the pointer first; each display is grabbed before its overlay window exists, so overlays never appear in other grabs. Frames go to windows as raw RGBA over `app://local/@frame/<id>`; the window calls `frame:release` once the pixels are on its canvas.
+- Measured under Xvfb (1280×800, low-memory mode): hotkey → overlay painted and shown 91–119 ms (budget 500 ms). Renderer count returns to 0 after Esc; no frames left in main.
+- Decision (deviation): PNG/JPEG/WebP encoding uses Chromium's encoders (`OffscreenCanvas.convertToBlob`) inside a per-window export worker instead of sharp in a utility process. The worker already has the pixels and replays annotations, so nothing crosses a process boundary before encoding, and we avoid shipping libvips (~20 MB) and its native-module packaging. Tradeoff: no AVIF and no PNG compression-level control.
+- Decision: overlay windows are opaque (`transparent: false`) since they paint the frozen screenshot anyway; cheaper and avoids Linux compositor issues. On Linux full screen is set only when the overlay is shown, because a full-screen window is shown immediately (it flashed black before the screenshot was painted).
+- Electron 45's clipboard is the new async ClipboardItem API (`clipboard.write([new ClipboardItem({'image/png': blob})])`); wrapped in `src/main/clipboard.ts`.
+- Censor and colour adjustments are WebGL fragment shaders (`src/engine/gl.ts`) with a Canvas 2D fallback when WebGL is unavailable.
+- Xvfb's root window stays black (`xsetroot` has no effect here), so e2e tests open a full-screen fixture window with known colours and check exact pixels in the clipboard and saved files, for both capture backends.
 
 ## 2026-11-19 - step 1 skeleton
 
