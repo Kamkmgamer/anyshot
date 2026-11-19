@@ -7,6 +7,7 @@ import { type Rect, rectFromPoints } from '../../shared/geometry';
 import type { DeliverAction, EditorInit } from '../../shared/ipc';
 import { packProject } from '../../shared/project';
 import { type Annotator, createAnnotator } from '../common/annotator';
+import { EffectButtons, EffectPopovers } from '../common/effects-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
 import { applyTheme } from '../common/theme';
@@ -340,10 +341,11 @@ function Tools() {
   return (
     <>
       <Bar testId="tools">
-        <ToolStrip c={annotator.controller} />
+        <ToolStrip c={annotator.controller} extra={<EffectButtons c={annotator.controller} />} />
       </Bar>
       <OptionsRow c={annotator.controller} />
       <ColorPopover c={annotator.controller} />
+      <EffectPopovers c={annotator.controller} />
       {status && (
         <button
           type="button"

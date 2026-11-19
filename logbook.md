@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 6 (more tools). Tools already exist (censor/spotlight/magnify/stamp/picker/measure); exact next action: add Invert / Adjust (preset + sliders popover) / Beautify (options row) controls to the shared toolbar wired to `DocStore.setEffects` (render path exists in `gl.ts`, `beautify.ts`, `compose.ts`), add an e2e check that censor changes pixels and beautify grows the output, commit; then step 7 recording.
+**Next:** step 7 (recording). Exact next action: replace `src/main/recording.ts` stub: hidden recorder window (`backgroundThrottling: false` only there), `setDisplayMediaRequestHandler` picking the overlay's display, permission handler allowing `media` only for the recorder page, `recorder:open-file`/`recorder:write` (positional writes to an fd) /`recorder:finish`; renderer `src/windows/recorder/` using Mediabunny `MediaStreamVideoTrackSource` (crop via `transform.crop`, H.264 MP4, VP9/WebM fallback via `VideoEncoder.isConfigSupported`) + `StreamTarget`; tray Stop item; then e2e that records ~2 s under Xvfb and checks the MP4 header/size.
 
 ## Status (v1 build order)
 
@@ -17,11 +17,18 @@
 | 3 Annotation engine | done | plain TS in `src/engine`, 3 canvas layers, rAF + coalesced input, all tools, change-list undo, Vitest |
 | 4 After capture | done | history store + window (lazy grid), floating preview (one shared window), pins, e2e |
 | 5 Editor | done | window, zoom/fit, undoable crop, `.anyshot` projects, history write-back, e2e. Flip and "add capture" layers not done |
-| 6 More tools | pending | |
+| 6 More tools | done | censor (WebGL pixelate/blur, solid), spotlight, magnify, measure, stamp, colour picker, invert, adjust (shader + presets), beautify. Auto-redact (OCR/PII) pending |
 | 7 Recording | pending | |
 | 8 OCR + uploads | pending | |
 | 9 Scroll capture | pending | |
 | 10 Polish | pending | |
+
+## 2026-11-19 - step 6 more tools
+
+- Effects live in `Doc.effects` and change through the change list; Adjust sliders preview through `CanvasView.preview()` and commit once on release, so a drag is a single undo step.
+- Colour adjustments run in the WebGL shader; if WebGL is unavailable (e.g. some workers or GPU blocklists) they fall back to a Canvas 2D filter string (no sharpness) instead of silently doing nothing.
+- Beautify renders only into the output (copy/save/pin), not live in the overlay.
+- Not done: auto-redaction (needs OCR), sepia/chrome presets, magnify/measure options beyond zoom.
 
 ## 2026-11-19 - docs screenshots
 

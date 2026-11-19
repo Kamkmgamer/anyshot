@@ -1,6 +1,6 @@
 import { beautifiedSize, drawBeautified } from './beautify';
 import { parseDoc } from './document';
-import { GlEffects } from './gl';
+import { adjustFilter, GlEffects } from './gl';
 import { isAdjustNeutral } from './model';
 import { censorFallback, drawDoc, type RenderEnv } from './render';
 
@@ -31,10 +31,13 @@ export async function composeInto(bitmap: ImageBitmap, rawDoc: unknown): Promise
   const doc = parseDoc(rawDoc);
   const fx = effects();
   const { adjust, invert, beautify } = doc.effects;
-  if ((invert || !isAdjustNeutral(adjust)) && fx) {
+  const adjusted = invert || !isAdjustNeutral(adjust);
+  if (adjusted && fx) {
     ctx.drawImage(fx.adjust(bitmap, width, height, adjust, invert), 0, 0);
   } else {
+    if (adjusted) ctx.filter = adjustFilter(adjust, invert);
     ctx.drawImage(bitmap, 0, 0);
+    ctx.filter = 'none';
   }
   // Censor reads the adjusted pixels so redaction matches what the user saw.
   const base = new OffscreenCanvas(width, height);

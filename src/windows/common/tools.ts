@@ -1,3 +1,4 @@
+import { DEFAULT_EFFECTS, type Effects } from '../../engine/model';
 import type { ToolOptions } from '../../engine/view';
 import type { Settings, ToolId } from '../../shared/settings';
 import { createStore, type Store } from './store';
@@ -8,6 +9,8 @@ export interface ToolUiState extends ToolOptions {
   canUndo: boolean;
   canRedo: boolean;
   selectedCount: number;
+  /** The document's committed image effects. */
+  effects: Effects;
   /** Which popover is open, if any. */
   popover: 'color' | 'adjust' | 'beautify' | null;
 }
@@ -87,6 +90,7 @@ export function createToolStore(settings: Settings): Store<ToolUiState> {
     canRedo: false,
     selectedCount: 0,
     popover: null,
+    effects: DEFAULT_EFFECTS,
   });
 }
 

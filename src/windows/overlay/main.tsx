@@ -17,6 +17,7 @@ import {
   toImageRegion,
 } from '../../shared/selection';
 import { type Annotator, createAnnotator } from '../common/annotator';
+import { EffectButtons, EffectPopovers } from '../common/effects-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
 import { applyTheme } from '../common/theme';
@@ -468,10 +469,14 @@ function Chrome() {
           {!isRecordingSetup() && (
             <Floating anchor={s.selection} side="below" testId="bottom">
               <Bar testId="tools">
-                <ToolStrip c={annotator.controller} />
+                <ToolStrip
+                  c={annotator.controller}
+                  extra={<EffectButtons c={annotator.controller} />}
+                />
               </Bar>
               <OptionsRow c={annotator.controller} />
               <ColorPopover c={annotator.controller} />
+              <EffectPopovers c={annotator.controller} />
             </Floating>
           )}
           <Floating anchor={s.selection} side="right" testId="right">

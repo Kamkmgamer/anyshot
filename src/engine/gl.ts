@@ -239,3 +239,15 @@ function link(gl: GL, vertex: string, fragment: string): WebGLProgram {
   }
   return program;
 }
+
+/** Canvas 2D filter equivalent of the adjust shader, used when WebGL is unavailable (no sharpness). */
+export function adjustFilter(adjust: Adjust, invert: boolean): string {
+  return [
+    `brightness(${1 + adjust.brightness})`,
+    `contrast(${adjust.contrast})`,
+    `saturate(${adjust.saturation})`,
+    invert ? 'invert(1)' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}

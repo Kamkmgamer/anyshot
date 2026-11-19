@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import type { Effects } from '../../engine/model';
 import type { ToolOptions } from '../../engine/view';
 import type { ToolId } from '../../shared/settings';
 import { Icon, type IconName } from './icons';
@@ -9,6 +10,11 @@ import { QUICK_STAMPS, TOOL_KEYS, TOOL_LABELS, type ToolUiState } from './tools'
 /** What the toolbars can ask the host window to do. */
 export interface Controller {
   store: Store<ToolUiState>;
+  /** Image effects (invert, adjust, beautify). `set` is one undo step; `preview` is not recorded. */
+  effects: {
+    set(effects: Effects): void;
+    preview(effects: Effects | null): void;
+  };
   setTool(tool: ToolId): void;
   setOptions(patch: Partial<ToolOptions>): void;
   undo(): void;

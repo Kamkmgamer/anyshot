@@ -193,3 +193,43 @@ test('the desktopCapturer fallback produces the same pixels', async () => {
   expect(shot?.size).toEqual({ width: card.width, height: card.height });
   expect(near(shot?.rgb, card.rgb)).toBe(true);
 });
+
+test('invert, beautify and censor change the exported image', async () => {
+  const { card } = FIXTURE;
+  let page = await openOverlay();
+  await dragSelect(
+    page,
+    { x: card.x, y: card.y },
+    { x: card.x + card.width, y: card.y + card.height },
+  );
+  await page.getByTestId('fx-invert').click();
+  await expect(page.getByTestId('fx-invert')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByTestId('fx-beautify').click();
+  await page.getByTestId('beautify-popover').getByRole('checkbox').check();
+  await pressClosing(page, 'Control+c');
+  await overlaysGone();
+  // Padding 48 on each side at unit 1; the card is inverted inside the frame.
+  const framed = await inspectClipboard(48 + 150, 48 + 100);
+  expect(framed?.size).toEqual({ width: card.width + 96, height: card.height + 96 });
+  expect(
+    near(
+      framed?.rgb,
+      card.rgb.map((v) => 255 - v),
+    ),
+  ).toBe(true);
+
+  page = await openOverlay();
+  await dragSelect(page, { x: 450, y: 150 }, { x: 1150, y: 450 });
+  // Effects are per capture: a new capture starts plain.
+  await expect(page.getByTestId('fx-invert')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('tool-censor').click();
+  await page.getByRole('button', { name: 'Solid', exact: true }).click();
+  await page.mouse.move(470, 170);
+  await page.mouse.down();
+  await page.mouse.move(1130, 430, { steps: 4 });
+  await page.mouse.up();
+  await pressClosing(page, 'Control+c');
+  await overlaysGone();
+  const censored = await inspectClipboard(350, 150);
+  expect(near(censored?.rgb, [17, 17, 17])).toBe(true);
+});

@@ -1,10 +1,11 @@
 import { distance, type Point, rectFromPoints, snap45, squareFrom } from '../shared/geometry';
 import type { ToolId } from '../shared/settings';
 import type { DocStore } from './document';
-import { GlEffects } from './gl';
+import { adjustFilter, GlEffects } from './gl';
 import {
   type Annotation,
   type CensorMode,
+  type Effects,
   type FillMode,
   isAdjustNeutral,
   type LineStyle,
@@ -99,7 +100,13 @@ export class CanvasView {
       this.interactionCtx.font = font;
       return this.interactionCtx.measureText(text).width;
     });
-    this.unsubscribe = store.subscribe(() => {
+    let effects = store.doc.effects;
+    this.unsubscribe = store.subscribe((doc) => {
+      if (doc.effects !== effects) {
+        effects = doc.effects;
+        this.previewEffects = null;
+        this.invalidate('base');
+      }
       this.invalidate('committed', 'interaction');
       this.events.onStateChange?.();
     });
@@ -121,6 +128,14 @@ export class CanvasView {
   /** Image pixels per CSS pixel as currently displayed. */
   get displayScale(): number {
     return this.width / Math.max(1, this.base.getBoundingClientRect().width);
+  }
+
+  private previewEffects: Effects | null = null;
+
+  /** Shows effects without committing them (while a slider is being dragged). */
+  preview(effects: Effects | null): void {
+    this.previewEffects = effects;
+    this.invalidate('base', 'committed');
   }
 
   setSource(bitmap: ImageBitmap): void {
@@ -178,11 +193,14 @@ export class CanvasView {
     const ctx = this.baseCtx;
     ctx.clearRect(0, 0, this.width, this.height);
     if (!this.source) return;
-    const { adjust, invert } = this.store.doc.effects;
-    if (this.gl && (invert || !isAdjustNeutral(adjust))) {
+    const { adjust, invert } = this.previewEffects ?? this.store.doc.effects;
+    const adjusted = invert || !isAdjustNeutral(adjust);
+    if (this.gl && adjusted) {
       ctx.drawImage(this.gl.adjust(this.source, this.width, this.height, adjust, invert), 0, 0);
     } else {
+      if (adjusted) ctx.filter = adjustFilter(adjust, invert);
       ctx.drawImage(this.source, 0, 0);
+      ctx.filter = 'none';
     }
   }
 

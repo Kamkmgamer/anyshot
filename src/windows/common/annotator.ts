@@ -33,8 +33,10 @@ export function createAnnotator(
         canUndo: docs.canUndo,
         canRedo: docs.canRedo,
         selectedCount: docs.selected.size,
+        effects: docs.doc.effects,
       }),
   });
+  store.set({ effects: doc.effects });
   const stopPersisting = persistToolChoices(store);
 
   const controller: Controller = {
@@ -51,6 +53,13 @@ export function createAnnotator(
         Object.entries({ color, strokeWidth, lineStyle, fill }).filter(([, v]) => v !== undefined),
       );
       if (docs.selected.size > 0 && Object.keys(style).length > 0) view.applyStyle(style);
+    },
+    effects: {
+      set: (effects) => {
+        view.preview(null);
+        if (effects !== docs.doc.effects) docs.setEffects(effects);
+      },
+      preview: (effects) => view.preview(effects),
     },
     undo: () => docs.undo(),
     redo: () => docs.redo(),
