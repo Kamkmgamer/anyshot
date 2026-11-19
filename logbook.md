@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 10 — packaging done. Exact next action: README below the credit block (features, dev commands, packaging, Linux/Wayland notes, Windows unverified), make CI also run the packaged-dir build, then final full verification on HEAD and regenerate docs screenshots.
+**Next:** step 10 — README and CI packaging step done. Exact next action: final full verification on HEAD (format:check, lint, typecheck, test, build, xvfb e2e), regenerate and inspect docs screenshots, update the status table, write the final summary.
 
 ## Status (v1 build order)
 
@@ -21,7 +21,7 @@
 | 7 Recording | done | MP4 (H.264, VP9/WebM fallback) via getDisplayMedia + Mediabunny streamed to disk, mic (untested here), GIF via intermediate MP4 + gifenc worker, e2e. No HUD/webcam/click highlights |
 | 8 OCR + uploads | done | OCR (idle-exiting utilityProcess, offline English), uploads: provider interface, HTTP multipart + S3 SigV4, keys via safeStorage; unit + e2e |
 | 9 Scroll capture | done | manual scrolling, HUD outside the region, stream sampled ~7 fps, stitch worker, quick action; unit + e2e (exact 600×1060). No auto-scroll/horizontal |
-| 10 Polish | partial | settings window, instant capture, electron-builder + fuses done; README pending |
+| 10 Polish | partial | settings window, instant capture, electron-builder + fuses, README done. No auto-update, signing, translations |
 
 ## 2026-11-19 - step 10 packaging
 

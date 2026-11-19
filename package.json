@@ -32,9 +32,9 @@
     "esbuild"
   ],
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "electron-vite build && electron .",
     "build": "electron-vite build",
-    "start": "electron-vite preview",
+    "start": "electron .",
     "lint": "biome lint .",
     "format": "biome format --write .",
     "format:check": "biome format .",
