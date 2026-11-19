@@ -12,7 +12,20 @@ const state = vi.hoisted(() => ({
   historySize: 10,
   indexReads: [] as (() => Promise<void>)[],
   afterPersist: undefined as (() => void) | undefined,
+  /** Makes atomic writes to matching paths fail. */
+  failWrite: undefined as ((path: string) => boolean) | undefined,
 }));
+
+vi.mock('../../src/main/atomic-file', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../src/main/atomic-file')>();
+  return {
+    ...real,
+    writeFileAtomic: async (...args: Parameters<typeof real.writeFileAtomic>) => {
+      if (state.failWrite?.(args[0])) throw new Error(`EIO: cannot write ${args[0]}`);
+      return real.writeFileAtomic(...args);
+    },
+  };
+});
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const real = await importOriginal<typeof import('node:fs/promises')>();
@@ -59,6 +72,7 @@ beforeEach(async () => {
   state.historySize = 10;
   state.indexReads = [];
   state.afterPersist = undefined;
+  state.failWrite = undefined;
   vi.resetModules();
   history = await import('../../src/main/history');
 });
@@ -225,6 +239,42 @@ describe('history', () => {
       expect(existsSync(history.projectPath(c.id))).toBe(true);
       await history.clearHistory();
       expect(await fs.readdir(state.dir)).toEqual(['index.json']);
+    });
+
+    it('a failed replace leaves the previous image, document and index in place', async () => {
+      const entry = await history.addEntry({ png, width: 4, height: 3, edit: edit() });
+      const index = await fs.readFile(indexFile(), 'utf8');
+      state.failWrite = (path) => path.endsWith('.anyshot');
+      await expect(
+        history.replaceImage(entry.id, {
+          png: new Uint8Array([1, 2, 3]),
+          width: 8,
+          height: 6,
+          edit: edit([{ id: 'b', kind: 'rect' }]),
+        }),
+      ).rejects.toThrow('EIO');
+      state.failWrite = undefined;
+      expect([...(await history.readImage(entry.id))]).toEqual([...png]);
+      expect((await history.readEditable(entry.id))?.doc).toEqual(doc([{ id: 'a', kind: 'line' }]));
+      expect(await fs.readFile(indexFile(), 'utf8')).toBe(index);
+      expect((await history.listEntries())[0]).toMatchObject({ width: 4, height: 3 });
+    });
+
+    it('a failed index write removes files the entry did not have before', async () => {
+      await seed(['plain']);
+      state.failWrite = (path) => path.endsWith('index.json');
+      await expect(
+        history.replaceImage('plain', {
+          png: new Uint8Array([1, 2, 3]),
+          thumb: new Uint8Array([7]).buffer,
+          width: 4,
+          height: 3,
+          edit: edit(),
+        }),
+      ).rejects.toThrow('EIO');
+      expect([...(await history.readImage('plain'))]).toEqual([...png]);
+      expect(existsSync(history.thumbPath('plain'))).toBe(false);
+      expect(existsSync(history.projectPath('plain'))).toBe(false);
     });
   });
 });

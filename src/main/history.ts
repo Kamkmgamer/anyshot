@@ -112,6 +112,15 @@ export function checkEditable(edit: EditableSource | undefined): EditableSource 
   return undefined;
 }
 
+async function readIfExists(file: string): Promise<Uint8Array | null> {
+  try {
+    return new Uint8Array(await readFile(file));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
 /** Writes (or, without an edit, removes) the entry's editable project. */
 async function writeEditable(id: string, edit: EditableSource | undefined): Promise<void> {
   if (!edit) {
@@ -277,17 +286,34 @@ export function replaceImage(
     const list = await load();
     const entry = list.find((e) => e.id === id);
     if (!entry) return undefined;
-    // Atomic: a failed write must not leave the entry pointing at a torn image.
-    await writeFileAtomic(imagePath(id), input.png);
-    if (input.thumb) await writeFileAtomic(thumbPath(id), new Uint8Array(input.thumb));
-    await writeEditable(id, input.edit);
+    // All or nothing: if any file or the index can't be written, the previous
+    // image, thumbnail and project come back, so the entry never shows a new
+    // image with an old document (or the reverse).
+    const files = [imagePath(id), thumbPath(id), projectPath(id)];
+    const previous = await Promise.all(files.map(readIfExists));
     const updated = {
       ...entry,
       width: input.width,
       height: input.height,
       ...(input.savedPath ? { savedPath: input.savedPath } : {}),
     };
-    await persist(list.map((e) => (e.id === id ? updated : e)));
+    try {
+      await writeFileAtomic(imagePath(id), input.png);
+      if (input.thumb) await writeFileAtomic(thumbPath(id), new Uint8Array(input.thumb));
+      await writeEditable(id, input.edit);
+      await persist(list.map((e) => (e.id === id ? updated : e)));
+    } catch (error) {
+      await Promise.all(
+        files.map((file, i) => {
+          const bytes = previous[i];
+          return (bytes ? writeFileAtomic(file, bytes) : rm(file, { force: true })).catch(
+            (restoreError: unknown) =>
+              console.error('[history] could not restore', file, restoreError),
+          );
+        }),
+      );
+      throw error;
+    }
     return updated;
   });
 }
