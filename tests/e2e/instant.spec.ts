@@ -8,6 +8,7 @@ import {
   pressClosing,
   processTypes,
   rendererCount,
+  verifyAndClose,
 } from './harness';
 
 let ctx: Launched;
@@ -17,8 +18,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  expect(ctx.errors).toEqual([]);
-  await ctx.close();
+  await verifyAndClose(ctx);
 });
 
 const overlays = () =>

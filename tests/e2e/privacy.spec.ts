@@ -2,7 +2,15 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { packProject } from '../../src/shared/project';
-import { dispatch, type Launched, launch, pageOf, pressClosing, windowKinds } from './harness';
+import {
+  dispatch,
+  type Launched,
+  launch,
+  pageOf,
+  pressClosing,
+  windowKinds,
+  verifyAndClose,
+} from './harness';
 
 // Censors must hide what they cover in every export, whichever renderer runs
 // (WebGL, or Canvas 2D when WebGL is unavailable): a magnifier over a censor
@@ -173,9 +181,8 @@ for (const webgl of [true, false]) {
         await pressClosing(editor, 'Control+w');
         await expect.poll(() => windowKinds(ctx.app)).toEqual([]);
       }
-      expect(ctx.errors).toEqual([]);
     } finally {
-      await ctx.close();
+      await verifyAndClose(ctx);
     }
   });
 }

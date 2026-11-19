@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dispatch, type Launched, launch, pageOf, windowKinds } from './harness';
+import { dispatch, type Launched, launch, pageOf, windowKinds, verifyAndClose } from './harness';
 
 let ctx: Launched;
 
@@ -32,8 +32,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  expect(ctx.errors).toEqual([]);
-  await ctx.close();
+  await verifyAndClose(ctx);
 });
 
 test('scroll capture stitches frames into one tall image', async () => {

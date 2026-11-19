@@ -1,9 +1,17 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
-import { packProject } from '../../src/shared/project';
+import { packProject, unpackProject } from '../../src/shared/project';
 import { FIXTURE, showFixture } from './fixture';
-import { dispatch, type Launched, launch, pageOf, pressClosing, windowKinds } from './harness';
+import {
+  dispatch,
+  type Launched,
+  launch,
+  pageOf,
+  pressClosing,
+  windowKinds,
+  verifyAndClose,
+} from './harness';
 
 let ctx: Launched;
 
@@ -16,8 +24,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  expect(ctx.errors).toEqual([]);
-  await ctx.close();
+  await verifyAndClose(ctx);
 });
 
 async function clipboardPixel(x: number, y: number) {
@@ -80,11 +87,7 @@ test('open in editor keeps annotations editable and copies the result', async ()
   expect(shot?.size).toEqual({ width: 300, height: 200 });
   expect(near(shot?.rgb, [255, 204, 0])).toBe(true);
   // The annotation is still an object: select it and delete it.
-  await editor.getByTestId('tool-select').click();
-  const box = await editor.locator('#clip').boundingBox();
-  if (!box) throw new Error('no canvas');
-  const s = box.width / 300;
-  await editor.mouse.click(box.x + 50 * s, box.y + 50 * s);
+  await selectAnnotation(editor);
   await editor.keyboard.press('Delete');
   await editor.getByTestId('editor-copy').click();
   await expect
@@ -102,9 +105,12 @@ test('crop applies to the output and undoes in one step', async () => {
   await editor.mouse.move(box.x + box.width * 0.75, box.y + box.height * 0.75, { steps: 4 });
   await editor.mouse.up();
   await editor.getByTestId('crop-apply').click();
-  await expect(editor.getByTestId('editor-size')).toHaveText(/^1(49|50|51) × (99|100|101)$/);
+  const dimensions = editor.getByTestId('editor-size');
+  await expect(dimensions).toHaveText(/^1(49|50|51) × (99|100|101)$/);
+  const [width, height] = ((await dimensions.textContent()) ?? '').split(' × ').map(Number);
+  await ctx.app.evaluate(({ clipboard }) => clipboard.clear());
   await editor.keyboard.press('Control+c');
-  await expect.poll(async () => (await clipboardPixel(0, 0))?.size.width).toBeLessThan(160);
+  await expect.poll(async () => (await clipboardPixel(0, 0))?.size).toEqual({ width, height });
   await editor.keyboard.press('Control+z');
   await expect(editor.getByTestId('editor-size')).toHaveText('300 × 200');
 });
@@ -128,11 +134,7 @@ test('projects save and reopen with editable annotations', async () => {
   await dispatch(ctx.app, 'openImage', file);
   const reopened = await pageOf(ctx.app, 'editor');
   await expect(reopened.getByTestId('editor-size')).toHaveText('300 × 200');
-  await reopened.getByTestId('tool-select').click();
-  const box = await reopened.locator('#clip').boundingBox();
-  if (!box) throw new Error('no canvas');
-  const s = box.width / 300;
-  await reopened.mouse.click(box.x + 50 * s, box.y + 50 * s);
+  await selectAnnotation(reopened);
   await reopened.keyboard.press('Delete');
   await expect(reopened.getByTestId('undo')).toBeEnabled();
 });
@@ -160,4 +162,49 @@ test('a project with an invalid crop cannot expose the uncropped image', async (
   ).toBeVisible();
   await expect(editor.getByTestId('editor-copy')).toHaveCount(0);
   await expect(editor.locator('canvas')).toHaveCount(0);
+});
+
+async function selectAnnotation(editor: Page): Promise<void> {
+  await editor.getByTestId('tool-select').click();
+  const box = await editor.locator('#clip').boundingBox();
+  if (!box) throw new Error('no canvas');
+  const scale = box.width / 300;
+  await editor.mouse.click(box.x + 50 * scale, box.y + 50 * scale);
+}
+
+test('a focused stroke slider receives the arrow keys', async () => {
+  const editor = await editorWithAnnotation();
+  await selectAnnotation(editor);
+  const slider = editor.getByRole('slider', { name: /Stroke/ });
+  const value = Number(await slider.inputValue());
+  await slider.press('ArrowRight');
+  await expect(slider).toHaveValue(String(value + 1));
+});
+
+test('edits made while a project save waits stay dirty', async () => {
+  const editor = await editorWithAnnotation();
+  await selectAnnotation(editor);
+  await editor.keyboard.press('Delete');
+  const file = join(ctx.userData, 'snapshot.anyshot');
+  await ctx.app.evaluate(({ app, dialog }, path) => {
+    dialog.showSaveDialog = async () => {
+      await new Promise<void>((resolve) => app.once('activate', () => resolve()));
+      return { canceled: false, filePath: path };
+    };
+  }, file);
+  await editor.getByTestId('save-project').click();
+  await expect.poll(() => ctx.app.evaluate(({ app }) => app.listenerCount('activate'))).toBe(1);
+  await editor.keyboard.press('Control+z');
+  await ctx.app.evaluate(({ app }) => app.emit('activate'));
+  await expect(editor.getByTestId('editor-status')).toContainText('Project saved');
+  expect(unpackProject(await readFile(file)).doc).toMatchObject({ annotations: [] });
+  await expect
+    .poll(() =>
+      ctx.app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((win) => win.webContents.getURL().includes('/editor/'))
+          ?.getTitle(),
+      ),
+    )
+    .toBe('• snapshot.anyshot — anyshot');
 });

@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, test } from '@playwright/test';
 import { FIXTURE, showFixture } from './fixture';
-import { dispatch, type Launched, launch, pageOf, pressClosing } from './harness';
+import { dispatch, type Launched, launch, pageOf, pressClosing, verifyAndClose } from './harness';
 
 let ctx: Launched;
 let server: Server;
@@ -36,9 +36,11 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  expect(ctx.errors).toEqual([]);
-  await ctx.close();
-  server.close();
+  try {
+    await verifyAndClose(ctx);
+  } finally {
+    if (server?.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });
 
 test('U uploads the capture and puts the link on the clipboard', async () => {

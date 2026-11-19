@@ -1,12 +1,19 @@
 import { expect, test } from '@playwright/test';
-import { type Launched, launch, processTypes, rendererCount, windowKinds } from './harness';
+import {
+  type Launched,
+  launch,
+  processTypes,
+  rendererCount,
+  windowKinds,
+  verifyAndClose,
+} from './harness';
 
 let ctx: Launched;
 test.beforeEach(async () => {
   ctx = await launch();
 });
 test.afterEach(async () => {
-  await ctx.close();
+  await verifyAndClose(ctx);
 });
 
 test('starts tray-only: no windows and no renderer processes', async () => {

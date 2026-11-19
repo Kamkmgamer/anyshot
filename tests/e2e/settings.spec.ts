@@ -1,17 +1,17 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { dispatch, type Launched, launch, pageOf, windowKinds } from './harness';
+import { dispatch, type Launched, launch, pageOf, windowKinds, verifyAndClose } from './harness';
 
 let ctx: Launched;
+const linux = process.platform === 'linux';
 
 test.beforeEach(async () => {
-  ctx = await launch([], {});
+  ctx = await launch(linux ? ['--password-store=basic'] : [], {});
 });
 
 test.afterEach(async () => {
-  expect(ctx.errors).toEqual([]);
-  await ctx.close();
+  await verifyAndClose(ctx);
 });
 
 test('settings persist atomically, shortcuts re-register, secrets stay out of settings', async () => {
@@ -55,9 +55,21 @@ test('settings persist atomically, shortcuts re-register, secrets stay out of se
 
   await page.getByTestId('tab-uploads').click();
   await page.getByRole('combobox', { name: 'Provider' }).selectOption('http');
-  // Xvfb has no keyring: anyshot refuses to store secrets until the user opts in.
-  await expect(page.getByText(/only be obfuscated/)).toBeVisible();
-  await page.getByTestId('weak-secrets').check();
+  const weak = page.getByTestId('weak-secrets');
+  const warning = page.getByText(/only be obfuscated/);
+  if (linux) {
+    expect(
+      await ctx.app.evaluate(({ safeStorage }) => safeStorage.getSelectedStorageBackend()),
+    ).toBe('basic_text');
+    await expect(warning).toBeVisible();
+    await weak.check();
+    await expect
+      .poll(() => ctx.app.evaluate(({ safeStorage }) => safeStorage.isEncryptionAvailable()))
+      .toBe(true);
+  } else {
+    await expect(warning).toHaveCount(0);
+    await expect(weak).toHaveCount(0);
+  }
   const secret = page.locator('input[type="password"]');
   await secret.fill('Bearer super-secret-token');
   await secret.press('Tab');
@@ -66,6 +78,25 @@ test('settings persist atomically, shortcuts re-register, secrets stay out of se
   expect(settingsText).not.toContain('super-secret-token');
   const secrets = await readFile(join(ctx.userData, 'secrets.bin'));
   expect(secrets.includes(Buffer.from('super-secret-token'))).toBe(false);
+
+  if (linux) {
+    await expect(warning).toBeVisible();
+    await expect(weak).toBeChecked();
+    await weak.uncheck();
+    await expect(secret).not.toHaveAttribute('placeholder', /stored/);
+    await expect(weak).not.toBeChecked();
+    await expect(warning).toBeVisible();
+    expect(await ctx.app.evaluate(({ safeStorage }) => safeStorage.isEncryptionAvailable())).toBe(
+      false,
+    );
+    const status = await page.evaluate(() => window.anyshot.invoke('secrets:status'));
+    expect(status).toMatchObject({
+      available: false,
+      backend: 'basic_text',
+      keys: [],
+      weakOptIn: true,
+    });
+  }
 
   // A second request focuses the existing window instead of opening another.
   await dispatch(ctx.app, 'settings');

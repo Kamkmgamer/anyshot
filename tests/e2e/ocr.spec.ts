@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { showFixture } from './fixture';
-import { dispatch, type Launched, launch, pageOf, processTypes } from './harness';
+import { dispatch, type Launched, launch, pageOf, processTypes, verifyAndClose } from './harness';
 
 let ctx: Launched;
 
@@ -14,9 +14,8 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   const info = test.info();
-  if (info.status !== info.expectedStatus) console.log(ctx.mainLog.join('\n'));
-  expect(ctx.errors).toEqual([]);
-  await ctx.close();
+  if (ctx && info.status !== info.expectedStatus) console.log(ctx.mainLog.join('\n'));
+  await verifyAndClose(ctx);
 });
 
 test('OCR capture copies the text and the OCR process exits when idle', async () => {

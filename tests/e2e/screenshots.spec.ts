@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { showFixture } from './fixture';
-import { dispatch, launch, pageOf, pressClosing } from './harness';
+import { dispatch, launch, pageOf, pressClosing, verifyAndClose } from './harness';
 
 // Regenerates docs/screenshots. Run with ANYSHOT_SCREENSHOTS=1.
 test.skip(
@@ -74,6 +74,6 @@ test('overlay and editor screenshots', async () => {
     await editor.waitForTimeout(300);
     await editor.screenshot({ path: out('editor.png') });
   } finally {
-    await ctx.close();
+    await verifyAndClose(ctx);
   }
 });

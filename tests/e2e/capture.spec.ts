@@ -11,6 +11,7 @@ import {
   processTypes,
   rendererCount,
   windowKinds,
+  verifyAndClose,
 } from './harness';
 
 let ctx: Launched;
@@ -32,8 +33,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  expect(ctx.errors).toEqual([]);
-  await ctx.close();
+  await verifyAndClose(ctx);
 });
 
 async function openOverlay(): Promise<Page> {

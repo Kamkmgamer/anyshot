@@ -1,3 +1,4 @@
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseCli } from '../../src/main/cli';
 
@@ -18,9 +19,11 @@ describe('command line', () => {
   });
 
   it('resolves relative files against the requesting instance directory', () => {
-    expect(parseCli(['--open', 'shot.png', '--open=/tmp/b.png'], '/tmp/caller')).toEqual([
-      { action: 'openImage', file: '/tmp/caller/shot.png' },
-      { action: 'openImage', file: '/tmp/b.png' },
+    const caller = resolve('caller');
+    const absolute = resolve('b.png');
+    expect(parseCli(['--open', 'shot.png', `--open=${absolute}`], caller)).toEqual([
+      { action: 'openImage', file: join(caller, 'shot.png') },
+      { action: 'openImage', file: absolute },
     ]);
   });
 });

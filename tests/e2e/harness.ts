@@ -23,48 +23,77 @@ export async function launch(
   env: Record<string, string> = {},
 ): Promise<Launched> {
   const userData = await mkdtemp(join(tmpdir(), 'anyshot-e2e-'));
-  if (settings) await writeFile(join(userData, 'settings.json'), JSON.stringify(settings));
-  const errors: string[] = [];
-  const app = await _electron.launch({
-    args: ['.', ...args],
-    env: {
-      ...process.env,
-      ANYSHOT_TEST: '1',
-      ANYSHOT_USER_DATA: userData,
-      XDG_CONFIG_HOME: join(userData, 'config'),
-      ...env,
-    },
-  });
-  const watch = (page: Page) => {
-    page.on('pageerror', (error) => errors.push(`${page.url()}: ${error.message}`));
-    page.on('console', (message) => {
-      if (message.type() === 'error') errors.push(`${page.url()}: ${message.text()}`);
+  let launched: ElectronApplication | undefined;
+  try {
+    if (settings) await writeFile(join(userData, 'settings.json'), JSON.stringify(settings));
+    const errors: string[] = [];
+    const app = await _electron.launch({
+      args: ['.', ...args],
+      env: {
+        ...process.env,
+        ANYSHOT_TEST: '1',
+        ANYSHOT_USER_DATA: userData,
+        XDG_CONFIG_HOME: join(userData, 'config'),
+        ...env,
+      },
     });
-  };
-  app.context().on('page', watch);
-  const mainLog: string[] = [];
-  const proc = app.process();
-  for (const stream of [proc.stdout, proc.stderr]) {
-    stream?.on('data', (chunk: Buffer) => {
-      for (const line of chunk.toString().split('\n')) {
-        // Chromium's D-Bus noise under Xvfb is not interesting.
-        if (line.trim() && !/dbus|Failed to adjust OOM/.test(line)) mainLog.push(line);
+    launched = app;
+    const context = app.context();
+    const watch = (page: Page) => {
+      page.on('pageerror', (error) => errors.push(`${page.url()}: ${error.message}`));
+      page.on('console', (message) => {
+        if (message.type() === 'error') errors.push(`${page.url()}: ${message.text()}`);
+      });
+    };
+    context.on('page', watch);
+    for (const page of context.pages()) watch(page);
+    context.on('requestfailed', (request) =>
+      errors.push(
+        `Failed request: ${request.method()} ${request.url()} (${request.failure()?.errorText ?? 'unknown'})`,
+      ),
+    );
+    context.on('response', (response) => {
+      if (response.status() >= 400) {
+        errors.push(`HTTP ${response.status()}: ${response.request().method()} ${response.url()}`);
       }
     });
+    const mainLog: string[] = [];
+    const proc = app.process();
+    for (const stream of [proc.stdout, proc.stderr]) {
+      stream?.on('data', (chunk: Buffer) => {
+        for (const line of chunk.toString().split('\n')) {
+          // Chromium's D-Bus noise under Xvfb is not interesting.
+          if (line.trim() && !/dbus|Failed to adjust OOM/.test(line)) mainLog.push(line);
+        }
+      });
+    }
+    await expect
+      .poll(() => app.evaluate(() => globalThis.__anyshot !== undefined), { timeout: 15_000 })
+      .toBe(true);
+    return {
+      app,
+      mainLog,
+      userData,
+      errors,
+      async close() {
+        await app.close().catch(() => {});
+        await rm(userData, { recursive: true, force: true });
+      },
+    };
+  } catch (error) {
+    await launched?.close().catch(() => {});
+    await rm(userData, { recursive: true, force: true });
+    throw error;
   }
-  await expect
-    .poll(() => app.evaluate(() => globalThis.__anyshot !== undefined), { timeout: 15_000 })
-    .toBe(true);
-  return {
-    app,
-    mainLog,
-    userData,
-    errors,
-    async close() {
-      await app.close().catch(() => {});
-      await rm(userData, { recursive: true, force: true });
-    },
-  };
+}
+
+export async function verifyAndClose(ctx: Launched | undefined): Promise<void> {
+  if (!ctx) return;
+  try {
+    expect(ctx.errors).toEqual([]);
+  } finally {
+    await ctx.close();
+  }
 }
 
 export function processTypes(app: ElectronApplication): Promise<string[]> {
