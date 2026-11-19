@@ -20,7 +20,7 @@ import { type Annotator, createAnnotator, nativeInputOwnsKey } from '../common/a
 import { EffectButtons, EffectPopovers } from '../common/effects-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
-import { applyTheme } from '../common/theme';
+import { followTheme } from '../common/theme';
 import { Bar, Button, ColorPopover, OptionsRow, ToolStrip } from '../common/toolbar';
 
 const api = window.anyshot;
@@ -506,7 +506,7 @@ async function loadFrame(frameId: string, width: number, height: number): Promis
 
 async function boot(): Promise<void> {
   init = await api.invoke('overlay:init');
-  applyTheme(init.settings);
+  followTheme(init.settings);
   bitmap = await loadFrame(init.frameId, init.frame.width, init.frame.height);
   annotator = createAnnotator(stage, init.frame, emptyDoc(init.scaleFactor), init.settings);
   annotator.view.setSource(bitmap);

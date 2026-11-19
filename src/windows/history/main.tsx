@@ -4,7 +4,7 @@ import { render } from 'preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import type { HistoryEntry, ItemAction } from '../../shared/ipc';
 import { Icon, type IconName } from '../common/icons';
-import { applyTheme } from '../common/theme';
+import { followTheme } from '../common/theme';
 
 const api = window.anyshot;
 type Filter = 'all' | 'image' | 'video';
@@ -27,7 +27,7 @@ function App() {
 
   const reload = useCallback(async () => setEntries(await api.invoke('history:list')), []);
   useEffect(() => {
-    void api.invoke('settings:get').then(applyTheme);
+    followTheme();
     void reload();
     return api.on('history:changed', () => void reload());
   }, [reload]);

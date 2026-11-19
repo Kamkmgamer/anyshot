@@ -77,3 +77,21 @@ test('overlay and editor screenshots', async () => {
     await verifyAndClose(ctx);
   }
 });
+
+test('settings appearance screenshots', async () => {
+  const ctx = await launch();
+  try {
+    await dispatch(ctx.app, 'settings');
+    const page = await pageOf(ctx.app, 'settings');
+    const theme = page.getByRole('radiogroup', { name: 'Appearance' });
+    for (const name of ['Light', 'Dark'] as const) {
+      await theme.getByRole('radio', { name }).click();
+      await expect(theme.getByRole('radio', { name })).toBeChecked();
+      await theme.getByRole('radio', { name }).focus();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: out(`settings-theme-${name.toLowerCase()}.png`) });
+    }
+  } finally {
+    await verifyAndClose(ctx);
+  }
+});

@@ -5,7 +5,7 @@ import { useRef, useState } from 'preact/hooks';
 import type { PinInit } from '../../shared/ipc';
 import { Icon } from '../common/icons';
 import { usePressRepeat } from '../common/repeat';
-import { applyTheme } from '../common/theme';
+import { followTheme } from '../common/theme';
 
 const api = window.anyshot;
 let historyId: string | null = null;
@@ -138,6 +138,6 @@ function App({ init }: { init: PinInit }) {
 
 void api.invoke('pin:init').then((init) => {
   historyId = init.historyId;
-  void api.invoke('settings:get').then(applyTheme);
+  followTheme();
   render(<App init={init} />, document.getElementById('root') as HTMLElement);
 });

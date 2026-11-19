@@ -4,7 +4,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { ScrollInit } from '../../shared/ipc';
 import type { StitchMessage, StitchReply } from '../../workers/stitch.worker';
 import { Icon } from '../common/icons';
-import { applyTheme } from '../common/theme';
+import { followTheme } from '../common/theme';
 
 const api = window.anyshot;
 const SAMPLE_MS = 150;
@@ -199,7 +199,7 @@ async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
 }
 
 render(<Hud />, document.getElementById('root') as HTMLElement);
-void api.invoke('settings:get').then(applyTheme);
+followTheme();
 void api
   .invoke('scroll:init')
   .then(run)

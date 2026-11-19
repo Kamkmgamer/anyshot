@@ -120,3 +120,45 @@ test('rapid tool toggles each reach the saved settings', async () => {
     })
     .toEqual({ arrow: false, rect: false });
 });
+
+test('the appearance control switches every control and open window between themes', async () => {
+  await dispatch(ctx.app, 'settings');
+  const page = await pageOf(ctx.app, 'settings');
+  await dispatch(ctx.app, 'history');
+  const history = await pageOf(ctx.app, 'history');
+  const theme = page.getByRole('radiogroup', { name: 'Appearance' });
+  const radio = (name: string) => theme.getByRole('radio', { name });
+  await expect(radio('Dark')).toBeChecked();
+  const background = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+  const scheme = () => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
+  const historyBackground = () =>
+    history.evaluate(() => getComputedStyle(document.body).backgroundColor);
+
+  await radio('Light').click();
+  await expect(radio('Light')).toBeChecked();
+  await expect(radio('Dark')).not.toBeChecked();
+  await expect.poll(scheme).toBe('light');
+  await page.getByTestId('tab-capture').click();
+  await expect.poll(() => background('select')).toBe('rgb(255, 255, 255)');
+  await expect.poll(() => background('input[type="number"]')).toBe('rgb(255, 255, 255)');
+  await expect.poll(historyBackground).toBe('rgb(250, 250, 250)');
+  const file = join(ctx.userData, 'settings.json');
+  await expect
+    .poll(async () => JSON.parse(await readFile(file, 'utf8')).general.toolbarTheme)
+    .toBe('light');
+
+  // Keyboard: arrows move the choice within the group.
+  await page.getByTestId('tab-general').click();
+  await radio('Light').focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(radio('Dark')).toBeChecked();
+  await expect.poll(scheme).toBe('dark');
+  await page.getByTestId('tab-output').click();
+  await expect.poll(() => background('select')).toBe('rgb(15, 15, 17)');
+  await expect.poll(() => background('input[type="text"]')).toBe('rgb(15, 15, 17)');
+  await expect.poll(historyBackground).toBe('rgb(24, 24, 27)');
+});

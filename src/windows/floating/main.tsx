@@ -4,7 +4,7 @@ import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { FloatingItem, ItemAction } from '../../shared/ipc';
 import { Icon, type IconName } from '../common/icons';
-import { applyTheme } from '../common/theme';
+import { followTheme } from '../common/theme';
 
 const api = window.anyshot;
 
@@ -107,7 +107,7 @@ function App() {
   const [dismissSeconds, setDismissSeconds] = useState(5);
   const [hovered, setHovered] = useState(false);
   useEffect(() => {
-    void api.invoke('settings:get').then(applyTheme);
+    followTheme();
     void api.invoke('floating:ready').then((init) => {
       setItems(init.items);
       setDismissSeconds(init.dismissSeconds);

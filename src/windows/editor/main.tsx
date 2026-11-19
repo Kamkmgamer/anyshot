@@ -11,7 +11,7 @@ import { type Annotator, createAnnotator, nativeInputOwnsKey } from '../common/a
 import { EffectButtons, EffectPopovers } from '../common/effects-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
-import { applyTheme } from '../common/theme';
+import { followTheme } from '../common/theme';
 import { Bar, Button, ColorPopover, OptionsRow, RepeatButton, ToolStrip } from '../common/toolbar';
 
 const api = window.anyshot;
@@ -490,7 +490,7 @@ async function loadSource(source: EditorInit['source']): Promise<ImageBitmap> {
 
 async function boot(): Promise<void> {
   init = await api.invoke('editor:init');
-  applyTheme(init.settings);
+  followTheme(init.settings);
   historyId = init.historyId;
   bitmap = await loadSource(init.source);
   size = { width: bitmap.width, height: bitmap.height };

@@ -12,6 +12,7 @@ import {
   type Settings,
   TOOL_IDS,
 } from '../../shared/settings';
+import { Icon, type IconName } from '../common/icons';
 import { applyTheme } from '../common/theme';
 import { TOOL_LABELS } from '../common/tools';
 
@@ -122,6 +123,40 @@ function Select<T extends string>(props: {
     </select>
   );
 }
+
+/** Mutually exclusive icon buttons. Native radios give arrow-key and focus handling. */
+function Segmented<T extends string>(props: {
+  label: string;
+  value: T;
+  options: readonly { value: T; label: string; icon: IconName }[];
+  onChange: (v: T) => void;
+  testId?: string;
+}) {
+  const name = useId();
+  return (
+    <div role="radiogroup" aria-label={props.label} class="segmented" data-testid={props.testId}>
+      {props.options.map((option) => (
+        <label key={option.value}>
+          <input
+            type="radio"
+            name={name}
+            value={option.value}
+            checked={option.value === props.value}
+            onChange={() => props.onChange(option.value)}
+          />
+          <Icon name={option.icon} size={16} />
+          <span>{option.label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+const THEMES = [
+  { value: 'system', label: 'System', icon: 'monitor' },
+  { value: 'dark', label: 'Dark', icon: 'moon' },
+  { value: 'light', label: 'Light', icon: 'sun' },
+] as const;
 
 function NumberField(props: {
   id?: string;
@@ -463,15 +498,13 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
               onChange={(v) => patch({ general: { launchAtLogin: v } })}
             />
           </Row>
-          <Row label="Toolbar theme">
-            <Select
+          <Row label="Appearance" hint="Windows and toolbars" group>
+            <Segmented
+              label="Appearance"
               value={s.general.toolbarTheme}
-              options={[
-                ['dark', 'Dark'],
-                ['light', 'Light'],
-                ['system', 'Follow system'],
-              ]}
+              options={THEMES}
               onChange={(toolbarTheme) => patch({ general: { toolbarTheme } })}
+              testId="theme"
             />
           </Row>
           <Row label="Accent colour">

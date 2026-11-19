@@ -58,7 +58,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: #18181b;
+  background: var(--surface);
 }
 #tools .options {
   box-shadow: none;
@@ -72,7 +72,8 @@ body {
   overflow: auto;
   display: grid;
   place-items: center;
-  background: repeating-conic-gradient(#1c1c1f 0% 25%, #222226 0% 50%) 50% / 20px 20px;
+  background:
+    repeating-conic-gradient(var(--checker-a) 0% 25%, var(--checker-b) 0% 50%) 50% / 20px 20px;
 }
 #clip {
   position: relative;
