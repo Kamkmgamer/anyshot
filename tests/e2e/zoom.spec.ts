@@ -1,6 +1,14 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
-import { showFixture } from './fixture';
-import { type Launched, launch, pageOf, pressClosing, selectCard, verifyAndClose } from './harness';
+import { FIXTURE, showFixture } from './fixture';
+import {
+  type Launched,
+  launch,
+  pageOf,
+  pressClosing,
+  selectCard,
+  verifyAndClose,
+  windowKinds,
+} from './harness';
 
 let ctx: Launched;
 
@@ -66,4 +74,39 @@ test('pin zoom buttons repeat while held', async () => {
   await hold(pin, pin.getByTestId('pin-zoom-in'), 800);
   await expect.poll(() => percent(level)).toBeGreaterThanOrEqual(156);
   await pressClosing(pin, 'Escape');
+});
+
+test('a pin zoomed out as far as it goes still shows all of its controls', async () => {
+  await pressClosing(await selectCard(ctx.app), 'f');
+  const pin = await pageOf(ctx.app, 'pin');
+  await expect(pin.getByTestId('pin')).toBeVisible();
+  const level = pin.getByTestId('pin-zoom');
+  await pin.getByTestId('pin').hover();
+  // Far more steps than it takes to reach the floor (300 px → 10 % would be 30 px).
+  for (let i = 0; i < 15; i++) await pin.getByTestId('pin-zoom-out').click();
+  const floor = await percent(level);
+  expect(floor).toBeGreaterThan(10);
+  await pin.getByTestId('pin-zoom-out').click();
+  await expect(level).toHaveText(`${floor}%`);
+  // Wait for the window to take its final size, then check every control fits.
+  await expect
+    .poll(() => pin.evaluate(() => window.innerWidth))
+    .toBeLessThan(FIXTURE.card.width * 0.8);
+  await pin.waitForTimeout(200);
+  const viewport = await pin.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  for (const button of await pin.locator('.controls button').all()) {
+    const box = await button.boundingBox();
+    if (!box) throw new Error('control not rendered');
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.w);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.h);
+  }
+  // Zooming in and resetting still work from the floor; Esc still closes.
+  await pin.getByTestId('pin-zoom-in').click();
+  await expect.poll(() => percent(level)).toBeGreaterThan(floor);
+  await level.click();
+  await expect(level).toHaveText('100%');
+  await pressClosing(pin, 'Escape');
+  await expect.poll(() => windowKinds(ctx.app)).toEqual([]);
 });

@@ -42,9 +42,26 @@ function App({ init }: { init: PinInit }) {
   // Held zoom buttons step from the latest value, not the one of the last render.
   const current = useRef(1);
   const drag = useRef<{ x: number; y: number } | null>(null);
+  const controls = useRef<HTMLDivElement>(null);
+
+  /**
+   * The smallest zoom at which the window still fits one row of controls.
+   * Never above 1: a pin smaller than the row keeps its size and the row wraps.
+   */
+  const minZoom = () => {
+    const row = controls.current;
+    if (!row) return 0.1;
+    const items = [...row.children].filter((el): el is HTMLElement => el instanceof HTMLElement);
+    const gap = Number.parseFloat(getComputedStyle(row).columnGap) || 0;
+    // 12 px for the row's inset, a little slack for the zoom label's changing width.
+    const width = items.reduce((sum, el) => sum + el.offsetWidth + gap, 0) + 12 + 6;
+    const height = Math.max(0, ...items.map((el) => el.offsetHeight)) + 12;
+    const { width: w, height: h } = base.current;
+    return Math.min(1, Math.max(0.1, width / w, height / h));
+  };
 
   const applyZoom = (next: number) => {
-    const z = Math.min(5, Math.max(0.1, next));
+    const z = Math.min(5, Math.max(minZoom(), next));
     current.current = z;
     setZoom(z);
     void api.invoke('window:set-size', {
@@ -82,7 +99,17 @@ function App({ init }: { init: PinInit }) {
         onLoad={() => void api.invoke('pin:ready')}
         onError={() => void api.invoke('pin:ready')}
       />
-      <div class="controls">
+      {/* Close comes first: if a tiny pin cuts the wrapped row off, it stays visible. */}
+      <div class="controls" ref={controls}>
+        <button
+          type="button"
+          title="Close (Esc)"
+          aria-label="Close"
+          data-testid="pin-close"
+          onClick={() => void api.invoke('window:close')}
+        >
+          <Icon name="close" size={15} />
+        </button>
         <ZoomButton
           icon="zoomOut"
           label="Zoom out"
@@ -121,15 +148,6 @@ function App({ init }: { init: PinInit }) {
           }
         >
           <Icon name="editor" size={15} />
-        </button>
-        <button
-          type="button"
-          title="Close (Esc)"
-          aria-label="Close"
-          data-testid="pin-close"
-          onClick={() => void api.invoke('window:close')}
-        >
-          <Icon name="close" size={15} />
         </button>
       </div>
     </div>
