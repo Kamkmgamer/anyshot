@@ -4,6 +4,7 @@ import { render } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import type { PinInit } from '../../shared/ipc';
 import { Icon } from '../common/icons';
+import { usePressRepeat } from '../common/repeat';
 import { applyTheme } from '../common/theme';
 
 const api = window.anyshot;
@@ -18,13 +19,33 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+const ZOOM_STEP = 1.25;
+
+function ZoomButton(props: { icon: 'zoomIn' | 'zoomOut'; label: string; onStep: () => void }) {
+  const press = usePressRepeat(props.onStep);
+  return (
+    <button
+      type="button"
+      title={props.label}
+      aria-label={props.label}
+      data-testid={`pin-${props.icon === 'zoomIn' ? 'zoom-in' : 'zoom-out'}`}
+      {...press}
+    >
+      <Icon name={props.icon} size={15} />
+    </button>
+  );
+}
+
 function App({ init }: { init: PinInit }) {
   const base = useRef({ width: window.innerWidth, height: window.innerHeight });
   const [zoom, setZoom] = useState(1);
+  // Held zoom buttons step from the latest value, not the one of the last render.
+  const current = useRef(1);
   const drag = useRef<{ x: number; y: number } | null>(null);
 
   const applyZoom = (next: number) => {
     const z = Math.min(5, Math.max(0.1, next));
+    current.current = z;
     setZoom(z);
     void api.invoke('window:set-size', {
       width: base.current.width * z,
@@ -36,7 +57,7 @@ function App({ init }: { init: PinInit }) {
     <div
       class="pin"
       data-testid="pin"
-      onWheel={(e) => applyZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1))}
+      onWheel={(e) => applyZoom(current.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1))}
       onPointerDown={(e) => {
         if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
         drag.current = { x: e.screenX, y: e.screenY };
@@ -62,9 +83,25 @@ function App({ init }: { init: PinInit }) {
         onError={() => void api.invoke('pin:ready')}
       />
       <div class="controls">
-        <button type="button" class="zoom" title="Reset zoom" onClick={() => applyZoom(1)}>
+        <ZoomButton
+          icon="zoomOut"
+          label="Zoom out"
+          onStep={() => applyZoom(current.current / ZOOM_STEP)}
+        />
+        <button
+          type="button"
+          class="zoom"
+          title="Reset zoom"
+          data-testid="pin-zoom"
+          onClick={() => applyZoom(1)}
+        >
           {Math.round(zoom * 100)}%
         </button>
+        <ZoomButton
+          icon="zoomIn"
+          label="Zoom in"
+          onStep={() => applyZoom(current.current * ZOOM_STEP)}
+        />
         <button
           type="button"
           title="Copy"

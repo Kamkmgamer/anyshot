@@ -12,7 +12,7 @@ import { EffectButtons, EffectPopovers } from '../common/effects-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
 import { applyTheme } from '../common/theme';
-import { Bar, Button, ColorPopover, OptionsRow, ToolStrip } from '../common/toolbar';
+import { Bar, Button, ColorPopover, OptionsRow, RepeatButton, ToolStrip } from '../common/toolbar';
 
 const api = window.anyshot;
 
@@ -89,6 +89,10 @@ function setZoom(zoom: number): void {
   ui.set({ zoom: Math.min(8, Math.max(0.1, zoom)) });
   layout();
 }
+
+const ZOOM_STEP = 1.25;
+/** Reads the current zoom, so held buttons keep stepping from the latest value. */
+const zoomBy = (factor: number) => setZoom(ui.get().zoom * factor);
 
 // ---------------------------------------------------------------- crop
 
@@ -308,11 +312,27 @@ function TopBar() {
         </span>
       )}
       <span class="spacer" />
-      <Button icon="zoomOut" label="Zoom out (Ctrl+-)" onClick={() => setZoom(s.zoom / 1.25)} />
-      <button type="button" class="zoom" title="Actual size (Ctrl+0)" onClick={() => setZoom(1)}>
+      <RepeatButton
+        icon="zoomOut"
+        label="Zoom out (Ctrl+-)"
+        onStep={() => zoomBy(1 / ZOOM_STEP)}
+        testId="zoom-out"
+      />
+      <button
+        type="button"
+        class="zoom"
+        title="Actual size (Ctrl+0)"
+        data-testid="zoom-level"
+        onClick={() => setZoom(1)}
+      >
         {`${Math.round(s.zoom * 100)}%`}
       </button>
-      <Button icon="zoomIn" label="Zoom in (Ctrl+=)" onClick={() => setZoom(s.zoom * 1.25)} />
+      <RepeatButton
+        icon="zoomIn"
+        label="Zoom in (Ctrl+=)"
+        onStep={() => zoomBy(ZOOM_STEP)}
+        testId="zoom-in"
+      />
       <Button icon="fit" label="Fit (Ctrl+1)" onClick={() => setZoom(fitZoom())} />
       <span class="sep" />
       <Button
@@ -398,8 +418,8 @@ function onKeyDown(e: KeyboardEvent): void {
   else if (mod && key === 'w') void api.invoke('window:close');
   else if (mod && key === '0') setZoom(1);
   else if (mod && key === '1') setZoom(fitZoom());
-  else if (mod && (key === '=' || key === '+')) setZoom(ui.get().zoom * 1.25);
-  else if (mod && key === '-') setZoom(ui.get().zoom / 1.25);
+  else if (mod && (key === '=' || key === '+')) zoomBy(ZOOM_STEP);
+  else if (mod && key === '-') zoomBy(1 / ZOOM_STEP);
   else if (!mod && key === 'c') startCrop();
   else if (e.key === 'Escape' && annotator.controller.store.get().popover)
     annotator.controller.store.set({ popover: null });

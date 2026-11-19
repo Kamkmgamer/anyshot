@@ -12,7 +12,9 @@ Items in order 2, 6, 3, 4, 1, 7, 5.
 
 - **2 Measure clamps to the image.** `measureEnd`/`clampPoint`/`clampAlong` (pure, unit-tested). The view has an "image area": the overlay sets it to the selection (in image px), the editor uses the crop or the whole image. Start, end and handle drags of measurements are clamped; with Shift the 45° direction is kept by shortening along the ray instead of clamping per axis. Editor pointer input moved from `#stage` to `#viewport` so a measurement can start in the grey margin; other tools still need to start on the image (text boxes or shapes starting off-image would be surprising). e2e: `measure.spec.ts` (overlay and editor, checked through the saved project document).
 
-**Next:** item 6 (press-and-hold zoom buttons).
+- **6 Press-and-hold zoom.** `src/windows/common/repeat.ts`: `createRepeater` (pure timers, unit-tested with fake timers: one step on press, repeat every 70 ms after 350 ms) and `usePressRepeat` (stops on pointerup/leave/cancel, window blur and unmount). Pointer presses step on pointerdown; the click that follows is ignored unless `detail === 0` (keyboard Enter/Space), so a click is exactly one step. Steps read the current zoom (`ui.get()` / a ref) rather than the render's value. Editor −/+ use `RepeatButton`; pins had only wheel zoom and a reset label, so they gained −/+ buttons too. Pin controls moved to the top-left corner: the window resizes from its top-left origin, so a held button stays under the pointer (top-right would slide away and end the hold). The overlay has no zoom buttons. e2e: `zoom.spec.ts`.
+
+**Next:** item 3 (theme segmented control and themed form controls).
 
 ## 2026-11-19 - PR #1 review fixes
 

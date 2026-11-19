@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 import { unpackProject } from '../../src/shared/project';
 import { FIXTURE, showFixture } from './fixture';
-import { dispatch, type Launched, launch, pageOf, pressClosing, verifyAndClose } from './harness';
+import { type Launched, launch, pageOf, pressClosing, selectCard, verifyAndClose } from './harness';
 
 let ctx: Launched;
 
@@ -26,22 +26,6 @@ async function drag(page: Page, a: [number, number], b: [number, number]): Promi
   await page.mouse.up();
 }
 
-/** Selects the fixture card in a fresh overlay. */
-async function overlayOnCard(): Promise<Page> {
-  await dispatch(ctx.app, 'captureArea');
-  const overlay = await pageOf(ctx.app, 'overlay');
-  await expect
-    .poll(() =>
-      ctx.app.evaluate(() =>
-        globalThis.__anyshot?.windows().some((w) => w.kind === 'overlay' && w.visible),
-      ),
-    )
-    .toBe(true);
-  const { card } = FIXTURE;
-  await drag(overlay, [card.x, card.y], [card.x + card.width, card.y + card.height]);
-  return overlay;
-}
-
 /** Saves the editor's project and returns its measure annotations. */
 async function savedMeasures(editor: Page) {
   const file = join(ctx.userData, `measure-${Date.now()}.anyshot`);
@@ -60,7 +44,7 @@ async function savedMeasures(editor: Page) {
 }
 
 test('measurements stay inside the selection in the overlay', async () => {
-  const overlay = await overlayOnCard();
+  const overlay = await selectCard(ctx.app);
   const { card } = FIXTURE;
   await overlay.getByTestId('tool-measure').click();
   // Starts inside, released far outside the selection (below and to the right).
@@ -75,7 +59,7 @@ test('measurements stay inside the selection in the overlay', async () => {
 });
 
 test('measurements start and end at the image edge in the editor', async () => {
-  const overlay = await overlayOnCard();
+  const overlay = await selectCard(ctx.app);
   await pressClosing(overlay, 'e');
   const editor = await pageOf(ctx.app, 'editor');
   await expect(editor.getByTestId('editor-size')).toHaveText('300 × 200');

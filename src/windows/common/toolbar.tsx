@@ -3,6 +3,7 @@ import type { Effects } from '../../engine/model';
 import type { ToolOptions } from '../../engine/view';
 import type { ToolId } from '../../shared/settings';
 import { Icon, type IconName } from './icons';
+import { usePressRepeat } from './repeat';
 import type { Store } from './store';
 import { useStore } from './store';
 import { QUICK_STAMPS, TOOL_KEYS, TOOL_LABELS, type ToolUiState } from './tools';
@@ -46,6 +47,28 @@ export function Button(props: {
       disabled={props.disabled}
       data-testid={props.testId}
       onClick={props.onClick}
+    >
+      <Icon name={props.icon} />
+    </button>
+  );
+}
+
+/** A toolbar button that repeats its action while held (zoom in/out). */
+export function RepeatButton(props: {
+  icon: IconName;
+  label: string;
+  onStep: () => void;
+  testId?: string;
+}) {
+  const press = usePressRepeat(props.onStep);
+  return (
+    <button
+      type="button"
+      class="tb-btn"
+      title={props.label}
+      aria-label={props.label}
+      data-testid={props.testId}
+      {...press}
     >
       <Icon name={props.icon} />
     </button>
