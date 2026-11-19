@@ -147,8 +147,14 @@ test('history lists captures lazily and supports copy and delete', async () => {
   await expect(history.getByText('Copied to the clipboard')).toBeVisible();
   const hasImage = await ctx.app.evaluate(({ clipboard }) => clipboard.has('image/png'));
   expect(hasImage).toBe(true);
+  await history.keyboard.press('ArrowRight');
   await history.keyboard.press('Delete');
   await expect(history.getByTestId('history-card')).toHaveCount(1);
+  await ctx.app.evaluate(({ clipboard }) => clipboard.clear());
+  await history.keyboard.press('Enter');
+  await expect
+    .poll(() => ctx.app.evaluate(({ clipboard }) => clipboard.has('image/png')))
+    .toBe(true);
   expect(await historyIndex()).toHaveLength(1);
   await dispatch(ctx.app, 'history');
   expect((await windowKinds(ctx.app)).filter((k) => k === 'history')).toHaveLength(1);
@@ -156,4 +162,14 @@ test('history lists captures lazily and supports copy and delete', async () => {
   const overlay = await captureCard();
   await pressClosing(overlay, 'Control+c');
   await expect(history.getByTestId('history-card')).toHaveCount(2);
+});
+
+test('remembers a tool selected just before the overlay closes', async () => {
+  const overlay = await captureCard();
+  await overlay.keyboard.press('p');
+  await pressClosing(overlay, 'Escape');
+  const file = join(ctx.userData, 'settings.json');
+  await expect
+    .poll(async () => JSON.parse(await readFile(file, 'utf8')).tools.lastTool)
+    .toBe('pencil');
 });

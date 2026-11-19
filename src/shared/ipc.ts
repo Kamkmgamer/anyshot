@@ -4,7 +4,7 @@
  * allowed to call it. Main rejects calls from any other sender.
  */
 import type { Rect, Size } from './geometry';
-import type { DeepPartial, Settings, ToolId } from './settings';
+import type { DeepPartial, Settings, ToolChoices, ToolId } from './settings';
 
 export const APP_ORIGIN = 'app://local';
 
@@ -197,6 +197,7 @@ type Channel<Q, R> = Req<Q> & Res<R>;
 export interface InvokeContract {
   'settings:get': Channel<void, Settings>;
   'settings:patch': Channel<DeepPartial<Settings>, Settings>;
+  'settings:remember-tools': Channel<Partial<ToolChoices>, void>;
   'window:close': Channel<void, void>;
   'window:set-size': Channel<Size, void>;
   'clipboard:text': Channel<string, void>;
@@ -275,6 +276,7 @@ const ALL: readonly WindowKind[] = [
 export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind[] } = {
   'settings:get': ALL,
   'settings:patch': ['settings', 'overlay', 'editor'],
+  'settings:remember-tools': ['overlay', 'editor'],
   'window:close': ALL,
   'window:set-size': ['floating', 'pin'],
   'clipboard:text': ['ocr', 'editor', 'overlay', 'settings'],

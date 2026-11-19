@@ -18,6 +18,21 @@ test('settings persist atomically, shortcuts re-register, secrets stay out of se
   await dispatch(ctx.app, 'settings');
   const page = await pageOf(ctx.app, 'settings');
   await expect(page.getByRole('checkbox', { name: 'Launch at login' })).toBeVisible();
+  const accessibility = await page.context().newCDPSession(page);
+  try {
+    const { root } = await accessibility.send('DOM.getDocument');
+    const { nodeId } = await accessibility.send('DOM.querySelector', {
+      nodeId: root.nodeId,
+      selector: 'input[type="color"]',
+    });
+    const { nodes } = await accessibility.send('Accessibility.getPartialAXTree', { nodeId });
+    expect(nodes[0]).toMatchObject({
+      role: { value: 'ColorWell' },
+      name: { value: 'Accent colour' },
+    });
+  } finally {
+    await accessibility.detach();
+  }
   await page.getByTestId('tab-capture').click();
   await page.getByTestId('instant-capture').check();
   const file = join(ctx.userData, 'settings.json');
@@ -69,8 +84,8 @@ test('rapid tool toggles each reach the saved settings', async () => {
   const file = join(ctx.userData, 'settings.json');
   await expect
     .poll(async () => {
-      const enabled = JSON.parse(await readFile(file, 'utf8')).tools.enabledTools;
-      return { arrow: enabled.includes('arrow'), rect: enabled.includes('rect') };
+      const enabled = JSON.parse(await readFile(file, 'utf8')).tools?.enabledTools;
+      return { arrow: enabled?.includes('arrow') ?? true, rect: enabled?.includes('rect') ?? true };
     })
     .toEqual({ arrow: false, rect: false });
 });

@@ -7,7 +7,7 @@ import { type Rect, rectFromPoints } from '../../shared/geometry';
 import type { DeliverAction, EditorInit } from '../../shared/ipc';
 import { packProject } from '../../shared/project';
 import { isRecord } from '../../shared/schema';
-import { type Annotator, createAnnotator } from '../common/annotator';
+import { type Annotator, createAnnotator, nativeInputOwnsKey } from '../common/annotator';
 import { EffectButtons, EffectPopovers } from '../common/effects-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
@@ -384,6 +384,7 @@ function Tools() {
 
 function onKeyDown(e: KeyboardEvent): void {
   const mod = e.ctrlKey || e.metaKey;
+  if (!mod && e.key !== 'Escape' && nativeInputOwnsKey(e)) return;
   const key = e.key.toLowerCase();
   if (ui.get().cropping) {
     if (e.key === 'Enter') endCrop(true);

@@ -1,3 +1,5 @@
+const WINDOWS_DEVICE = /^(con|prn|aux|nul|conin\$|conout\$|(?:com|lpt)[1-9¹²³])$/i;
+
 const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 
 /**
@@ -25,13 +27,15 @@ export function expandTemplate(template: string, now: Date, random = Math.random
   const expanded = template.replace(/\{(\w+)\}/g, (match, name: string) => tokens[name] ?? match);
   const segments = expanded
     .split(/[\\/]+/)
-    .map((segment) =>
-      segment
+    .map((segment) => {
+      const cleaned = segment
         // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point
         .replace(/[<>:"|?*\u0000-\u001f]/g, '-')
-        .replace(/[. ]+$/, '')
-        .trim(),
-    )
+        .trim()
+        .replace(/[. ]+$/, '');
+      const basename = cleaned.split('.', 1)[0]?.trimEnd() ?? '';
+      return WINDOWS_DEVICE.test(basename) ? `_${cleaned}` : cleaned;
+    })
     .filter((segment) => segment !== '' && segment !== '.' && segment !== '..');
   return segments.length > 0 ? segments.join('/') : 'anyshot';
 }

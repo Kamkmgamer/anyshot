@@ -31,13 +31,17 @@ function Card({
   }, [hovered, dismissSeconds, item.id]);
 
   const run = async (action: ItemAction, close: boolean) => {
-    const result = await api.invoke('item:action', { historyId: item.historyId, action });
-    if (!result.ok) {
-      if (result.error !== 'cancelled') setStatus(result.error ?? 'Failed');
-      return;
+    try {
+      const result = await api.invoke('item:action', { historyId: item.historyId, action });
+      if (!result.ok) {
+        if (result.error !== 'cancelled') setStatus(result.error ?? 'Failed');
+        return;
+      }
+      if (close) void api.invoke('floating:dismiss', item.id);
+      else setStatus(action === 'copy' ? 'Copied' : 'Saved');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
     }
-    if (close) void api.invoke('floating:dismiss', item.id);
-    else setStatus(action === 'copy' ? 'Copied' : 'Saved');
   };
   const corner = (icon: IconName, label: string, cls: string, action: () => void) => (
     <button

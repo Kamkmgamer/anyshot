@@ -14,6 +14,14 @@ export interface Annotator {
   dispose(): void;
 }
 
+export function nativeInputOwnsKey(event: KeyboardEvent): boolean {
+  const target = event.target;
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || target.matches('input, textarea, select'))
+  );
+}
+
 /** Wires the engine, the tool store and the keyboard together for a window. */
 export function createAnnotator(
   container: HTMLElement,
@@ -66,6 +74,7 @@ export function createAnnotator(
   };
 
   function handleKey(e: KeyboardEvent): boolean {
+    if (nativeInputOwnsKey(e)) return false;
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
     if (mod && key === 'z') {

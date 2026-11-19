@@ -24,7 +24,8 @@
   opacity: 0;
   transition: opacity 120ms;
 }
-.pin:hover .controls {
+.pin:hover .controls,
+.pin:focus-within .controls {
   opacity: 1;
 }
 .controls button {

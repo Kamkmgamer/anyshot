@@ -1,6 +1,6 @@
 import { DEFAULT_EFFECTS, type Effects } from '../../engine/model';
 import type { ToolOptions } from '../../engine/view';
-import type { Settings, ToolId } from '../../shared/settings';
+import type { Settings, ToolChoices, ToolId } from '../../shared/settings';
 import { createStore, type Store } from './store';
 
 export interface ToolUiState extends ToolOptions {
@@ -94,10 +94,9 @@ export function createToolStore(settings: Settings): Store<ToolUiState> {
   });
 }
 
-/** Remembers tool choices in settings, debounced so slider drags write once. */
+/** Sends only the settings changed by this annotator. Main debounces the disk writes. */
 export function persistToolChoices(store: Store<ToolUiState>): () => void {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const snapshot = (s: ToolUiState) => ({
+  const snapshot = (s: ToolUiState): ToolChoices => ({
     lastTool: s.tool,
     color: s.color,
     strokeWidth: s.strokeWidth,
@@ -110,17 +109,18 @@ export function persistToolChoices(store: Store<ToolUiState>): () => void {
     stampSize: s.stampSize,
     stamp: s.stamp,
   });
-  let last = JSON.stringify(snapshot(store.get()));
-  const unsubscribe = store.subscribe((s) => {
-    const tools = snapshot(s);
-    const json = JSON.stringify(tools);
-    if (json === last) return;
-    last = json;
-    clearTimeout(timer);
-    timer = setTimeout(() => void window.anyshot.invoke('settings:patch', { tools }), 400);
+  let last = snapshot(store.get());
+  const keys = Object.keys(last) as (keyof ToolChoices)[];
+  return store.subscribe((s) => {
+    const next = snapshot(s);
+    const changed: Partial<ToolChoices> = {};
+    for (const key of keys) {
+      if (last[key] !== next[key]) Object.assign(changed, { [key]: next[key] });
+    }
+    last = next;
+    if (Object.keys(changed).length === 0) return;
+    void window.anyshot
+      .invoke('settings:remember-tools', changed)
+      .catch((error) => console.warn('[tools] could not remember choices', error));
   });
-  return () => {
-    clearTimeout(timer);
-    unsubscribe();
-  };
 }

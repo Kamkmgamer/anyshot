@@ -1,4 +1,5 @@
-import { shell } from 'electron';
+import { type BrowserWindow, shell } from 'electron';
+import type { ToolChoices } from '../shared/settings';
 import { copyText } from './clipboard';
 import { releaseFrame } from './frames';
 import { handle } from './ipc';
@@ -9,6 +10,7 @@ import { broadcast } from './windows';
 export function registerIpc(): void {
   handle('settings:get', () => getSettings());
   handle('settings:patch', (patch) => patchSettings(patch));
+  registerToolChoices();
   handle('window:close', (_req, { win }) => win.close());
   handle('window:set-size', ({ width, height }, { win }) => {
     win.setContentSize(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
@@ -26,4 +28,32 @@ export function registerIpc(): void {
     if (/^https?:\/\//i.test(url)) await shell.openExternal(url);
   });
   onSettingsChanged((next) => broadcast('settings:changed', next));
+}
+
+function registerToolChoices(): void {
+  const observed = new WeakSet<BrowserWindow>();
+  let pending: Partial<ToolChoices> = {};
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  function flush(): void {
+    clearTimeout(timer);
+    if (Object.keys(pending).length === 0) return;
+    const tools = pending;
+    pending = {};
+    void patchSettings({ tools }).catch((error) =>
+      console.error('[settings] could not remember tool choices', error),
+    );
+  }
+
+  // Main receives the choices before an overlay is destroyed. Disk writes can
+  // still be debounced even when the renderer that sent them is already gone.
+  handle('settings:remember-tools', (tools, { win }) => {
+    Object.assign(pending, tools);
+    if (!observed.has(win)) {
+      observed.add(win);
+      win.once('closed', flush);
+    }
+    clearTimeout(timer);
+    timer = setTimeout(flush, 400);
+  });
 }

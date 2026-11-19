@@ -21,6 +21,11 @@ describe('filename templates', () => {
     expect(expandTemplate('///', when)).toBe('anyshot');
   });
 
+  it('prefixes reserved Windows device basenames in folders and filenames', () => {
+    expect(expandTemplate(' Aux ./coN.txt/lPt²', when)).toBe('_Aux/_coN.txt/_lPt²');
+    expect(expandTemplate('CONIN$/com0/not-aux', when)).toBe('_CONIN$/com0/not-aux');
+  });
+
   it('uses the random source for {random}', () => {
     expect(expandTemplate('{random}', when, () => 0.5)).toBe('7fffff');
   });

@@ -158,6 +158,8 @@ export function parseSettings(input: unknown): Settings {
 }
 
 /** A recursive partial used for settings patches sent from windows. */
+export type ToolChoices = Omit<Settings['tools'], 'presetColors' | 'enabledTools'>;
+
 export type DeepPartial<T> = T extends readonly unknown[]
   ? T
   : T extends object

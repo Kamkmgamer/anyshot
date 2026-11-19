@@ -102,7 +102,8 @@ h1 {
   transition: opacity 120ms;
 }
 .card:hover .actions,
-.card.selected .actions {
+.card.selected .actions,
+.card:focus-within .actions {
   opacity: 1;
 }
 .actions button {

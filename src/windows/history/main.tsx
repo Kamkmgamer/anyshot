@@ -22,7 +22,7 @@ function timeAgo(ms: number): string {
 function App() {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
-  const [selected, setSelected] = useState(0);
+  const [selection, setSelected] = useState(0);
   const [status, setStatus] = useState<string | null>(null);
 
   const reload = useCallback(async () => setEntries(await api.invoke('history:list')), []);
@@ -35,6 +35,12 @@ function App() {
   const shown = entries.filter(
     (e) => filter === 'all' || (filter === 'image' ? e.kind === 'image' : e.kind !== 'image'),
   );
+
+  const lastIndex = Math.max(0, shown.length - 1);
+  const selected = Math.min(selection, lastIndex);
+  useEffect(() => {
+    if (selection !== selected) setSelected(selected);
+  }, [selection, selected]);
 
   const run = useCallback(
     async (entry: HistoryEntry | undefined, action: ItemAction) => {
@@ -54,7 +60,7 @@ function App() {
       const current = shown[selected];
       if (e.key === 'Escape') void api.invoke('window:close');
       else if (e.key === 'ArrowRight' || e.key === 'ArrowDown')
-        setSelected((i) => Math.min(shown.length - 1, i + 1));
+        setSelected((i) => Math.min(lastIndex, i + 1));
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setSelected((i) => Math.max(0, i - 1));
       else if (e.key === 'Enter') void run(current, 'copy');
       else if (e.key === 'Delete') void run(current, 'delete');
@@ -64,7 +70,7 @@ function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [shown, selected, run]);
+  }, [shown, selected, lastIndex, run]);
 
   const action = (entry: HistoryEntry, icon: IconName, label: string, a: ItemAction) => (
     <button
