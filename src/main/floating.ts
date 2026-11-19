@@ -33,7 +33,9 @@ export async function showFloating(entry: HistoryEntry): Promise<void> {
       createdAt: entry.createdAt,
     },
     ...items,
-  ].slice(0, MAX_VISIBLE);
+  ];
+  // Previews pushed off the stack give up their hold like dismissed ones.
+  for (const evicted of items.splice(MAX_VISIBLE)) release(evicted.historyId);
   sync();
 }
 

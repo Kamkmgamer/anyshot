@@ -134,21 +134,26 @@ function paintCropBox(): void {
   });
 }
 
+// Any of these ends a crop drag; pointercancel comes without a pointerup.
+const CROP_DRAG_END = ['pointerup', 'pointercancel', 'lostpointercapture'] as const;
+
 cropLayer.addEventListener('pointerdown', (e) => {
   const start = annotator.view.toImage(e.clientX, e.clientY);
   cropLayer.setPointerCapture(e.pointerId);
   const move = (m: PointerEvent) => {
+    if (m.pointerId !== e.pointerId) return;
     const p = annotator.view.toImage(m.clientX, m.clientY);
     const clamp = (v: number, max: number) => Math.max(0, Math.min(max, v));
     cropDraft = rectFromPoints(start, { x: clamp(p.x, size.width), y: clamp(p.y, size.height) });
     paintCropBox();
   };
-  const up = () => {
+  const end = (m: PointerEvent) => {
+    if (m.pointerId !== e.pointerId) return;
     cropLayer.removeEventListener('pointermove', move);
-    cropLayer.removeEventListener('pointerup', up);
+    for (const type of CROP_DRAG_END) cropLayer.removeEventListener(type, end);
   };
   cropLayer.addEventListener('pointermove', move);
-  cropLayer.addEventListener('pointerup', up);
+  for (const type of CROP_DRAG_END) cropLayer.addEventListener(type, end);
 });
 
 // ---------------------------------------------------------------- output
@@ -174,8 +179,9 @@ async function exportCurrent(withSaveFormat: boolean) {
   });
 }
 
-async function deliver(action: DeliverAction, label: string): Promise<void> {
-  if (ui.get().busy) return;
+/** Exports and hands the image to main; true when the action succeeded. */
+async function deliver(action: DeliverAction, label: string): Promise<boolean> {
+  if (ui.get().busy) return false;
   ui.set({ busy: true, status: null });
   try {
     const out = await exportCurrent(action === 'save' || action === 'saveAs');
@@ -190,16 +196,37 @@ async function deliver(action: DeliverAction, label: string): Promise<void> {
     if (result.historyId) historyId = result.historyId;
     if (result.ok) ui.set({ status: result.path ? `Saved to ${result.path}` : label });
     else if (result.error !== 'cancelled') ui.set({ status: result.error ?? 'Failed' });
+    return result.ok;
   } catch (error) {
     ui.set({ status: `Failed: ${String(error)}` });
+    return false;
   } finally {
     ui.set({ busy: false });
   }
 }
 
-async function saveProject(saveAs: boolean): Promise<void> {
+/** Records `doc` as written; edits made while it was being written stay unsaved. */
+function markSaved(doc: Doc): void {
+  savedDoc = doc;
+  ui.set({ dirty: annotator.docs.doc !== doc });
+  syncTitle();
+}
+
+/** Done (history edits): saves back to the entry, and closes only if that worked. */
+async function finishHistoryEdit(): Promise<void> {
   annotator.view.commitText();
-  ui.set({ busy: true });
+  const doc = annotator.docs.doc;
+  if (!(await deliver('none', 'Saved to history'))) return;
+  markSaved(doc);
+  if (annotator.docs.doc === doc) void api.invoke('window:close');
+}
+
+async function saveProject(saveAs: boolean): Promise<void> {
+  // Checked here too: the shortcut works while the toolbar buttons are disabled.
+  if (ui.get().busy) return;
+  annotator.view.commitText();
+  const doc = annotator.docs.doc;
+  ui.set({ busy: true, status: null });
   try {
     const base = await exportImage({
       source: bitmap,
@@ -207,7 +234,7 @@ async function saveProject(saveAs: boolean): Promise<void> {
       thumbMax: 16,
     });
     const bytes = packProject({
-      doc: annotator.docs.doc,
+      doc,
       image: { mime: 'image/png', width: size.width, height: size.height },
       bytes: new Uint8Array(base.png.bytes),
     });
@@ -216,14 +243,11 @@ async function saveProject(saveAs: boolean): Promise<void> {
       saveAs,
     });
     if (path) {
-      savedDoc = annotator.docs.doc;
-      ui.set({
-        dirty: false,
-        title: path.split(/[\\/]/).pop() ?? path,
-        status: `Project saved to ${path}`,
-      });
-      syncTitle();
+      ui.set({ title: path.split(/[\\/]/).pop() ?? path, status: `Project saved to ${path}` });
+      markSaved(doc);
     }
+  } catch (error) {
+    ui.set({ status: `Project not saved: ${String(error)}` });
   } finally {
     ui.set({ busy: false });
   }
@@ -321,13 +345,8 @@ function TopBar() {
         <button
           type="button"
           class="done"
-          onClick={async () => {
-            await deliver('none', 'Saved to history');
-            savedDoc = annotator.docs.doc;
-            ui.set({ dirty: false });
-            syncTitle();
-            void api.invoke('window:close');
-          }}
+          disabled={s.busy}
+          onClick={() => void finishHistoryEdit()}
         >
           Done
         </button>
@@ -417,6 +436,17 @@ function wirePointer(): void {
 
 // ---------------------------------------------------------------- boot
 
+function fitsImage(r: Rect): boolean {
+  return (
+    r.x >= 0 &&
+    r.y >= 0 &&
+    r.width >= 1 &&
+    r.height >= 1 &&
+    r.x + r.width <= size.width &&
+    r.y + r.height <= size.height
+  );
+}
+
 async function loadSource(source: EditorInit['source']): Promise<ImageBitmap> {
   if (source.kind === 'frame') {
     const response = await fetch(`/@frame/${source.frameId}`);
@@ -436,7 +466,9 @@ async function boot(): Promise<void> {
   historyId = init.historyId;
   bitmap = await loadSource(init.source);
   size = { width: bitmap.width, height: bitmap.height };
-  const doc = init.doc ? parseDoc(init.doc) : emptyDoc(1);
+  const parsed = init.doc ? parseDoc(init.doc) : emptyDoc(1);
+  const cropFits = !parsed.crop || fitsImage(parsed.crop);
+  const doc = cropFits ? parsed : { ...parsed, crop: null };
   annotator = createAnnotator(stage, size, doc, init.settings);
   annotator.view.setSource(bitmap);
   savedDoc = annotator.docs.doc;
@@ -452,6 +484,7 @@ async function boot(): Promise<void> {
     }
   });
   ui.set({ title: init.title, crop: doc.crop });
+  if (!cropFits) ui.set({ status: 'The saved crop did not fit this image, so it was reset.' });
   render(<TopBar />, el('top'));
   render(<Tools />, el('tools'));
   wirePointer();

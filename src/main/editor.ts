@@ -7,7 +7,7 @@ import { isProject, PROJECT_EXTENSION, unpackProject } from '../shared/project';
 import { readPng } from './clipboard';
 import { writeBytes } from './deliver';
 import { type Frame, putFrame, releaseFrame } from './frames';
-import { getEntry } from './history';
+import { getRetainedEntry, release } from './history';
 import { handle } from './ipc';
 import { registerMediaRoute } from './protocol';
 import { getSettings } from './settings-store';
@@ -106,19 +106,25 @@ export async function openEditorWithImage(image: Frame, doc: unknown): Promise<v
 }
 
 export async function openHistoryEntry(id: string): Promise<void> {
-  const entry = await getEntry(id);
+  const entry = await getRetainedEntry(id);
   if (!entry) return;
-  open(
-    {
-      source: { kind: 'url', url: `/@history/${id}/image` },
-      doc: null,
-      title: new Date(entry.createdAt).toLocaleString(),
-      projectPath: null,
-      historyId: id,
-    },
-    entry,
-    () => {},
-  );
+  // Held while the editor is open: it loads the image and saves edits back to the entry.
+  try {
+    open(
+      {
+        source: { kind: 'url', url: `/@history/${id}/image` },
+        doc: null,
+        title: new Date(entry.createdAt).toLocaleString(),
+        projectPath: null,
+        historyId: id,
+      },
+      entry,
+      () => release(id),
+    );
+  } catch (error) {
+    release(id);
+    throw error;
+  }
 }
 
 /** Opens an image or `.anyshot` project; asks for a file when none is given. */
@@ -218,6 +224,5 @@ handle('editor:save-project', async ({ bytes, saveAs }, { win }) => {
   }
   await writeBytes(path, new Uint8Array(bytes));
   state.init = { ...state.init, projectPath: path, title: basename(path) };
-  state.dirty = false;
   return path;
 });

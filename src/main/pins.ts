@@ -14,7 +14,6 @@ export async function pinEntry(
   entry: HistoryEntry,
   screenRect?: Rectangle,
 ): Promise<BrowserWindow> {
-  retain(entry.id);
   const display = screenRect
     ? screen.getDisplayMatching(screenRect)
     : screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
@@ -46,6 +45,7 @@ export async function pinEntry(
   win.setAlwaysOnTop(true, 'floating');
   win.setVisibleOnAllWorkspaces(true);
   const id = win.webContents.id;
+  retain(entry.id);
   pins.set(id, entry);
   win.once('closed', () => {
     pins.delete(id);
@@ -63,8 +63,11 @@ export async function pinClipboard(): Promise<void> {
   }
   const size = nativeImage.createFromBuffer(Buffer.from(png)).getSize();
   const entry = await addEntry({ png, width: size.width, height: size.height });
-  await pinEntry(entry);
-  release(entry.id);
+  try {
+    await pinEntry(entry);
+  } finally {
+    release(entry.id);
+  }
 }
 
 handle('pin:init', (_req, { win }): PinInit => {

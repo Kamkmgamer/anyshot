@@ -10,7 +10,12 @@ const listeners = new Set<Listener>();
 let writeChain: Promise<void> = Promise.resolve();
 
 export async function loadSettings(): Promise<Settings> {
-  current = parseSettings(await readJson(paths.settingsFile));
+  // A missing file (first run) means defaults; so does one that can't be read or parsed.
+  const raw = await readJson(paths.settingsFile).catch((error: unknown) => {
+    console.error('[settings] could not read settings; using defaults', error);
+    return undefined;
+  });
+  current = parseSettings(raw);
   return current;
 }
 

@@ -1,10 +1,11 @@
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import { dialog, type Rectangle } from 'electron';
 import { EXTENSIONS, expandTemplate } from '../shared/filename';
 import type { DeliverAction, DeliverRequest, DeliverResult, EncodedImage } from '../shared/ipc';
 import type { Settings } from '../shared/settings';
+import { createUniqueFile, writeFileAtomic } from './atomic-file';
 import { copyPng, copyText } from './clipboard';
 import { addEntry, release, replaceImage } from './history';
 import { paths } from './paths';
@@ -14,21 +15,38 @@ export function saveDir(settings: Settings): string {
   return settings.output.saveDir || paths.defaultSaveDir;
 }
 
-/** Picks a non-existing path in the save folder from the filename template. */
+function templatePath(settings: Settings): string {
+  return join(saveDir(settings), expandTemplate(settings.output.filenameTemplate, new Date()));
+}
+
+/** Suggests a non-existing path in the save folder from the filename template. */
 export function defaultSavePath(mime: EncodedImage['mime'], settings = getSettings()): string {
-  const base = join(
-    saveDir(settings),
-    expandTemplate(settings.output.filenameTemplate, new Date()),
-  );
+  const base = templatePath(settings);
   const ext = EXTENSIONS[mime];
   let candidate = `${base}.${ext}`;
   for (let i = 2; existsSync(candidate); i++) candidate = `${base} (${i}).${ext}`;
   return candidate;
 }
 
-export async function writeBytes(path: string, bytes: Uint8Array): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, bytes);
+/** Writes through a temporary file, so a failed overwrite keeps the previous file. */
+export function writeBytes(path: string, bytes: Uint8Array): Promise<void> {
+  return writeFileAtomic(path, bytes);
+}
+
+/** Saves to a new file named from the template; never overwrites, even when saves race. */
+async function saveToNewFile(bytes: Uint8Array, mime: EncodedImage['mime']): Promise<string> {
+  const { path, handle } = await createUniqueFile(templatePath(getSettings()), EXTENSIONS[mime]);
+  try {
+    try {
+      await handle.writeFile(bytes);
+    } finally {
+      await handle.close();
+    }
+  } catch (error) {
+    await rm(path, { force: true }).catch(() => undefined);
+    throw error;
+  }
+  return path;
 }
 
 export async function askSavePath(mime: EncodedImage['mime']): Promise<string | null> {
@@ -46,9 +64,16 @@ export async function saveBytes(
   mime: EncodedImage['mime'],
   ask: boolean,
 ): Promise<DeliverResult> {
-  const path = ask ? await askSavePath(mime) : defaultSavePath(mime);
-  if (!path) return { ok: false, error: 'cancelled' };
-  await writeBytes(path, bytes);
+  let path: string;
+  if (ask) {
+    const chosen = await askSavePath(mime);
+    if (!chosen) return { ok: false, error: 'cancelled' };
+    // The user confirmed this name in the dialog, including any overwrite.
+    await writeBytes(chosen, bytes);
+    path = chosen;
+  } else {
+    path = await saveToNewFile(bytes, mime);
+  }
   const settings = getSettings();
   if (settings.output.copyPathAfterSave || settings.capture.quickAction === 'save+copyPath') {
     await copyText(path);
@@ -96,7 +121,12 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
     height: request.image.height,
     ...(request.thumb ? { thumb: request.thumb } : {}),
   };
-  const existing = request.historyId ? await replaceImage(request.historyId, image) : undefined;
+  const existing = request.historyId
+    ? await replaceImage(request.historyId, {
+        ...image,
+        ...(result.path ? { savedPath: result.path } : {}),
+      })
+    : undefined;
   if (existing) {
     result.historyId = existing.id;
     if (steps.includes('pin')) await (await import('./pins')).pinEntry(existing);
@@ -105,20 +135,23 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
   const entry = await addEntry({ ...image, savedPath: result.path ?? null });
   result.historyId = entry.id;
 
-  const followUp = steps.includes('pin')
-    ? (await import('./pins')).pinEntry(entry, request.screenRect as Rectangle | undefined)
-    : steps.includes('ocr')
-      ? (await import('./ocr')).recognizeEntry(entry.id)
-      : steps.includes('upload')
-        ? (await import('./uploads')).uploadEntry(entry.id)
-        : settings.capture.showThumbnail && request.action !== 'none' && !request.quiet
-          ? (await import('./floating')).showFloating(entry)
-          : undefined;
-  await followUp;
-  // The new entry was retained for its consumer; drop the hold now that one exists (or not).
-  release(entry.id);
-  if (settings.capture.openEditorAfterQuick && request.action === 'quick') {
-    await (await import('./editor')).openHistoryEntry(entry.id);
+  try {
+    const followUp = steps.includes('pin')
+      ? (await import('./pins')).pinEntry(entry, request.screenRect as Rectangle | undefined)
+      : steps.includes('ocr')
+        ? (await import('./ocr')).recognizeEntry(entry.id)
+        : steps.includes('upload')
+          ? (await import('./uploads')).uploadEntry(entry.id)
+          : settings.capture.showThumbnail && request.action !== 'none' && !request.quiet
+            ? (await import('./floating')).showFloating(entry)
+            : undefined;
+    await followUp;
+    // The editor takes its own hold, so open it before this delivery's hold goes.
+    if (settings.capture.openEditorAfterQuick && request.action === 'quick') {
+      await (await import('./editor')).openHistoryEntry(entry.id);
+    }
+  } finally {
+    release(entry.id);
   }
   return result;
 }

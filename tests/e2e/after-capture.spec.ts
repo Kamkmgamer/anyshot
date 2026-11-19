@@ -79,6 +79,24 @@ test('a capture lands in history and shows a floating preview that can save', as
   await expect.poll(() => windowKinds(ctx.app)).not.toContain('floating');
 });
 
+test('a quick capture can open and save in the editor with history disabled', async () => {
+  await ctx.app.evaluate(async () => {
+    await globalThis.__anyshot?.patch({
+      output: { historySize: 0 },
+      capture: { showThumbnail: false, openEditorAfterQuick: true },
+    });
+  });
+  const overlay = await captureCard();
+  await pressClosing(overlay, 'Enter');
+  const editor = await pageOf(ctx.app, 'editor');
+  const done = editor.getByRole('button', { name: 'Done', exact: true });
+  await expect(done).toBeVisible();
+  expect(await historyIndex()).toHaveLength(1);
+  await done.click({ noWaitAfter: true });
+  await expect.poll(() => windowKinds(ctx.app)).not.toContain('editor');
+  await expect.poll(historyIndex).toEqual([]);
+});
+
 test('pin keeps the capture on screen where it was taken, and Esc closes it', async () => {
   const overlay = await captureCard();
   await pressClosing(overlay, 'f');
