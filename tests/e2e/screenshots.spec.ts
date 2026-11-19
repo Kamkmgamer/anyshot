@@ -95,3 +95,20 @@ test('settings appearance screenshots', async () => {
     await verifyAndClose(ctx);
   }
 });
+
+test('settings tools reset screenshot', async () => {
+  const ctx = await launch();
+  try {
+    await dispatch(ctx.app, 'settings');
+    const page = await pageOf(ctx.app, 'settings');
+    await page.getByTestId('tab-tools').click();
+    await page.getByRole('checkbox', { name: 'Spotlight', exact: true }).uncheck();
+    await page.getByRole('checkbox', { name: 'Stamp', exact: true }).uncheck();
+    await page.getByTestId('reset-tools').click();
+    await expect(page.getByTestId('reset-tools-confirm')).toBeVisible();
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: out('settings-tools-reset.png') });
+  } finally {
+    await verifyAndClose(ctx);
+  }
+});

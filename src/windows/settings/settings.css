@@ -108,6 +108,9 @@ input[type="number"] {
 .toggle {
   width: 18px;
   height: 18px;
+}
+input[type="checkbox"],
+input[type="radio"] {
   accent-color: var(--accent);
 }
 .control > button,
@@ -214,4 +217,49 @@ code {
 .segmented label:has(input:focus-visible) {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  margin-bottom: 10px;
+}
+.page-head .note {
+  margin: 0;
+}
+.reset,
+.confirm button {
+  padding: 6px 12px;
+  border: 1px solid var(--field-border);
+  border-radius: 7px;
+  background: var(--bar-hover);
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.reset:hover,
+.confirm button:hover {
+  border-color: var(--accent);
+}
+.confirm {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.confirm span {
+  color: var(--bar-muted);
+}
+.confirm button.danger {
+  border-color: transparent;
+  background: #dc2626;
+  color: #fff;
+}
+.confirm button.danger:hover {
+  background: #b91c1c;
 }

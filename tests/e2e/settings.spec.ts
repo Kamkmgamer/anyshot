@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { dispatch, type Launched, launch, pageOf, windowKinds, verifyAndClose } from './harness';
+import { TOOL_IDS } from '../../src/shared/settings';
+import { dispatch, type Launched, launch, pageOf, verifyAndClose, windowKinds } from './harness';
 
 let ctx: Launched;
 const linux = process.platform === 'linux';
@@ -161,4 +162,29 @@ test('the appearance control switches every control and open window between them
   await expect.poll(() => background('select')).toBe('rgb(15, 15, 17)');
   await expect.poll(() => background('input[type="text"]')).toBe('rgb(15, 15, 17)');
   await expect.poll(historyBackground).toBe('rgb(24, 24, 27)');
+});
+
+test('Tools > Reset to defaults asks inline, then restores and saves every tool', async () => {
+  await dispatch(ctx.app, 'settings');
+  const page = await pageOf(ctx.app, 'settings');
+  await page.getByTestId('tab-tools').click();
+  const arrow = page.getByRole('checkbox', { name: 'Arrow', exact: true });
+  await arrow.uncheck();
+  const file = join(ctx.userData, 'settings.json');
+  const enabled = async (): Promise<string[]> =>
+    JSON.parse(await readFile(file, 'utf8')).tools.enabledTools;
+  await expect.poll(enabled).not.toContain('arrow');
+
+  // Esc backs out without changing anything.
+  await page.getByTestId('reset-tools').click();
+  await expect(page.getByTestId('reset-tools-cancel')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('reset-tools-confirm')).toHaveCount(0);
+  await expect(arrow).not.toBeChecked();
+
+  await page.getByTestId('reset-tools').click();
+  await page.getByTestId('reset-tools-confirm').click();
+  await expect(arrow).toBeChecked();
+  await expect(page.getByTestId('reset-tools')).toBeVisible();
+  await expect.poll(enabled).toEqual([...TOOL_IDS]);
 });

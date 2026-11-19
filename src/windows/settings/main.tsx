@@ -11,6 +11,7 @@ import {
   type HotkeyAction,
   type Settings,
   TOOL_IDS,
+  toolsPageDefaults,
 } from '../../shared/settings';
 import { Icon, type IconName } from '../common/icons';
 import { applyTheme } from '../common/theme';
@@ -314,6 +315,54 @@ function Shortcut(props: { action: HotkeyAction; value: string }) {
         </button>
       )}
     </span>
+  );
+}
+
+/** Reset to defaults, confirmed inline: the button turns into Reset / Cancel. */
+function ResetTools() {
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        class="reset"
+        data-testid="reset-tools"
+        onClick={() => setConfirming(true)}
+      >
+        Reset to defaults
+      </button>
+    );
+  }
+  return (
+    <fieldset
+      class="confirm"
+      aria-label="Reset the Tools page to its defaults?"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setConfirming(false);
+      }}
+    >
+      <span>Show every tool again?</span>
+      <button
+        type="button"
+        class="danger"
+        data-testid="reset-tools-confirm"
+        onClick={() => {
+          setConfirming(false);
+          patch(toolsPageDefaults());
+        }}
+      >
+        Reset
+      </button>
+      <button
+        type="button"
+        // Focus lands on the safe choice, so Enter right after opening does nothing harmful.
+        ref={(el) => el?.focus()}
+        data-testid="reset-tools-cancel"
+        onClick={() => setConfirming(false)}
+      >
+        Cancel
+      </button>
+    </fieldset>
   );
 }
 
@@ -715,7 +764,10 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
     case 'tools':
       return (
         <>
-          <p class="note">Tools shown in the toolbar. Hidden tools still work with their keys.</p>
+          <div class="page-head">
+            <p class="note">Tools shown in the toolbar. Hidden tools still work with their keys.</p>
+            <ResetTools />
+          </div>
           <div class="tools">
             {TOOL_IDS.map((tool) => (
               <label key={tool}>

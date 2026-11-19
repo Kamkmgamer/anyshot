@@ -157,6 +157,11 @@ export function parseSettings(input: unknown): Settings {
   return settingsSchema.parse(input);
 }
 
+/** The patch behind Settings ▸ Tools ▸ Reset to defaults: everything that page shows. */
+export function toolsPageDefaults(): DeepPartial<Settings> {
+  return { tools: { enabledTools: [...DEFAULT_SETTINGS.tools.enabledTools] } };
+}
+
 /** A recursive partial used for settings patches sent from windows. */
 export type ToolChoices = Omit<Settings['tools'], 'presetColors' | 'enabledTools'>;
 
