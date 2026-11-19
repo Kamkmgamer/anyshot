@@ -275,6 +275,33 @@ describe('history', () => {
       expect((await history.listEntries())[0]).toMatchObject({ width: 4, height: 3 });
     });
 
+    it('a failed index write restores an overwritten image, thumbnail and document', async () => {
+      const thumb = new Uint8Array([9, 9]);
+      const entry = await history.addEntry({
+        png,
+        thumb: thumb.buffer,
+        width: 4,
+        height: 3,
+        edit: edit(),
+      });
+      const index = await fs.readFile(indexFile(), 'utf8');
+      state.failWrite = (path) => path.endsWith('index.json');
+      await expect(
+        history.replaceImage(entry.id, {
+          png: new Uint8Array([1, 2, 3]),
+          thumb: new Uint8Array([7]).buffer,
+          width: 8,
+          height: 6,
+          edit: edit([{ id: 'b', kind: 'rect' }]),
+        }),
+      ).rejects.toThrow('EIO');
+      state.failWrite = undefined;
+      expect([...(await history.readImage(entry.id))]).toEqual([...png]);
+      expect([...(await fs.readFile(history.thumbPath(entry.id)))]).toEqual([...thumb]);
+      expect((await history.readEditable(entry.id))?.doc).toEqual(doc([{ id: 'a', kind: 'line' }]));
+      expect(await fs.readFile(indexFile(), 'utf8')).toBe(index);
+    });
+
     it('a failed index write removes files the entry did not have before', async () => {
       await seed(['plain']);
       state.failWrite = (path) => path.endsWith('index.json');
