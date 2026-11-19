@@ -177,6 +177,24 @@ function App() {
     if (selection !== selected) setSelected(selected);
   }, [selection, selected]);
   const previewed = previewing ? shown[selected] : undefined;
+  // The selection follows its capture when the list reloads (a capture added or
+  // removed elsewhere shifts the indexes), so actions never hit another capture.
+  const selectedId = useRef<string | undefined>(undefined);
+  const deletedByUser = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    const id = selectedId.current;
+    if (!id) return;
+    const i = shown.findIndex((e) => e.id === id);
+    if (i >= 0) {
+      if (i !== selected) setSelected(i);
+    } else if (previewing && id !== deletedByUser.current) {
+      // Removed elsewhere (e.g. pruned): close rather than show another capture.
+      setPreviewing(false);
+    }
+  }, [entries]);
+  useLayoutEffect(() => {
+    selectedId.current = shown[selected]?.id;
+  });
   useEffect(() => {
     // Deleting the last entry (or clearing history) ends the preview.
     if (previewing && shown.length === 0) setPreviewing(false);
@@ -192,6 +210,8 @@ function App() {
   const run = useCallback(
     async (entry: HistoryEntry | undefined, action: ItemAction) => {
       if (!entry) return;
+      // Deleting from the preview moves on to the next capture instead of closing.
+      if (action === 'delete') deletedByUser.current = entry.id;
       const result = await api.invoke('item:action', { historyId: entry.id, action });
       if (!result.ok && result.error !== 'cancelled') setStatus(result.error ?? 'Failed');
       else if (action === 'copy') setStatus('Copied to the clipboard');

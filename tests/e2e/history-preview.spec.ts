@@ -144,6 +144,19 @@ test('the preview and thumbnail show the new pixels after an edit replaces the c
   await card.click();
   const image = history.getByTestId('preview-image');
   const before = await image.getAttribute('src');
+  const pixel = () =>
+    image.evaluate((img: HTMLImageElement) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const g = canvas.getContext('2d');
+      if (!g) throw new Error('no 2d context');
+      g.drawImage(img, 0, 0);
+      // The top-left corner of the rectangle drawn below (20 % in, on its stroke).
+      return [...g.getImageData(60, 40, 1, 1).data.slice(0, 3)];
+    });
+  await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(300);
+  const pixelBefore = await pixel();
   await history.getByTestId('preview-edit').click();
   const editor = await pageOf(ctx.app, 'editor');
   await expect(editor.getByTestId('editor-size')).toHaveText('300 × 200');
@@ -163,4 +176,23 @@ test('the preview and thumbnail show the new pixels after an edit replaces the c
   await expect
     .poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
     .toBe(300);
+  // And the pixels are the edited ones: the red stroke now covers that corner.
+  const [r = 0, g = 0, b = 0] = await pixel();
+  expect([r, g, b]).not.toEqual(pixelBefore);
+  expect(r).toBeGreaterThan(200);
+  expect(g).toBeLessThan(120);
+  expect(b).toBeLessThan(120);
+});
+
+test('the preview stays on its capture when a new capture arrives', async () => {
+  const history = await openHistory();
+  await history.getByTestId('history-card').nth(1).click();
+  const meta = history.getByTestId('preview-meta');
+  await expect(meta).toContainText('200 × 100');
+  await expect(history.getByText('2 / 3')).toBeVisible();
+  await capture(150, 120);
+  await expect(history.getByTestId('history-card')).toHaveCount(4);
+  // The new capture is first, so the previewed one moved down: the preview follows it.
+  await expect(history.getByText('3 / 4')).toBeVisible();
+  await expect(meta).toContainText('200 × 100');
 });
