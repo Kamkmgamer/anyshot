@@ -34,6 +34,7 @@ test.afterEach(async () => {
 });
 
 async function captureCard(): Promise<Page> {
+  await expect.poll(() => windowKinds(ctx.app)).not.toContain('overlay');
   await dispatch(ctx.app, 'captureArea');
   const page = await pageOf(ctx.app, 'overlay');
   await expect
@@ -111,4 +112,26 @@ test('closing previews and pins returns to no renderers', async () => {
   await expect
     .poll(async () => rendererCount(await processTypes(ctx.app)), { timeout: 30_000 })
     .toBe(0);
+});
+
+test('history lists captures lazily and supports copy and delete', async () => {
+  for (let i = 0; i < 2; i++) {
+    const overlay = await captureCard();
+    await pressClosing(overlay, 'Control+c');
+  }
+  await dispatch(ctx.app, 'history');
+  const history = await pageOf(ctx.app, 'history');
+  await expect(history.getByTestId('history-card')).toHaveCount(2);
+  await expect(history.locator('img').first()).toHaveAttribute('loading', 'lazy');
+  // Clear the clipboard, then copy the selected entry back with Enter.
+  await ctx.app.evaluate(({ clipboard }) => clipboard.writeText('x'));
+  await history.keyboard.press('Enter');
+  await expect(history.getByText('Copied to the clipboard')).toBeVisible();
+  const hasImage = await ctx.app.evaluate(({ clipboard }) => clipboard.has('image/png'));
+  expect(hasImage).toBe(true);
+  await history.keyboard.press('Delete');
+  await expect(history.getByTestId('history-card')).toHaveCount(1);
+  expect(await historyIndex()).toHaveLength(1);
+  await dispatch(ctx.app, 'history');
+  expect((await windowKinds(ctx.app)).filter((k) => k === 'history')).toHaveLength(1);
 });

@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 4 (after capture) — history store, floating preview and pins are done with e2e. Exact next action: write the history window (`src/main/history-window.ts` replacing the stub, `src/windows/history/` with a lazy card grid using `history:list`/`history:clear`/`item:action`, keyboard ←/→/Enter/Delete/Esc), add an e2e test, then commit step 4 as done and start step 5 (editor).
+**Next:** step 5 (editor). Exact next action: replace the `src/main/editor.ts` stub with an editor window manager (`openEditorWithImage(frame, doc)` via `putFrame` + `editor:init`, `openHistoryEntry(id)` loading `/@history/<id>/image`, `openImage(file)` for PNG/JPEG/WebP and `.anyshot` projects, `openClipboard()`), write `src/windows/editor/` (same `createAnnotator`, zoom/fit, crop with undo via `DocStore.setCrop`, flip, copy/save/pin/Done) and `src/shared/project.ts` (single-file container: magic + JSON + PNG) with unit tests, then e2e.
 
 ## Status (v1 build order)
 
@@ -15,7 +15,7 @@
 | 1 Skeleton | done | tray, hotkeys, single instance + argv, atomic settings, `app://`, typed IPC, Biome, Vitest, Playwright idle budget |
 | 2 Capture | done | node-screenshots + desktopCapturer fallback, overlay per display, select/resize/move, copy/save, e2e |
 | 3 Annotation engine | done | plain TS in `src/engine`, 3 canvas layers, rAF + coalesced input, all tools, change-list undo, Vitest |
-| 4 After capture | partial | history store, floating preview (one shared window), pins done; history window pending |
+| 4 After capture | done | history store + window (lazy grid), floating preview (one shared window), pins, e2e |
 | 5 Editor | pending | |
 | 6 More tools | pending | |
 | 7 Recording | pending | |
@@ -23,11 +23,13 @@
 | 9 Scroll capture | pending | |
 | 10 Polish | pending | |
 
-## 2026-11-19 - step 4 after capture (in progress)
+## 2026-11-19 - step 4 after capture
 
 - History: `userData/history/<id>.png` + `<id>.thumb.webp` (written by the export worker at capture time) + `index.json` written atomically; index updates are serialised. New entries are retained until their consumer (preview, pin) releases them, so history size 0 still works.
 - Floating previews share one unfocusable, transparent window in the configured corner; it is destroyed when the last preview goes. Drag-out uses `webContents.startDrag`.
 - Pins are one small window each (they live as long as the user wants, so sharing a renderer would tie their lifetimes together). Moved with pointer deltas over IPC; wheel zoom resizes the window.
+- A capture started while the previous one is still being delivered (overlays hidden, encoding) now waits for it instead of being dropped.
+- History window: CSS grid with `content-visibility: auto` and `loading="lazy"` thumbnails served from `app://local/@history/<id>/thumb`; no full images are decoded.
 - Paths are resolved from `app.getAppPath()`: Rolldown moved `paths.ts` into a chunk, which broke `import.meta.dirname`-relative paths.
 - Biome a11y rules `noStaticElementInteractions` and `useKeyWithClickEvents` are off: the overlay, previews and pins are pointer-first surfaces with window-level keyboard shortcuts.
 

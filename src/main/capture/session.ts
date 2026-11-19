@@ -21,6 +21,10 @@ interface Session {
   startedAt: number;
   overlays: Map<number, OverlayState>;
   shown: boolean;
+  /** Overlays are hidden while the result is encoded; the session ends soon. */
+  finishing: boolean;
+  ended: Promise<void>;
+  end: () => void;
 }
 
 let session: Session | null = null;
@@ -34,6 +38,10 @@ export function isCapturing(): boolean {
 
 /** Starts a capture: freezes every display and shows one overlay per display. */
 export async function startCapture(mode: CaptureMode): Promise<void> {
+  if (session?.finishing) {
+    // A hotkey pressed while the previous capture is still being delivered starts a new one after it.
+    await session.ended;
+  }
   if (session) {
     focusFirstOverlay();
     return;
@@ -42,7 +50,19 @@ export async function startCapture(mode: CaptureMode): Promise<void> {
   if (delay > 0 && mode !== 'last') await new Promise((r) => setTimeout(r, delay * 1000));
 
   const startedAt = performance.now();
-  const current: Session = { mode, startedAt, overlays: new Map(), shown: false };
+  let end = () => {};
+  const ended = new Promise<void>((resolve) => {
+    end = resolve;
+  });
+  const current: Session = {
+    mode,
+    startedAt,
+    overlays: new Map(),
+    shown: false,
+    finishing: false,
+    ended,
+    end,
+  };
   session = current;
 
   // The display under the pointer goes first so its overlay appears soonest.
@@ -68,7 +88,10 @@ export async function startCapture(mode: CaptureMode): Promise<void> {
     win.once('closed', () => {
       if (state.frameId) releaseFrame(state.frameId);
       current.overlays.delete(contentsId);
-      if (current.overlays.size === 0 && session === current) session = null;
+      if (current.overlays.size === 0 && session === current) {
+        session = null;
+        current.end();
+      }
     });
     // Wait for this grab before grabbing the next display, so overlays never land in other grabs.
     await grab.catch(() => undefined);
@@ -138,6 +161,7 @@ export function endCapture(): void {
   const current = session;
   if (!current) return;
   session = null;
+  current.end();
   for (const { win, frameId } of current.overlays.values()) {
     if (frameId) releaseFrame(frameId);
     if (!win.isDestroyed()) win.destroy();
@@ -147,6 +171,7 @@ export function endCapture(): void {
 
 /** Hides overlays immediately (e.g. while an image is being encoded) without destroying them. */
 export function hideOverlays(): void {
+  if (session) session.finishing = true;
   for (const { win } of session?.overlays.values() ?? []) if (!win.isDestroyed()) win.hide();
 }
 
