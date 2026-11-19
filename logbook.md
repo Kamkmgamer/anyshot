@@ -6,7 +6,7 @@
 - On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
 - Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
 
-**Next:** step 10 — README and CI packaging step done. Exact next action: final full verification on HEAD (format:check, lint, typecheck, test, build, xvfb e2e), regenerate and inspect docs screenshots, update the status table, write the final summary.
+**Next:** v1 build order complete as far as listed below; the draft PR is next (opened by the supervisor). Highest-value follow-ups: run on real Windows (mixed DPI, tray, shortcuts, H.264 hardware encode, loopback audio, NSIS install, SmartScreen/signing); test on Wayland (GNOME, KDE); recording HUD with pause/stop; auto-redact (OCR + PII patterns); QR detection; editor flip and image layers; auto-update.
 
 ## Status (v1 build order)
 
@@ -22,6 +22,12 @@
 | 8 OCR + uploads | done | OCR (idle-exiting utilityProcess, offline English), uploads: provider interface, HTTP multipart + S3 SigV4, keys via safeStorage; unit + e2e |
 | 9 Scroll capture | done | manual scrolling, HUD outside the region, stream sampled ~7 fps, stitch worker, quick action; unit + e2e (exact 600×1060). No auto-scroll/horizontal |
 | 10 Polish | partial | settings window, instant capture, electron-builder + fuses, README done. No auto-update, signing, translations |
+
+## 2026-11-19 - final verification
+
+- On `1181c4e` under Xvfb (1280×800): `bun run format:check`, `lint`, `typecheck`, `test` (53 unit tests), `build` all pass; `xvfb-run -a bun run test:e2e` → 23 passed, 1 skipped (the opt-in screenshot generator), 1 worker. The next commit only regenerates `docs/screenshots/` and this logbook.
+- Budgets measured under Xvfb: idle = Browser + GPU + network service, no renderer; idle main CPU < 2 % over 5 s; renderers back to 0 after closing overlays, previews, pins and the recorder; hotkey → overlay 100–147 ms (low memory), 64–84 ms (instant capture); OCR process exits after its idle timeout.
+- Not verifiable here: anything Windows-native, Wayland, real GPUs (WebGL is blocklisted under Xvfb, so the shaders run on SwiftShader or fall back to Canvas 2D), multi-monitor and mixed DPI.
 
 ## 2026-11-19 - step 10 packaging
 
