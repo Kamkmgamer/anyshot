@@ -460,9 +460,12 @@ export class CanvasView {
       this.store.add(s.draft);
     } else if (s.type === 'move' && (s.delta.x !== 0 || s.delta.y !== 0)) {
       const ids = new Set(s.originals.map((a) => a.id));
-      const { delta } = s;
       this.unskip();
-      this.store.updateSelected((a) => (ids.has(a.id) ? translate(a, delta.x, delta.y) : a));
+      // Clamped again against the current endpoints: an arrow-key nudge during the drag moved them.
+      const current = this.store.doc.annotations.filter((a) => ids.has(a.id));
+      const delta = clampMoveDelta(current, s.delta, this.imageArea());
+      if (delta.x !== 0 || delta.y !== 0)
+        this.store.updateSelected((a) => (ids.has(a.id) ? translate(a, delta.x, delta.y) : a));
       return;
     } else if (s.type === 'handle') {
       this.unskip();

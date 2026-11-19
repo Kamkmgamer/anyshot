@@ -116,3 +116,27 @@ test('arrow-key nudges keep a measurement inside the image', async () => {
   expect(b.x - a.x).toBeCloseTo(200, 0);
   expect(b.y).toBe(a.y);
 });
+
+test('a nudge during a drag still leaves the measurement inside the image', async () => {
+  await pressClosing(await selectCard(ctx.app), 'e');
+  const editor = await pageOf(ctx.app, 'editor');
+  await expect(editor.getByTestId('editor-size')).toHaveText('300 × 200');
+  const box = await editor.locator('#clip').boundingBox();
+  if (!box) throw new Error('no canvas');
+  const s = box.width / 300;
+  const at = (x: number, y: number): [number, number] => [box.x + x * s, box.y + y * s];
+  await editor.getByTestId('tool-measure').click();
+  await drag(editor, at(50, 100), at(250, 100));
+  await editor.getByTestId('tool-select').click();
+  // Grab the line and drag 40 px right (allowed alone), then nudge 50 px right mid-drag.
+  await editor.mouse.move(...at(150, 100));
+  await editor.mouse.down();
+  await editor.mouse.move(...at(190, 100), { steps: 4 });
+  for (let i = 0; i < 5; i++) await editor.keyboard.press('Shift+ArrowRight');
+  await editor.mouse.up();
+  const [measure] = await savedMeasures(editor);
+  const a = measure?.a as { x: number; y: number };
+  const b = measure?.b as { x: number; y: number };
+  expect(b.x).toBeLessThanOrEqual(300 + 1e-6);
+  expect(b.x - a.x).toBeCloseTo(200, 0);
+});
