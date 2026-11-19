@@ -26,8 +26,9 @@ export const paths = {
   get defaultRecordingDir() {
     return join(app.getPath('videos'), 'anyshot');
   },
-  renderer: join(import.meta.dirname, '../renderer'),
-  preload: join(import.meta.dirname, '../preload/index.cjs'),
-  resources: app.isPackaged ? process.resourcesPath : join(import.meta.dirname, '../../resources'),
-  utility: (name: string) => join(import.meta.dirname, `utility-${name}.js`),
+  // Resolved from the app root, not this file: the bundler may move this module into a chunk.
+  renderer: join(app.getAppPath(), 'out/renderer'),
+  preload: join(app.getAppPath(), 'out/preload/index.cjs'),
+  resources: app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources'),
+  utility: (name: string) => join(app.getAppPath(), `out/main/utility-${name}.js`),
 };

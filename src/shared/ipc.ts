@@ -130,6 +130,7 @@ export type ItemAction =
   | 'edit'
   | 'delete'
   | 'reveal'
+  | 'drag'
   | 'upload'
   | 'ocr';
 
@@ -217,7 +218,7 @@ export interface InvokeContract {
   'item:action': Channel<{ historyId: string; action: ItemAction }, DeliverResult>;
 
   'floating:dismiss': Channel<string, void>;
-  'floating:hover': Channel<boolean, void>;
+  'floating:ready': Channel<void, { items: FloatingItem[]; dismissSeconds: number }>;
 
   'pin:init': Channel<void, PinInit>;
   'pin:move-by': Channel<{ dx: number; dy: number }, void>;
@@ -290,7 +291,7 @@ export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind
   'item:action': ['history', 'floating', 'pin'],
 
   'floating:dismiss': ['floating'],
-  'floating:hover': ['floating'],
+  'floating:ready': ['floating'],
 
   'pin:init': ['pin'],
   'pin:move-by': ['pin'],

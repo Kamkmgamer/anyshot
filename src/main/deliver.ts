@@ -1,67 +1,58 @@
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { dialog } from 'electron';
+import { dialog, type Rectangle } from 'electron';
 import { EXTENSIONS, expandTemplate } from '../shared/filename';
 import type { DeliverAction, DeliverRequest, DeliverResult, EncodedImage } from '../shared/ipc';
 import type { Settings } from '../shared/settings';
 import { copyPng, copyText } from './clipboard';
+import { addEntry, release } from './history';
 import { paths } from './paths';
 import { getSettings } from './settings-store';
-
-export interface Delivered {
-  request: DeliverRequest;
-  result: DeliverResult;
-}
-
-type AfterDeliver = (delivered: Delivered) => Promise<string | undefined> | string | undefined;
-const afterHooks: AfterDeliver[] = [];
-
-/** Lets later features (history, floating thumbnail) react to every finished capture. */
-export function onDelivered(hook: AfterDeliver): void {
-  afterHooks.push(hook);
-}
 
 export function saveDir(settings: Settings): string {
   return settings.output.saveDir || paths.defaultSaveDir;
 }
 
 /** Picks a non-existing path in the save folder from the filename template. */
-export async function defaultSavePath(
-  image: EncodedImage,
-  settings = getSettings(),
-): Promise<string> {
-  const { existsSync } = await import('node:fs');
+export function defaultSavePath(mime: EncodedImage['mime'], settings = getSettings()): string {
   const base = join(
     saveDir(settings),
     expandTemplate(settings.output.filenameTemplate, new Date()),
   );
-  const ext = EXTENSIONS[image.mime];
+  const ext = EXTENSIONS[mime];
   let candidate = `${base}.${ext}`;
   for (let i = 2; existsSync(candidate); i++) candidate = `${base} (${i}).${ext}`;
   return candidate;
 }
 
-export async function writeImage(path: string, image: EncodedImage): Promise<void> {
+export async function writeBytes(path: string, bytes: Uint8Array): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, new Uint8Array(image.bytes));
+  await writeFile(path, bytes);
 }
 
-async function askSavePath(image: EncodedImage): Promise<string | null> {
-  const suggested = await defaultSavePath(image);
-  const ext = EXTENSIONS[image.mime];
+export async function askSavePath(mime: EncodedImage['mime']): Promise<string | null> {
+  const ext = EXTENSIONS[mime];
   const { canceled, filePath } = await dialog.showSaveDialog({
-    defaultPath: suggested,
+    defaultPath: defaultSavePath(mime),
     filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
   });
   return canceled || !filePath ? null : filePath;
 }
 
-async function save(request: DeliverRequest, ask: boolean): Promise<DeliverResult> {
-  const image = request.saveImage ?? request.image;
-  const path = ask ? await askSavePath(image) : await defaultSavePath(image);
+/** Saves bytes either to the default folder or wherever the user picks. */
+export async function saveBytes(
+  bytes: Uint8Array,
+  mime: EncodedImage['mime'],
+  ask: boolean,
+): Promise<DeliverResult> {
+  const path = ask ? await askSavePath(mime) : defaultSavePath(mime);
   if (!path) return { ok: false, error: 'cancelled' };
-  await writeImage(path, image);
-  if (getSettings().output.copyPathAfterSave) await copyText(path);
+  await writeBytes(path, bytes);
+  const settings = getSettings();
+  if (settings.output.copyPathAfterSave || settings.capture.quickAction === 'save+copyPath') {
+    await copyText(path);
+  }
   return { ok: true, path };
 }
 
@@ -71,16 +62,19 @@ export function quickSteps(settings: Settings): DeliverAction[] {
     case 'copy':
       return ['copy'];
     case 'save':
+    case 'save+copyPath':
       return ['save'];
     case 'copy+save':
       return ['copy', 'save'];
-    case 'save+copyPath':
-      return ['save'];
     case 'none':
       return [];
   }
 }
 
+/**
+ * Finishes a capture: runs the requested action, records the image in
+ * history and shows the follow-up UI (floating preview, pin, OCR, upload).
+ */
 export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
   const settings = getSettings();
   const png = new Uint8Array(request.image.bytes);
@@ -88,18 +82,37 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
   let result: DeliverResult = { ok: true };
   for (const step of steps) {
     if (step === 'copy') await copyPng(png);
-    else if (step === 'save' || step === 'saveAs') {
+    if (step === 'save' || step === 'saveAs') {
+      const file = request.saveImage ?? request.image;
       const ask = step === 'saveAs' || settings.output.saveAction === 'ask';
-      result = { ...result, ...(await save(request, ask)) };
-      if (result.ok && result.path && settings.capture.quickAction === 'save+copyPath') {
-        await copyText(result.path);
-      }
+      result = await saveBytes(new Uint8Array(file.bytes), file.mime, ask);
       if (!result.ok) return result;
     }
   }
-  for (const hook of afterHooks) {
-    const historyId = await hook({ request, result });
-    if (historyId) result.historyId = historyId;
+
+  const entry = await addEntry({
+    png,
+    width: request.image.width,
+    height: request.image.height,
+    savedPath: result.path ?? null,
+    ...(request.thumb ? { thumb: request.thumb } : {}),
+  });
+  result.historyId = entry.id;
+
+  const followUp = steps.includes('pin')
+    ? (await import('./pins')).pinEntry(entry, request.screenRect as Rectangle | undefined)
+    : steps.includes('ocr')
+      ? (await import('./ocr')).recognizeEntry(entry.id)
+      : steps.includes('upload')
+        ? (await import('./uploads')).uploadEntry(entry.id)
+        : settings.capture.showThumbnail && request.action !== 'none'
+          ? (await import('./floating')).showFloating(entry)
+          : undefined;
+  await followUp;
+  // The new entry was retained for its consumer; drop the hold now that one exists (or not).
+  release(entry.id);
+  if (settings.capture.openEditorAfterQuick && request.action === 'quick') {
+    await (await import('./editor')).openHistoryEntry(entry.id);
   }
   return result;
 }
