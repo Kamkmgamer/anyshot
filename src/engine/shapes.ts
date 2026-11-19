@@ -11,13 +11,26 @@ import type { Annotation, TextAnnotation } from './model';
 /** Measures a line of text in CSS-font terms; injected so tests can run without a canvas. */
 export type TextMeasurer = (text: string, font: string) => number;
 
-let measurer: TextMeasurer = (text, font) => {
-  const size = Number.parseFloat(font.replace(/^\D*?(\d+(?:\.\d+)?)px.*$/, '$1')) || 16;
+/** Estimate from the font's pixel size, used only where no canvas is available. */
+export const estimateTextWidth: TextMeasurer = (text, font) => {
+  const size = Number.parseFloat(/(\d+(?:\.\d+)?)px/.exec(font)?.[1] ?? '') || 16;
   return text.length * size * 0.58;
 };
 
+let measurer: TextMeasurer = estimateTextWidth;
+
 export function setTextMeasurer(m: TextMeasurer): void {
   measurer = m;
+}
+
+/** Real text metrics from a 2D context. */
+export function canvasTextMeasurer(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+): TextMeasurer {
+  return (text, font) => {
+    ctx.font = font;
+    return ctx.measureText(text).width;
+  };
 }
 
 export const TEXT_LINE_HEIGHT = 1.25;

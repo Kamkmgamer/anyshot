@@ -1,11 +1,16 @@
 /// <reference lib="webworker" />
 import { composeInto } from '../engine/compose';
+import { canvasTextMeasurer, setTextMeasurer } from '../engine/shapes';
 import type { ExportDone, ExportFailed, ExportJob } from './export-protocol';
 
 // Export by replay: draw the base image and the annotations onto an
 // OffscreenCanvas at full resolution, then encode with Chromium's encoders.
 // All of this runs off the window's main thread.
 const scope = self as unknown as DedicatedWorkerGlobalScope;
+
+// Text backgrounds are sized from text metrics; use the same real ones as the editor.
+const measureCtx = new OffscreenCanvas(1, 1).getContext('2d');
+if (measureCtx) setTextMeasurer(canvasTextMeasurer(measureCtx));
 
 scope.onmessage = async (event: MessageEvent<ExportJob>) => {
   const job = event.data;

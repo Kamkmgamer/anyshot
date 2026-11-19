@@ -1,4 +1,4 @@
-import type { Rect } from '../shared/geometry';
+import { type Rect, roundRect } from '../shared/geometry';
 import type { Adjust, CensorAnnotation } from './model';
 import type { Ctx } from './render';
 
@@ -53,7 +53,7 @@ void main() {
     vec4 n = tex(px + vec2(0.0, -1.0)) + tex(px + vec2(0.0, 1.0)) + tex(px + vec2(-1.0, 0.0)) + tex(px + vec2(1.0, 0.0));
     c.rgb = c.rgb + u_sharpness * (4.0 * c.rgb - n.rgb) * 0.5;
   }
-  c.rgb += u_brightness;
+  c.rgb *= 1.0 + u_brightness; // multiplies, like CSS brightness() in adjustFilter
   c.rgb = (c.rgb - 0.5) * u_contrast + 0.5;
   float luma = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
   c.rgb = mix(vec3(luma), c.rgb, u_saturation);
@@ -107,7 +107,7 @@ export class GlEffects {
     this.fbo = fbo;
   }
 
-  /** Censors `a.rect` of the source and draws the result onto ctx. */
+  /** Censors `a.rect` (which lies within the source) and draws the result onto ctx. */
   censor(ctx: Ctx, source: CanvasImageSource, a: CensorAnnotation): void {
     const r = roundRect(a.rect);
     if (r.width < 1 || r.height < 1) return;
@@ -198,12 +198,6 @@ export class GlEffects {
     gl.uniform1f(u('u_invert'), p.invert ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
-}
-
-function roundRect(r: Rect): Rect {
-  const x = Math.round(r.x);
-  const y = Math.round(r.y);
-  return { x, y, width: Math.round(r.x + r.width) - x, height: Math.round(r.y + r.height) - y };
 }
 
 function texture(gl: GL): WebGLTexture {

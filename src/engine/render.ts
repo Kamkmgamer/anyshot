@@ -1,4 +1,4 @@
-import { distance, type Point, type Rect } from '../shared/geometry';
+import { clampRect, distance, type Point, type Rect, rectFromPoints } from '../shared/geometry';
 import type {
   Annotation,
   BoxAnnotation,
@@ -29,19 +29,57 @@ export interface RenderEnv {
   censor?: CensorRenderer;
 }
 
-/** Renders every annotation. Image effects (censor, spotlight) go below drawn marks. */
+/**
+ * Renders every annotation. Image effects (censor, spotlight) go below drawn marks.
+ * Returns the environment the marks were drawn with: its source already has the
+ * censors applied, so a magnifier can never reveal what a censor covers.
+ */
 export function drawAnnotations(
   ctx: Ctx,
   annotations: readonly Annotation[],
   env: RenderEnv,
   skip?: ReadonlySet<string>,
-): void {
+): RenderEnv {
   const visible = skip ? annotations.filter((a) => !skip.has(a.id)) : annotations;
-  for (const a of visible) if (a.kind === 'censor') drawCensor(ctx, a, env);
+  const censors = visible.filter((a): a is CensorAnnotation => a.kind === 'censor');
+  const marksEnv = censors.length > 0 ? drawCensors(ctx, censors, env) : env;
   const spots = visible.filter((a): a is SpotlightAnnotation => a.kind === 'spotlight');
   if (spots.length > 0) drawSpotlights(ctx, spots, env);
   for (const a of visible)
-    if (a.kind !== 'censor' && a.kind !== 'spotlight') drawAnnotation(ctx, a, env);
+    if (a.kind !== 'censor' && a.kind !== 'spotlight') drawAnnotation(ctx, a, marksEnv);
+  return marksEnv;
+}
+
+/**
+ * Applies the censors in order to a copy of the source, so each one (and every
+ * later image-reading annotation) sees the image as already censored, then
+ * copies the censored areas onto ctx.
+ */
+function drawCensors(ctx: Ctx, censors: readonly CensorAnnotation[], env: RenderEnv): RenderEnv {
+  if (!env.source) {
+    for (const a of censors) drawCensor(ctx, a, env);
+    return env;
+  }
+  const censored = new OffscreenCanvas(Math.max(1, env.width), Math.max(1, env.height));
+  const cctx = censored.getContext('2d');
+  if (!cctx) throw new Error('2D context unavailable');
+  cctx.drawImage(env.source, 0, 0);
+  const censoredEnv: RenderEnv = { ...env, source: censored };
+  for (const a of censors) drawCensor(cctx, a, censoredEnv);
+  for (const a of censors) {
+    // Whole pixels, so an antialiased clip edge can't let the original show through.
+    const x = Math.floor(a.rect.x);
+    const y = Math.floor(a.rect.y);
+    const w = Math.ceil(a.rect.x + a.rect.width) - x;
+    const h = Math.ceil(a.rect.y + a.rect.height) - y;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    ctx.drawImage(censored, 0, 0);
+    ctx.restore();
+  }
+  return censoredEnv;
 }
 
 export function drawDoc(ctx: Ctx, doc: Doc, env: RenderEnv, skip?: ReadonlySet<string>): void {
@@ -320,7 +358,7 @@ function drawMagnify(ctx: Ctx, a: MagnifyAnnotation, env: RenderEnv): void {
   ctx.stroke();
 }
 
-/** Canvas 2D fallback for censoring when WebGL isn't available. */
+/** Canvas 2D fallback for censoring when WebGL isn't available. `a.rect` lies within the source. */
 export function censorFallback(ctx: Ctx, source: CanvasImageSource, a: CensorAnnotation): void {
   const { x, y, width, height } = a.rect;
   if (width < 1 || height < 1) return;
@@ -334,8 +372,16 @@ export function censorFallback(ctx: Ctx, source: CanvasImageSource, a: CensorAnn
   ctx.rect(x, y, width, height);
   ctx.clip();
   if (a.mode === 'blur') {
-    ctx.filter = `blur(${Math.max(6, Math.min(width, height) * 0.08)}px)`;
-    ctx.drawImage(source, x, y, width, height, x, y, width, height);
+    // A blur fades to transparent at the edges of what is drawn, which would let
+    // the original show through: blur a margin around the rect, over an opaque
+    // fill that covers the image's own edges.
+    const radius = Math.max(6, Math.min(width, height) * 0.08);
+    const pad = radius * 3;
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(x, y, width, height);
+    ctx.filter = `blur(${radius}px)`;
+    const [px, py, pw, ph] = [x - pad, y - pad, width + pad * 2, height + pad * 2];
+    ctx.drawImage(source, px, py, pw, ph, px, py, pw, ph);
   } else {
     const block = Math.max(6, Math.round(Math.min(width, height) / 12));
     const w = Math.max(1, Math.ceil(width / block));
@@ -357,7 +403,11 @@ function drawCensor(ctx: Ctx, a: CensorAnnotation, env: RenderEnv): void {
     ctx.fillRect(a.rect.x, a.rect.y, a.rect.width, a.rect.height);
     return;
   }
-  (env.censor ?? censorFallback)(ctx, env.source, a);
+  // A crop can cut through a censor. Sampling outside the image would read
+  // transparent pixels, and drawing those leaves the original visible below.
+  const { x, y, width, height } = a.rect;
+  const rect = clampRect(rectFromPoints({ x, y }, { x: x + width, y: y + height }), env);
+  (env.censor ?? censorFallback)(ctx, env.source, { ...a, rect });
 }
 
 function drawSpotlights(ctx: Ctx, spots: readonly SpotlightAnnotation[], env: RenderEnv): void {

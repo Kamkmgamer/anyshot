@@ -22,6 +22,7 @@ import {
 } from './render';
 import {
   bounds,
+  canvasTextMeasurer,
   dragHandle,
   type HandleId,
   handles,
@@ -78,6 +79,7 @@ export class CanvasView {
   private dirty = { base: false, committed: false, interaction: false };
   private frame = 0;
   private skip = new Set<string>();
+  private marksEnv: RenderEnv | null = null;
   private textEditor: HTMLTextAreaElement | null = null;
   private readonly gl = GlEffects.create();
   private readonly unsubscribe: () => void;
@@ -96,10 +98,7 @@ export class CanvasView {
     this.baseCtx = context(this.base, { alpha: false, willReadFrequently: false });
     this.committedCtx = context(this.committed);
     this.interactionCtx = context(this.interaction);
-    setTextMeasurer((text, font) => {
-      this.interactionCtx.font = font;
-      return this.interactionCtx.measureText(text).width;
-    });
+    setTextMeasurer(canvasTextMeasurer(this.interactionCtx));
     let effects = store.doc.effects;
     this.unsubscribe = store.subscribe((doc) => {
       if (doc.effects !== effects) {
@@ -183,7 +182,7 @@ export class CanvasView {
     if (this.dirty.committed) {
       const ctx = this.committedCtx;
       ctx.clearRect(0, 0, this.width, this.height);
-      drawAnnotations(ctx, this.store.doc.annotations, this.env(), this.skip);
+      this.marksEnv = drawAnnotations(ctx, this.store.doc.annotations, this.env(), this.skip);
     }
     if (this.dirty.interaction) this.paintInteraction();
     this.dirty = { base: false, committed: false, interaction: false };
@@ -208,12 +207,13 @@ export class CanvasView {
     const ctx = this.interactionCtx;
     ctx.clearRect(0, 0, this.width, this.height);
     const s = this.state;
-    if (s.type === 'draw') drawAnnotation(ctx, s.draft, this.env());
+    // Drafts read the committed censors too, so a dragged magnifier shows what the export will.
+    const env = this.marksEnv ?? this.env();
+    if (s.type === 'draw') drawAnnotation(ctx, s.draft, env);
     if (s.type === 'move') {
-      for (const a of s.originals)
-        drawAnnotation(ctx, translate(a, s.delta.x, s.delta.y), this.env());
+      for (const a of s.originals) drawAnnotation(ctx, translate(a, s.delta.x, s.delta.y), env);
     }
-    if (s.type === 'handle') drawAnnotation(ctx, s.current, this.env());
+    if (s.type === 'handle') drawAnnotation(ctx, s.current, env);
     this.paintSelection(ctx);
   }
 

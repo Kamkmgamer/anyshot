@@ -5,8 +5,10 @@ import { type Annotation, emptyDoc, type Stroke } from '../../src/engine/model';
 import {
   bounds,
   dragHandle,
+  estimateTextWidth,
   handles,
   hitTest,
+  textFont,
   topmostAt,
   translate,
 } from '../../src/engine/shapes';
@@ -244,8 +246,32 @@ describe('serialisation', () => {
     expect(parsed.effects.beautify).toMatchObject({ enabled: true, padding: 0 });
   });
 
+  it('rejects sizes a canvas cannot draw and normalises rects', () => {
+    const at = { x: 50, y: 50 };
+    const parsed = parseDoc({
+      annotations: [
+        { id: 'm1', kind: 'magnify', at, radius: -1, zoom: 2, color: '#ffffff' },
+        { id: 'm2', kind: 'magnify', at, radius: 40, zoom: 0, color: '#ffffff' },
+        { id: 'n1', kind: 'number', at, value: 1, size: -4, color: '#ff0000' },
+        { id: 't1', kind: 'text', at, text: 'x', size: 0, color: '#ff0000' },
+        { id: 's1', kind: 'stamp', at, emoji: '👍', size: -1 },
+        { ...ellipse, rect: { x: 50, y: 40, width: -20, height: -10 }, radius: -3 },
+      ],
+    });
+    expect(parsed.annotations).toEqual([
+      { ...ellipse, rect: { x: 30, y: 30, width: 20, height: 10 }, radius: 0 },
+    ]);
+  });
+
   it('translates a document into a region', () => {
     const doc = translateDoc({ ...emptyDoc(), annotations: [arrow] }, -10, -20);
     expect(doc.annotations[0]).toMatchObject({ a: { x: -10, y: -20 }, b: { x: 90, y: -20 } });
+  });
+});
+
+describe('text metrics', () => {
+  it('estimates width from the pixel size, not the font weight', () => {
+    // 5 characters at 24px; reading the weight (600) instead would give 1740.
+    expect(estimateTextWidth('hello', textFont(24))).toBeCloseTo(5 * 24 * 0.58);
   });
 });

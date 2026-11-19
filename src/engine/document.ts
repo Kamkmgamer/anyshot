@@ -1,4 +1,4 @@
-import type { Point, Rect } from '../shared/geometry';
+import { type Point, type Rect, rectFromPoints } from '../shared/geometry';
 import { apply, type Change, History } from './history';
 import {
   type Annotation,
@@ -158,6 +158,8 @@ const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isStr = (v: unknown): v is string => typeof v === 'string';
+/** Sizes that become canvas radii or font sizes, which must be positive. */
+const isSize = (v: unknown): v is number => isNum(v) && v > 0;
 const COLOR = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
 
 function point(v: unknown): Point | null {
@@ -168,6 +170,12 @@ function rect(v: unknown): Rect | null {
   return isObj(v) && isNum(v.x) && isNum(v.y) && isNum(v.width) && isNum(v.height)
     ? { x: v.x, y: v.y, width: v.width, height: v.height }
     : null;
+}
+
+/** An annotation's rect with non-negative size, so canvas paths built from it can't throw. */
+function box(v: unknown): Rect | null {
+  const r = rect(v);
+  return r && rectFromPoints(r, { x: r.x + r.width, y: r.y + r.height });
 }
 
 function color(v: unknown): string | null {
@@ -202,16 +210,17 @@ export function parseAnnotation(v: unknown): Annotation | null {
     }
     case 'rect':
     case 'ellipse': {
-      const r = rect(v.rect);
+      const r = box(v.rect);
       const s = stroke(v.stroke);
       const fill = (['stroke', 'fill', 'both'] as FillMode[]).find((f) => f === v.fill);
       if (!r || !s || !fill) return null;
-      return { id, kind: v.kind, rect: r, stroke: s, fill, radius: isNum(v.radius) ? v.radius : 0 };
+      const radius = isNum(v.radius) ? Math.max(0, v.radius) : 0;
+      return { id, kind: v.kind, rect: r, stroke: s, fill, radius };
     }
     case 'text': {
       const at = point(v.at);
       const c = color(v.color);
-      if (!at || !c || !isStr(v.text) || !isNum(v.size)) return null;
+      if (!at || !c || !isStr(v.text) || !isSize(v.size)) return null;
       return {
         id,
         kind: 'text',
@@ -225,27 +234,27 @@ export function parseAnnotation(v: unknown): Annotation | null {
     case 'number': {
       const at = point(v.at);
       const c = color(v.color);
-      if (!at || !c || !isNum(v.value) || !isNum(v.size)) return null;
+      if (!at || !c || !isNum(v.value) || !isSize(v.size)) return null;
       return { id, kind: 'number', at, value: v.value, size: v.size, color: c };
     }
     case 'censor': {
-      const r = rect(v.rect);
+      const r = box(v.rect);
       const mode = (['pixelate', 'blur', 'solid'] as CensorMode[]).find((m) => m === v.mode);
       return r && mode ? { id, kind: 'censor', rect: r, mode } : null;
     }
     case 'spotlight': {
-      const r = rect(v.rect);
+      const r = box(v.rect);
       return r && isNum(v.dim) ? { id, kind: 'spotlight', rect: r, dim: v.dim } : null;
     }
     case 'magnify': {
       const at = point(v.at);
       const c = color(v.color);
-      if (!at || !c || !isNum(v.radius) || !isNum(v.zoom)) return null;
+      if (!at || !c || !isSize(v.radius) || !isSize(v.zoom)) return null;
       return { id, kind: 'magnify', at, radius: v.radius, zoom: v.zoom, color: c };
     }
     case 'stamp': {
       const at = point(v.at);
-      if (!at || !isStr(v.emoji) || !isNum(v.size)) return null;
+      if (!at || !isStr(v.emoji) || !isSize(v.size)) return null;
       return { id, kind: 'stamp', at, emoji: v.emoji, size: v.size };
     }
     default:

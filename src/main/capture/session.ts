@@ -264,13 +264,6 @@ handle('capture:remember-area', ({ rect }, { win }) => {
   if (display) lastArea = { displayId: display.id, rect };
 });
 
-handle('capture:deliver', async (request, { kind }) => {
-  // The overlay has already encoded everything it needs; close it right away.
-  if (kind === 'overlay') endCapture();
-  const { deliver } = await import('../deliver');
-  return deliver(request);
-});
-
 handle('capture:to-editor', async ({ image, doc }) => {
   endCapture();
   const { openEditorWithImage } = await import('../editor');
