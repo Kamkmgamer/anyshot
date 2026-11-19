@@ -1,4 +1,5 @@
-import { clipboard, shell } from 'electron';
+import { shell } from 'electron';
+import { copyText } from './clipboard';
 import { releaseFrame } from './frames';
 import { handle } from './ipc';
 import { getSettings, onSettingsChanged, patchSettings } from './settings-store';
@@ -13,7 +14,7 @@ export function registerIpc(): void {
     win.setContentSize(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
   });
   handle('frame:release', (id) => releaseFrame(id));
-  handle('clipboard:text', (text) => clipboard.writeText(text));
+  handle('clipboard:text', (text) => copyText(text));
   handle('shell:open-url', async (url) => {
     if (/^https?:\/\//i.test(url)) await shell.openExternal(url);
   });

@@ -1,0 +1,79 @@
+#dim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+#dim.off {
+  display: none;
+}
+#selection {
+  position: fixed;
+  pointer-events: none;
+  outline: 1px solid var(--accent);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.42);
+}
+#selection.no-dim {
+  box-shadow: none;
+}
+#selection .handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: #fff;
+  border: 1.5px solid var(--accent);
+  border-radius: 3px;
+  pointer-events: auto;
+}
+#selection .handle[data-h="nw"],
+#selection .handle[data-h="se"] {
+  cursor: nwse-resize;
+}
+#selection .handle[data-h="ne"],
+#selection .handle[data-h="sw"] {
+  cursor: nesw-resize;
+}
+#selection .handle[data-h="n"],
+#selection .handle[data-h="s"] {
+  cursor: ns-resize;
+}
+#selection .handle[data-h="e"],
+#selection .handle[data-h="w"] {
+  cursor: ew-resize;
+}
+#selection.dragging .handle {
+  display: none;
+}
+#size {
+  position: fixed;
+  padding: 3px 7px;
+  font:
+    600 12px / 1.2 system-ui,
+    sans-serif;
+  color: #fff;
+  background: rgba(17, 17, 17, 0.85);
+  border-radius: 6px;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.pill {
+  position: fixed;
+  left: 50%;
+  top: 28px;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.floating-bar {
+  position: fixed;
+  z-index: 10;
+}
+.floating-bar .options {
+  margin-top: 6px;
+}

@@ -1,0 +1,217 @@
+:root {
+  --accent: #14b8a6;
+  --bar-bg: rgba(24, 24, 27, 0.94);
+  --bar-fg: #f4f4f5;
+  --bar-muted: #a1a1aa;
+  --bar-hover: rgba(255, 255, 255, 0.1);
+  --bar-border: rgba(255, 255, 255, 0.08);
+  --radius: 10px;
+  font:
+    13px / 1.3 "Segoe UI",
+    system-ui,
+    -apple-system,
+    "Noto Sans",
+    sans-serif;
+  color-scheme: dark;
+}
+:root.light {
+  --bar-bg: rgba(250, 250, 250, 0.96);
+  --bar-fg: #18181b;
+  --bar-muted: #52525b;
+  --bar-hover: rgba(0, 0, 0, 0.07);
+  --bar-border: rgba(0, 0, 0, 0.1);
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  border: 1px solid var(--bar-border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  user-select: none;
+  backdrop-filter: blur(8px);
+}
+.bar.vertical {
+  flex-direction: column;
+}
+.tb-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.tb-btn:hover:not(:disabled) {
+  background: var(--bar-hover);
+}
+.tb-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+.tb-btn.danger:hover {
+  background: #dc2626;
+  color: #fff;
+}
+.tb-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.tb-btn:focus-visible,
+.seg button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--bar-border);
+}
+.bar.vertical .sep {
+  width: 20px;
+  height: 1px;
+  margin: 4px 0;
+}
+.swatch {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+.swatch.big {
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  padding: 0;
+}
+.swatch.big.active {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.popover {
+  position: absolute;
+  z-index: 20;
+  padding: 10px;
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  border: 1px solid var(--bar-border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
+}
+.popover.colors {
+  display: grid;
+  grid-template-columns: repeat(6, 26px);
+  gap: 8px;
+}
+.custom-color {
+  grid-column: span 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--bar-muted);
+  cursor: pointer;
+}
+.custom-color input {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  color: var(--bar-muted);
+  white-space: nowrap;
+}
+.opt.slider input {
+  width: 110px;
+  accent-color: var(--accent);
+}
+.opt .val {
+  min-width: 34px;
+  color: var(--bar-fg);
+  font-variant-numeric: tabular-nums;
+}
+.seg {
+  gap: 0;
+  padding: 2px;
+  background: var(--bar-hover);
+  border-radius: 8px;
+}
+.seg button {
+  border: 0;
+  background: transparent;
+  color: var(--bar-fg);
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+.seg button.active {
+  background: var(--accent);
+  color: #fff;
+}
+.stamps button {
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 2px 3px;
+}
+.stamps button.active {
+  background: var(--bar-hover);
+  outline: 1px solid var(--accent);
+}
+.hint {
+  font-size: 12px;
+}
+.layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+}
+.text-editor {
+  position: absolute;
+  z-index: 15;
+  margin: 0;
+  padding: 0;
+  min-width: 40px;
+  border: 1px dashed var(--accent);
+  background: rgba(0, 0, 0, 0.08);
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}

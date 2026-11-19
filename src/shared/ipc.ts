@@ -37,8 +37,8 @@ export interface OverlayInit {
   scaleFactor: number;
   /** Display bounds in CSS pixels; the window covers exactly this. */
   bounds: Rect;
-  /** Selection to restore (CSS px, relative to this display) for "capture last area". */
-  restoreSelection: Rect | null;
+  /** The previous selection on this display (CSS px), restored with R or "capture last area". */
+  lastSelection: Rect | null;
   /** Full-screen modes select the whole display immediately. */
   selectAll: boolean;
   settings: Settings;
@@ -67,7 +67,10 @@ export interface EncodedImage {
 
 export interface DeliverRequest {
   action: DeliverAction;
+  /** Lossless PNG master: clipboard, history and pins use this. */
   image: EncodedImage;
+  /** The same image in the configured save format, when that isn't PNG. */
+  saveImage?: EncodedImage;
   /** Small WebP preview for history and the floating thumbnail. */
   thumb?: ArrayBuffer;
   /** Screen-space rectangle (CSS px) the image came from, for pins in place. */
@@ -138,8 +141,7 @@ export interface PinInit {
 }
 
 export interface RecordRequest {
-  displayId: number;
-  /** Region in CSS px relative to the display. */
+  /** Region in CSS px relative to the sender overlay's display. */
   rect: Rect;
   gif: boolean;
 }
@@ -202,7 +204,7 @@ export interface InvokeContract {
   'capture:to-editor': Channel<{ image: RawImage; doc: unknown }, void>;
   'capture:record': Channel<RecordRequest, void>;
   'capture:scroll': Channel<RecordRequest, void>;
-  'capture:remember-area': Channel<{ displayId: number; rect: Rect }, void>;
+  'capture:remember-area': Channel<{ rect: Rect }, void>;
 
   'editor:init': Channel<void, EditorInit>;
   'editor:open': Channel<void, boolean>;

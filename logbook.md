@@ -1,12 +1,20 @@
 # logbook
 
+## Session
+
+- Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
+- On-box implementation thread: `ph78d3n1dyfse7gztvadjcgzxx8jhnec`.
+- Branch `feat/v1`. To resume: read this logbook first, then continue from the "Next:" line below.
+
+**Next:** step 2/3 in progress. Main capture backend (`src/main/capture/*`, `deliver.ts`, `clipboard.ts`), engine (`src/engine/*`), export worker and shared toolbar UI are written. `src/windows/overlay/main.tsx` is a placeholder. Exact next action: write the overlay controller in `main.tsx` (boot from `overlay:init`, fetch `/@frame/<id>`, drag-select/resize/move, toolbars, finish → `exportImage` → `capture:deliver`), add the `capture:deliver`/`capture:to-editor` handlers in main, then e2e for capture+copy+save.
+
 ## Status (v1 build order)
 
 | Step | State | Notes |
 | --- | --- | --- |
 | 1 Skeleton | done | tray, hotkeys, single instance + argv, atomic settings, `app://`, typed IPC, Biome, Vitest, Playwright idle budget |
-| 2 Capture | pending | |
-| 3 Annotation engine | pending | |
+| 2 Capture | partial | backend + deliver done; overlay controller pending |
+| 3 Annotation engine | partial | model, history, shapes, render, GL effects, view written; tests pending |
 | 4 After capture | pending | |
 | 5 Editor | pending | |
 | 6 More tools | pending | |
