@@ -1,7 +1,7 @@
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { showFixture } from './fixture';
-import { dispatch, launch, pageOf, pressClosing, verifyAndClose } from './harness';
+import { dispatch, launch, pageOf, pressClosing, verifyAndClose, windowKinds } from './harness';
 
 // Regenerates docs/screenshots. Run with ANYSHOT_SCREENSHOTS=1.
 test.skip(
@@ -108,6 +108,101 @@ test('settings tools reset screenshot', async () => {
     await expect(page.getByTestId('reset-tools-confirm')).toBeVisible();
     await page.waitForTimeout(200);
     await page.screenshot({ path: out('settings-tools-reset.png') });
+  } finally {
+    await verifyAndClose(ctx);
+  }
+});
+
+test('history preview, split save and measure screenshots', async () => {
+  const ctx = await launch();
+  try {
+    await ctx.app.evaluate(
+      async (_e, dir) => {
+        await globalThis.__anyshot?.patch({
+          capture: { showThumbnail: false },
+          output: { saveDir: dir },
+          tools: { color: '#ff3b30' },
+        });
+      },
+      join(ctx.userData, 'shots'),
+    );
+    await showFixture(ctx.app);
+    const select = async (a: [number, number], b: [number, number]) => {
+      await expect.poll(() => windowKinds(ctx.app)).not.toContain('overlay');
+      await dispatch(ctx.app, 'captureArea');
+      const overlay = await pageOf(ctx.app, 'overlay');
+      await expect
+        .poll(() =>
+          ctx.app.evaluate(() =>
+            globalThis.__anyshot?.windows().some((w) => w.kind === 'overlay' && w.visible),
+          ),
+        )
+        .toBe(true);
+      await overlay.mouse.move(...a);
+      await overlay.mouse.down();
+      await overlay.mouse.move(...b, { steps: 6 });
+      await overlay.mouse.up();
+      return overlay;
+    };
+    const drag = async (page: Page, a: [number, number], b: [number, number]) => {
+      await page.mouse.move(...a);
+      await page.mouse.down();
+      await page.mouse.move(...b, { steps: 6 });
+      await page.mouse.up();
+    };
+
+    // Measure: dragged from inside the report to far outside the selection.
+    const measured = await select([540, 160], [1060, 470]);
+    await measured.getByTestId('tool-measure').click();
+    await drag(measured, [600, 300], [1200, 300]);
+    await measured.mouse.move(1200, 300);
+    await measured.waitForTimeout(300);
+    await measured.screenshot({ path: out('measure-clamped.png') });
+    await pressClosing(measured, 'Control+c');
+
+    // Two more captures, annotated, for the history window.
+    const card = await select([100, 100], [400, 300]);
+    await card.getByTestId('tool-arrow').click();
+    await drag(card, [150, 260], [300, 160]);
+    await pressClosing(card, 'Control+c');
+    const report = await select([520, 120], [1080, 500]);
+    await report.getByTestId('tool-rect').click();
+    await drag(report, [538, 284], [772, 326]);
+    await pressClosing(report, 'Control+c');
+
+    await dispatch(ctx.app, 'history');
+    const history = await pageOf(ctx.app, 'history');
+    await ctx.app.evaluate(({ BrowserWindow }) => {
+      for (const w of BrowserWindow.getAllWindows())
+        if (w.webContents.getURL().includes('/history/')) w.setSize(960, 640);
+    });
+    await expect(history.getByTestId('history-card')).toHaveCount(3);
+    await history.getByTestId('history-card').first().click();
+    await expect
+      .poll(() =>
+        history
+          .getByTestId('preview-image')
+          .evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0),
+      )
+      .toBe(true);
+    await history.waitForTimeout(300);
+    await history.screenshot({ path: out('history-preview.png') });
+
+    // Edit it: the editor offers Replace original / Save as copy.
+    await history.getByTestId('preview-edit').click();
+    const editor = await pageOf(ctx.app, 'editor');
+    await pressClosing(history, 'Escape');
+    await ctx.app.evaluate(({ BrowserWindow }) => {
+      for (const w of BrowserWindow.getAllWindows())
+        if (w.webContents.getURL().includes('/editor/')) w.setSize(1100, 720);
+    });
+    await editor.waitForTimeout(400);
+    await editor.keyboard.press('Control+1');
+    await editor.getByTestId('save-menu-toggle').click();
+    await expect(editor.getByTestId('save-menu')).toBeVisible();
+    await editor.waitForTimeout(200);
+    await editor.screenshot({ path: out('editor-save-menu.png') });
+    await editor.keyboard.press('Escape');
   } finally {
     await verifyAndClose(ctx);
   }
