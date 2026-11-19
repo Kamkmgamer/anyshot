@@ -1,6 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
+import { packProject } from '../../src/shared/project';
 import { FIXTURE, showFixture } from './fixture';
 import { dispatch, type Launched, launch, pageOf, pressClosing, windowKinds } from './harness';
 
@@ -134,4 +135,29 @@ test('projects save and reopen with editable annotations', async () => {
   await reopened.mouse.click(box.x + 50 * s, box.y + 50 * s);
   await reopened.keyboard.press('Delete');
   await expect(reopened.getByTestId('undo')).toBeEnabled();
+});
+
+test('a project with an invalid crop cannot expose the uncropped image', async () => {
+  const png = await ctx.app.evaluate(({ nativeImage }) =>
+    nativeImage
+      .createFromBitmap(Buffer.alloc(16, 255), { width: 2, height: 2 })
+      .toPNG()
+      .toString('base64'),
+  );
+  const path = join(ctx.userData, 'invalid-crop.anyshot');
+  await writeFile(
+    path,
+    packProject({
+      doc: { version: 1, annotations: [], crop: { x: 0, y: 0, width: 0, height: 2 } },
+      image: { mime: 'image/png', width: 2, height: 2 },
+      bytes: Buffer.from(png, 'base64'),
+    }),
+  );
+  await dispatch(ctx.app, 'openImage', path);
+  const editor = await pageOf(ctx.app, 'editor');
+  await expect(
+    editor.getByText('anyshot could not open this project because its crop is invalid.'),
+  ).toBeVisible();
+  await expect(editor.getByTestId('editor-copy')).toHaveCount(0);
+  await expect(editor.locator('canvas')).toHaveCount(0);
 });

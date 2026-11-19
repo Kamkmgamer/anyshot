@@ -1,7 +1,7 @@
 import { type BrowserWindow, nativeImage, type Rectangle, screen } from 'electron';
 import type { HistoryEntry, PinInit } from '../shared/ipc';
 import { readPng } from './clipboard';
-import { addEntry, release, retain } from './history';
+import { addEntry, getRetainedEntry, release } from './history';
 import { handle } from './ipc';
 import './item-actions';
 import { getSettings } from './settings-store';
@@ -11,9 +11,20 @@ const pins = new Map<number, HistoryEntry>();
 
 /** Shows a capture as an always-on-top window, where it was taken or centred. */
 export async function pinEntry(
-  entry: HistoryEntry,
+  id: string,
   screenRect?: Rectangle,
-): Promise<BrowserWindow> {
+): Promise<BrowserWindow | undefined> {
+  const entry = await getRetainedEntry(id);
+  if (!entry) return undefined;
+  try {
+    return openPin(entry, screenRect);
+  } catch (error) {
+    release(id);
+    throw error;
+  }
+}
+
+function openPin(entry: HistoryEntry, screenRect?: Rectangle): BrowserWindow {
   const display = screenRect
     ? screen.getDisplayMatching(screenRect)
     : screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
@@ -45,7 +56,6 @@ export async function pinEntry(
   win.setAlwaysOnTop(true, 'floating');
   win.setVisibleOnAllWorkspaces(true);
   const id = win.webContents.id;
-  retain(entry.id);
   pins.set(id, entry);
   win.once('closed', () => {
     pins.delete(id);
@@ -64,7 +74,7 @@ export async function pinClipboard(): Promise<void> {
   const size = nativeImage.createFromBuffer(Buffer.from(png)).getSize();
   const entry = await addEntry({ png, width: size.width, height: size.height });
   try {
-    await pinEntry(entry);
+    await pinEntry(entry.id);
   } finally {
     release(entry.id);
   }

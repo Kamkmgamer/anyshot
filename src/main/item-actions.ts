@@ -11,8 +11,13 @@ export async function runItemAction(
   action: ItemAction,
   sender?: Electron.WebContents,
 ): Promise<DeliverResult> {
+  const missing = { ok: false, error: 'This capture is no longer in history.' };
+  if (action === 'pin') {
+    const pin = await (await import('./pins')).pinEntry(historyId);
+    return pin ? { ok: true } : missing;
+  }
   const entry = await getEntry(historyId);
-  if (!entry) return { ok: false, error: 'This capture is no longer in history.' };
+  if (!entry) return missing;
   switch (action) {
     case 'copy':
       await copyPng(await readImage(entry.id));
@@ -23,9 +28,6 @@ export async function runItemAction(
       if (result.ok && result.path) await updateEntry(entry.id, { savedPath: result.path });
       return result;
     }
-    case 'pin':
-      await (await import('./pins')).pinEntry(entry);
-      return { ok: true };
     case 'edit':
       await (await import('./editor')).openHistoryEntry(entry.id);
       return { ok: true };

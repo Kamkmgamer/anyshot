@@ -10,8 +10,8 @@ import { dirname } from 'node:path';
 export async function writeFileAtomic(path: string, data: string | Uint8Array): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const temp = `${path}.${randomBytes(4).toString('hex')}.tmp`;
+  const handle = await open(temp, 'wx');
   try {
-    const handle = await open(temp, 'w');
     try {
       await handle.writeFile(data);
       await handle.sync();

@@ -6,6 +6,7 @@ import { type Doc, emptyDoc } from '../../engine/model';
 import { type Rect, rectFromPoints } from '../../shared/geometry';
 import type { DeliverAction, EditorInit } from '../../shared/ipc';
 import { packProject } from '../../shared/project';
+import { isRecord } from '../../shared/schema';
 import { type Annotator, createAnnotator } from '../common/annotator';
 import { EffectButtons, EffectPopovers } from '../common/effects-ui';
 import { exportImage } from '../common/export';
@@ -438,6 +439,7 @@ function wirePointer(): void {
 
 function fitsImage(r: Rect): boolean {
   return (
+    [r.x, r.y, r.width, r.height].every(Number.isInteger) &&
     r.x >= 0 &&
     r.y >= 0 &&
     r.width >= 1 &&
@@ -466,9 +468,13 @@ async function boot(): Promise<void> {
   historyId = init.historyId;
   bitmap = await loadSource(init.source);
   size = { width: bitmap.width, height: bitmap.height };
-  const parsed = init.doc ? parseDoc(init.doc) : emptyDoc(1);
-  const cropFits = !parsed.crop || fitsImage(parsed.crop);
-  const doc = cropFits ? parsed : { ...parsed, crop: null };
+  const doc = init.doc ? parseDoc(init.doc) : emptyDoc(1);
+  const hasSavedCrop = isRecord(init.doc) && init.doc.crop != null;
+  if (hasSavedCrop && (!doc.crop || !fitsImage(doc.crop))) {
+    bitmap.close();
+    document.body.textContent = 'anyshot could not open this project because its crop is invalid.';
+    return;
+  }
   annotator = createAnnotator(stage, size, doc, init.settings);
   annotator.view.setSource(bitmap);
   savedDoc = annotator.docs.doc;
@@ -484,7 +490,6 @@ async function boot(): Promise<void> {
     }
   });
   ui.set({ title: init.title, crop: doc.crop });
-  if (!cropFits) ui.set({ status: 'The saved crop did not fit this image, so it was reset.' });
   render(<TopBar />, el('top'));
   render(<Tools />, el('tools'));
   wirePointer();

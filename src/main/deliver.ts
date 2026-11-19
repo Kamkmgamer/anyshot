@@ -129,7 +129,7 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
     : undefined;
   if (existing) {
     result.historyId = existing.id;
-    if (steps.includes('pin')) await (await import('./pins')).pinEntry(existing);
+    if (steps.includes('pin')) await (await import('./pins')).pinEntry(existing.id);
     return result;
   }
   const entry = await addEntry({ ...image, savedPath: result.path ?? null });
@@ -137,7 +137,7 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
 
   try {
     const followUp = steps.includes('pin')
-      ? (await import('./pins')).pinEntry(entry, request.screenRect as Rectangle | undefined)
+      ? (await import('./pins')).pinEntry(entry.id, request.screenRect as Rectangle | undefined)
       : steps.includes('ocr')
         ? (await import('./ocr')).recognizeEntry(entry.id)
         : steps.includes('upload')
