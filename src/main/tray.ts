@@ -41,7 +41,6 @@ export function trayTemplate(
     item('Capture area', 'captureArea'),
     item('Capture screen', 'captureScreen'),
     item('Capture text (OCR)', 'captureOcr'),
-    item('Quick capture', 'quickCapture'),
     item('Capture last area', 'captureLastArea'),
     item('Scroll capture', 'scrollCapture'),
     {

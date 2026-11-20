@@ -10,7 +10,9 @@
 
 - **Beautify shows live in the editor.** Before, Beautify only existed in the export, so picking a background changed nothing on screen. The editor now draws the frame around the image with CSS (`#frame` around `#clip`, `paintFrame`): the same gradient, padding, corner radius and shadow as `drawBeautified`, scaled by zoom, so the canvas and its coordinates are untouched. The CSS gradient angle is `atan2(w, -h)`, which makes the gradient line run corner to corner like the canvas one (`beautifyBackgroundCss`, unit-tested). Slider drags preview too (`previewEffects` in the tool store); fit-to-window includes the padding; the frame is hidden while cropping. The overlay (instant preview) still shows Beautify only in the result: its selection sits on the frozen screen, and its hint says so. e2e: picking a background shows the gradient at the frame's corners on screen, and the copy has the same corner colours and the 396 × 296 size.
 
-**Next:** remove Quick capture from the tray menu; recording audio toggles.
+- **Quick capture left the tray menu.** With instant preview off (the default), Capture area already captures at once, so the item was a duplicate. Its shortcut (unbound by default) and `--quick-capture` still work, so a bound key keeps doing what it did. Unit test: the tray template has no Quick capture.
+
+**Next:** recording audio toggles.
 
 ## 2026-11-20 - capture flow, scroll capture, logo (branch `feat/capture-flow-icons`)
 
