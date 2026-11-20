@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
 import { app, type BrowserWindow, dialog, Notification, screen } from 'electron';
+import { growToMinimum, type Size } from '../shared/geometry';
 import type { EditorInit, EditorSource } from '../shared/ipc';
 import { isProject, PROJECT_EXTENSION, unpackProject } from '../shared/project';
 import { readPng } from './clipboard';
@@ -47,9 +48,11 @@ function open(
   held: string | null = null,
 ) {
   const { workArea, scaleFactor } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  // Fit the image at its native size if possible, with room for the toolbars.
+  // Fit the image at its native size if possible, with room for the toolbars. The page
+  // then reports what its toolbars need exactly (editor:min-size); 820 covers them as
+  // they are, so the window rarely has to grow once shown.
   const width = Math.round(
-    Math.min(workArea.width * 0.9, Math.max(760, size.width / scaleFactor + 80)),
+    Math.min(workArea.width * 0.9, Math.max(820, size.width / scaleFactor + 80)),
   );
   const height = Math.round(
     Math.min(workArea.height * 0.9, Math.max(520, size.height / scaleFactor + 170)),
@@ -238,6 +241,48 @@ handle('editor:init', (_req, { win }) => {
 });
 
 handle('editor:open', () => openImage());
+
+/** The content size each editor's toolbars need, as last reported by its page. */
+const toolbarMinimum = new WeakMap<BrowserWindow, Size>();
+
+/**
+ * Makes the toolbars' content size the window's minimum, capped to the work area
+ * of the display the window is on (frame included), and grows the window to it.
+ */
+function applyMinimum(win: BrowserWindow): void {
+  const min = toolbarMinimum.get(win);
+  if (!min || win.isDestroyed()) return;
+  const { workArea } = screen.getDisplayMatching(win.getBounds());
+  const outer = win.getBounds();
+  const content = win.getContentBounds();
+  // Windows adds a frame around the content; Electron's minimum is the outer size.
+  const frame = { width: outer.width - content.width, height: outer.height - content.height };
+  const area = {
+    ...workArea,
+    width: Math.max(1, workArea.width - frame.width),
+    height: Math.max(1, workArea.height - frame.height),
+  };
+  const capped = {
+    width: Math.min(Math.ceil(min.width), area.width),
+    height: Math.min(Math.ceil(min.height), area.height),
+  };
+  win.setMinimumSize(capped.width + frame.width, capped.height + frame.height);
+  const grown = growToMinimum(content, capped, area);
+  if (grown.width !== content.width || grown.height !== content.height) win.setContentBounds(grown);
+}
+
+handle('editor:min-size', ({ width, height }, { win }) => {
+  if (![width, height].every((n) => Number.isFinite(n) && n > 0)) return;
+  if (!toolbarMinimum.has(win)) {
+    // On another display (smaller, or scaled differently) the cap changes, not the toolbars.
+    win.on('moved', () => applyMinimum(win));
+    const onDisplays = () => applyMinimum(win);
+    screen.on('display-metrics-changed', onDisplays);
+    win.once('closed', () => screen.off('display-metrics-changed', onDisplays));
+  }
+  toolbarMinimum.set(win, { width, height });
+  applyMinimum(win);
+});
 
 handle('editor:set-title', ({ title, dirty }, { win }) => {
   const state = editors.get(win.webContents.id);

@@ -48,8 +48,8 @@ async function clipboardPixel(x: number, y: number) {
 const near = (a: number[] | undefined, b: readonly number[]) =>
   !!a && a.every((v, i) => Math.abs(v - (b[i] ?? 0)) <= 6);
 
-/** Captures the fixture card with a yellow filled rectangle and opens it in the editor. */
-async function editorWithAnnotation(): Promise<Page> {
+/** Starts an area capture and selects the fixture card in the overlay. */
+async function overlayOnCard(): Promise<Page> {
   await dispatch(ctx.app, 'captureArea');
   const overlay = await pageOf(ctx.app, 'overlay');
   await expect
@@ -64,6 +64,13 @@ async function editorWithAnnotation(): Promise<Page> {
   await overlay.mouse.down();
   await overlay.mouse.move(card.x + card.width, card.y + card.height, { steps: 5 });
   await overlay.mouse.up();
+  return overlay;
+}
+
+/** Captures the fixture card with a yellow filled rectangle and opens it in the editor. */
+async function editorWithAnnotation(): Promise<Page> {
+  const overlay = await overlayOnCard();
+  const { card } = FIXTURE;
   await overlay.getByTestId('tool-rect').click();
   await overlay.getByTestId('color').click();
   await overlay.getByTitle('#ffcc00').click();
@@ -229,9 +236,23 @@ test('beautify shows its frame live around the image, as it will be copied', asy
   await expect(frame).not.toHaveClass(/beautified/);
   await editor.getByTestId('fx-beautify').click();
   const popover = editor.getByTestId('beautify-popover');
-  await expect(popover).toContainText('Shown around the image');
+  // Off at first: "No background" is the chosen tile and the sliders wait for a background.
+  await expect(popover.getByTestId('beautify-state')).toHaveText('Off');
+  await expect(popover.getByTestId('beautify-none')).toHaveAttribute('aria-pressed', 'true');
+  const sliders = popover.locator('input[type="range"]');
+  await expect(sliders).toHaveCount(3);
+  for (const slider of await sliders.all()) await expect(slider).toBeDisabled();
+  await expect(popover).toContainText('Pick a background to frame the image.');
   // Picking a background turns Beautify on and shows it at once.
   await popover.getByRole('button', { name: 'Background 3' }).click();
+  await expect(popover).toContainText('Shown around the image');
+  await expect(popover.getByTestId('beautify-state')).toHaveText('On');
+  await expect(popover.getByTestId('beautify-none')).toHaveAttribute('aria-pressed', 'false');
+  await expect(popover.getByRole('button', { name: 'Background 3' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  for (const slider of await sliders.all()) await expect(slider).toBeEnabled();
   await expect(frame).toHaveClass(/beautified/);
   await expect(frame).toHaveAttribute('data-background', '2');
   // Close the popover so it doesn't cover the frame, then read the frame's corners.
@@ -274,8 +295,55 @@ test('beautify shows its frame live around the image, as it will be copied', asy
   await expect(popover).toHaveCount(0);
   await expect.poll(shown).toBeCloseTo(committed, 0);
 
-  // Turning it off removes the frame.
+  // "No background" removes the frame, and the toolbar button no longer shows it on.
   await editor.getByTestId('fx-beautify').click();
-  await popover.getByRole('checkbox').uncheck();
+  await popover.getByTestId('beautify-none').click();
   await expect(frame).not.toHaveClass(/beautified/);
+  await expect(popover.getByTestId('beautify-state')).toHaveText('Off');
+  await expect(popover.getByRole('button', { name: 'Background 3' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  for (const slider of await sliders.all()) await expect(slider).toBeDisabled();
+  await editor.keyboard.press('Escape');
+  await expect(editor.getByTestId('fx-beautify')).not.toHaveClass(/active/);
+  // The copy has no frame again.
+  await editor.getByTestId('editor-copy').click();
+  await expect(editor.getByTestId('editor-status')).toHaveText('Copied to the clipboard');
+  expect((await clipboardPixel(0, 0))?.size).toEqual({ width: 300, height: 200 });
 });
+
+test('the colour picker confirms the picked or copied colour with a toast', async () => {
+  const editor = await editorWithAnnotation();
+  await editor.getByTestId('tool-picker').click();
+  const stage = await editor.locator('#stage').boundingBox();
+  if (!stage) throw new Error('no stage');
+  const toast = editor.getByTestId('editor-status');
+  // Away from the yellow rectangle the card's own colour is picked.
+  await editor.mouse.click(stage.x + stage.width - 30, stage.y + stage.height - 30);
+  await expect(toast).toHaveText(/^Colour set to #[0-9A-F]{6}$/);
+  const hex = ((await toast.textContent()) ?? '').slice(-7);
+  expect(near(rgbOf(hex), FIXTURE.card.rgb)).toBe(true);
+  // The toast goes away by itself.
+  await expect(toast).toHaveCount(0, { timeout: 5000 });
+
+  // Shift+click copies the hex instead and says so.
+  await editor.keyboard.down('Shift');
+  await editor.mouse.click(stage.x + stage.width - 30, stage.y + stage.height - 30);
+  await editor.keyboard.up('Shift');
+  await expect(toast).toHaveText(`Copied ${hex} to the clipboard`);
+  expect(await ctx.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(hex.toLowerCase());
+});
+
+test('the colour picker shows its toast in the capture overlay too', async () => {
+  const overlay = await overlayOnCard();
+  const { card } = FIXTURE;
+  await overlay.getByTestId('tool-picker').click();
+  await overlay.mouse.click(card.x + 150, card.y + 100);
+  await expect(overlay.getByTestId('overlay-toast')).toHaveText(/^Colour set to #[0-9A-F]{6}$/);
+  await pressClosing(overlay, 'Escape');
+});
+
+function rgbOf(hex: string): number[] {
+  return [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
+}

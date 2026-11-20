@@ -154,3 +154,46 @@ test('history entries without a usable document open as plain images', async () 
   await expect(editor.getByTestId('undo')).toBeDisabled();
   expect(ctx.mainLog.join('\n')).toContain('ignoring the malformed document');
 });
+
+test('the editor window keeps room for its whole toolbar, so Done is never cut off', async () => {
+  await pressClosing(await selectCard(ctx.app), 'Control+s');
+  await expect.poll(historyIds).toHaveLength(1);
+  const editor = await openFromHistory();
+  const done = editor.getByRole('button', { name: 'Done' });
+  await expect(done).toBeVisible();
+  const editorWindow = () =>
+    ctx.app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows().find((w) =>
+        w.webContents.getURL().includes('/editor/'),
+      );
+      if (!win) throw new Error('no editor window');
+      return { size: win.getSize(), min: win.getMinimumSize() };
+    });
+  // The header (title, zoom, save, Replace, pin, Done) and the tool strip each need
+  // more than this; the window refuses to get that narrow.
+  await ctx.app.evaluate(({ BrowserWindow }) => {
+    for (const w of BrowserWindow.getAllWindows())
+      if (w.webContents.getURL().includes('/editor/')) w.setSize(420, 300);
+  });
+  await expect.poll(async () => (await editorWindow()).min[0] ?? 0).toBeGreaterThan(420);
+  const { size, min } = await editorWindow();
+  expect(size[0]).toBeGreaterThanOrEqual(min[0] ?? 0);
+  // Everything at the end of both rows is inside the page.
+  const right = async (testId: string | null) => {
+    const box = await (testId ? editor.getByTestId(testId) : done).boundingBox();
+    return box ? box.x + box.width : Number.POSITIVE_INFINITY;
+  };
+  const pageWidth = await editor.evaluate(() => document.documentElement.clientWidth);
+  expect(await right(null)).toBeLessThanOrEqual(pageWidth);
+  expect(await right('fx-beautify')).toBeLessThanOrEqual(pageWidth);
+  // The title gives way first, but stays readable.
+  const title = await editor.locator('#top .title').boundingBox();
+  expect(title?.width ?? 0).toBeGreaterThanOrEqual(79);
+
+  // The Save options menu hangs below its button; opening it doesn't widen the minimum.
+  await editor.getByTestId('save-menu-toggle').click();
+  await expect(editor.getByTestId('save-menu')).toBeVisible();
+  await editor.waitForTimeout(300);
+  expect((await editorWindow()).min).toEqual(min);
+  await editor.keyboard.press('Escape');
+});

@@ -549,6 +549,17 @@ function Actions() {
   );
 }
 
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** A message at the bottom of the screen that goes away by itself (a picked colour). */
+function showToast(message: string): void {
+  clearTimeout(toastTimer);
+  ui.set({ toast: message });
+  toastTimer = setTimeout(() => {
+    if (ui.get().toast === message) ui.set({ toast: null });
+  }, 2500);
+}
+
 function switchMode(mode: 'record' | 'scroll'): void {
   init = { ...init, mode };
   ui.set({ toast: null, selection: selection ? { ...selection } : null });
@@ -565,7 +576,11 @@ function Chrome() {
   return (
     <>
       {hint && <div class="pill">{hint}</div>}
-      {s.toast && <div class="toast">{s.toast}</div>}
+      {s.toast && (
+        <div class="toast" role="status" data-testid="overlay-toast">
+          {s.toast}
+        </div>
+      )}
       {s.phase === 'selected' && s.selection && !s.dragging && !s.busy && (
         <>
           {!isRecordingSetup() && (
@@ -612,7 +627,13 @@ async function boot(): Promise<void> {
     },
   });
   bitmap = await loadFrame(init.frameId, init.frame.width, init.frame.height);
-  annotator = createAnnotator(stage, init.frame, emptyDoc(init.scaleFactor), init.settings);
+  annotator = createAnnotator(
+    stage,
+    init.frame,
+    emptyDoc(init.scaleFactor),
+    init.settings,
+    showToast,
+  );
   annotator.view.setSource(bitmap);
   buildHandles();
   render(<Chrome />, byId('ui'));

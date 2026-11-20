@@ -15,6 +15,7 @@ import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
 import { followTheme } from '../common/theme';
 import { Bar, Button, ColorPopover, OptionsRow, RepeatButton, ToolStrip } from '../common/toolbar';
+import { watchMinimumSize } from './min-size';
 import { SaveSplitButton } from './save-menu';
 import { modeForShortcut, type SaveMode } from './save-mode';
 
@@ -56,6 +57,18 @@ let size = { width: 1, height: 1 };
 let savedDoc: Doc;
 let historyId: string | null = null;
 let cropDraft: Rect | null = null;
+
+const FLASH_MS = 2500;
+let flashTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** A short-lived toast, e.g. for a picked colour; results of saving stay until clicked. */
+function flash(message: string): void {
+  clearTimeout(flashTimer);
+  ui.set({ status: message });
+  flashTimer = setTimeout(() => {
+    if (ui.get().status === message) ui.set({ status: null });
+  }, FLASH_MS);
+}
 
 function el(id: string): HTMLElement {
   const node = document.getElementById(id);
@@ -493,6 +506,7 @@ function Tools() {
         <button
           type="button"
           class="toast"
+          aria-live="polite"
           data-testid="editor-status"
           onClick={() => ui.set({ status: null })}
         >
@@ -605,7 +619,7 @@ async function boot(): Promise<void> {
     document.body.textContent = 'anyshot could not open this project because its crop is invalid.';
     return;
   }
-  annotator = createAnnotator(stage, size, doc, init.settings);
+  annotator = createAnnotator(stage, size, doc, init.settings, flash);
   annotator.view.setSource(bitmap);
   savedDoc = annotator.docs.doc;
   const tools = annotator.controller.store;
@@ -630,6 +644,14 @@ async function boot(): Promise<void> {
   ui.set({ title: init.title, crop: doc.crop, saveMode: init.settings.editor.saveMode });
   render(<TopBar />, el('top'));
   render(<Tools />, el('tools'));
+  watchMinimumSize(
+    {
+      top: el('top'),
+      tools: el('tools'),
+      strip: () => el('tools').querySelector('[data-testid="tools"]'),
+    },
+    (min) => void api.invoke('editor:min-size', min),
+  );
   wirePointer();
   window.addEventListener('keydown', onKeyDown);
   ui.set({ zoom: fitZoom() });

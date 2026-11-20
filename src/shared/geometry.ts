@@ -11,6 +11,18 @@ export interface Size {
 export interface Rect extends Point, Size {}
 
 /** Builds a normalised rectangle (non-negative size) from two corners. */
+/**
+ * Window bounds grown to at least `min`, which is first capped to the work area;
+ * a window that would then stick out of the work area moves back into it.
+ */
+export function growToMinimum(bounds: Rect, min: Size, area: Rect): Rect {
+  const width = Math.max(bounds.width, Math.min(Math.ceil(min.width), area.width));
+  const height = Math.max(bounds.height, Math.min(Math.ceil(min.height), area.height));
+  const x = Math.max(area.x, Math.min(bounds.x, area.x + area.width - width));
+  const y = Math.max(area.y, Math.min(bounds.y, area.y + area.height - height));
+  return { x, y, width, height };
+}
+
 export function rectFromPoints(a: Point, b: Point): Rect {
   return {
     x: Math.min(a.x, b.x),

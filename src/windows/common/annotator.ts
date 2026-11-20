@@ -36,19 +36,38 @@ export function selectedTextStyle(
   return { ...text.style, size: Math.round(text.size / unit), color: text.color };
 }
 
-/** Wires the engine, the tool store and the keyboard together for a window. */
+/** The toast after the colour picker sampled a pixel: what happened to the colour. */
+export function pickedColorMessage(hex: string, outcome: 'set' | 'copied' | 'copy-failed'): string {
+  const shown = hex.toUpperCase();
+  if (outcome === 'copied') return `Copied ${shown} to the clipboard`;
+  if (outcome === 'copy-failed') return `Could not copy ${shown}`;
+  return `Colour set to ${shown}`;
+}
+
+/**
+ * Wires the engine, the tool store and the keyboard together for a window.
+ * `notify` shows a short message (a toast) in the window, such as a picked colour.
+ */
 export function createAnnotator(
   container: HTMLElement,
   size: { width: number; height: number },
   doc: Doc,
   settings: Settings,
+  notify: (message: string) => void = () => {},
 ): Annotator {
   const docs = new DocStore(doc);
   const store = createToolStore(settings);
   const view = new CanvasView(container, size.width, size.height, docs, () => store.get(), {
     onPickColor: (hex, copy) => {
-      if (copy) void window.anyshot.invoke('clipboard:text', hex);
-      else store.set({ color: hex });
+      if (!copy) {
+        store.set({ color: hex });
+        notify(pickedColorMessage(hex, 'set'));
+        return;
+      }
+      window.anyshot.invoke('clipboard:text', hex).then(
+        () => notify(pickedColorMessage(hex, 'copied')),
+        () => notify(pickedColorMessage(hex, 'copy-failed')),
+      );
     },
     onStateChange: () =>
       store.set({

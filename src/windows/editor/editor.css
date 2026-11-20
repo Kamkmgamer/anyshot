@@ -4,6 +4,8 @@ body {
 .editor {
   display: grid;
   grid-template-rows: auto auto 1fr;
+  /* The column is the window's width: a long title shrinks instead of widening the header past it. */
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
 }
 #top {
@@ -14,7 +16,13 @@ body {
   background: var(--bar-bg);
   border-bottom: 1px solid var(--bar-border);
 }
+/* Only the title gives way when the window is narrow; the window's minimum size keeps the rest. */
+#top > * {
+  flex-shrink: 0;
+}
 #top .title {
+  flex-shrink: 1;
+  min-width: 80px;
   font-weight: 600;
   margin-right: 6px;
   max-width: 260px;

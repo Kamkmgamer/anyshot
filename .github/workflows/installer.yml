@@ -1,0 +1,63 @@
+name: Windows installer
+
+# Builds the NSIS installer, installs it silently and checks what it registers:
+# anyshot in "Open with" for images without becoming their default app. Runs when
+# the installer's configuration changes.
+on:
+  pull_request:
+    paths:
+      - 'resources/installer.nsh'
+      - 'electron-builder.yml'
+      - '.github/workflows/installer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: bunx electron-builder --win nsis --x64 --publish never
+      - name: Install silently
+        run: |
+          $setup = Get-ChildItem dist\anyshot-Setup-*-x64.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $exe = "$env:LOCALAPPDATA\Programs\anyshot\anyshot.exe"
+          if (-not (Test-Path $exe)) { throw "not installed at $exe" }
+      - name: Check the Open with registration
+        run: |
+          $exe = "$env:LOCALAPPDATA\Programs\anyshot\anyshot.exe"
+          $classes = 'HKCU:\Software\Classes'
+          foreach ($ext in 'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'anyshot') {
+            $progids = Get-ItemProperty "$classes\.$ext\OpenWithProgids"
+            if ($null -eq $progids.'anyshot.Image') { throw ".$ext is missing from OpenWithProgids" }
+            $default = (Get-ItemProperty "$classes\.$ext" -ErrorAction SilentlyContinue).'(default)'
+            if ($default -eq 'anyshot.Image') { throw ".$ext was made anyshot's by default" }
+            $types = Get-ItemProperty "$classes\Applications\anyshot.exe\SupportedTypes"
+            if ($null -eq $types.".$ext") { throw ".$ext is missing from SupportedTypes" }
+          }
+          $command = (Get-ItemProperty "$classes\anyshot.Image\shell\open\command").'(default)'
+          if ($command -ne "`"$exe`" `"%1`"") { throw "unexpected command: $command" }
+          $app = (Get-ItemProperty "$classes\Applications\anyshot.exe\shell\open\command").'(default)'
+          if ($app -ne $command) { throw "unexpected Applications command: $app" }
+          Write-Output "Open with: $command"
+      - name: Uninstall removes it
+        run: |
+          $uninstaller = Get-ChildItem "$env:LOCALAPPDATA\Programs\anyshot\Uninstall anyshot.exe"
+          Start-Process $uninstaller.FullName -ArgumentList '/S' -Wait
+          # The uninstaller copies itself to a temporary folder and returns at once.
+          for ($i = 0; $i -lt 60 -and (Test-Path 'HKCU:\Software\Classes\anyshot.Image'); $i++) { Start-Sleep 1 }
+          if (Test-Path 'HKCU:\Software\Classes\anyshot.Image') { throw 'ProgID left behind' }
+          if (Test-Path 'HKCU:\Software\Classes\Applications\anyshot.exe') { throw 'Applications entry left behind' }
+          $progids = Get-ItemProperty 'HKCU:\Software\Classes\.png\OpenWithProgids' -ErrorAction SilentlyContinue
+          if ($null -ne $progids.'anyshot.Image') { throw '.png still lists anyshot' }
