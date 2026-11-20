@@ -209,6 +209,7 @@ describe('serialisation', () => {
           size: 20,
           color: '#112233',
           background: true,
+          style: { font: 'serif', bold: false, italic: true, underline: true, outline: false },
         },
         { id: 'n', kind: 'number', at: { x: 5, y: 5 }, value: 3, size: 30, color: '#ff0000' },
         { id: 'c', kind: 'censor', rect: { x: 0, y: 0, width: 5, height: 5 }, mode: 'blur' },

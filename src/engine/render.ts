@@ -12,7 +12,7 @@ import type {
   Stroke,
   TextAnnotation,
 } from './model';
-import { markerWidth, TEXT_LINE_HEIGHT, textBox, textFont } from './shapes';
+import { markerWidth, TEXT_LINE_HEIGHT, textBox, textFont, UNDERLINE } from './shapes';
 
 export type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -288,8 +288,9 @@ export function contrastColor(hex: string): string {
 
 function drawText(ctx: Ctx, a: TextAnnotation): void {
   const lines = a.text.split('\n');
-  ctx.font = textFont(a.size);
+  ctx.font = textFont(a.size, a.style);
   ctx.textBaseline = 'top';
+  const outline = !a.background && a.style.outline;
   if (a.background) {
     ctx.fillStyle = a.color;
     roundRectPath(ctx, textBox(a), a.size * 0.25);
@@ -297,16 +298,27 @@ function drawText(ctx: Ctx, a: TextAnnotation): void {
     ctx.fillStyle = contrastColor(a.color);
   } else {
     ctx.fillStyle = a.color;
+  }
+  if (outline) {
     // A soft outline keeps text readable on busy backgrounds.
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(2, a.size * 0.12);
     ctx.strokeStyle =
       contrastColor(a.color) === '#ffffff' ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.6)';
   }
+  const thickness = Math.max(1, a.size * UNDERLINE.thickness);
   lines.forEach((text, i) => {
     const y = a.at.y + i * a.size * TEXT_LINE_HEIGHT + a.size * 0.08;
-    if (!a.background) ctx.strokeText(text, a.at.x, y);
+    const underline =
+      a.style.underline && text.trim()
+        ? { y: y + a.size * UNDERLINE.offset, width: ctx.measureText(text).width }
+        : null;
+    if (outline) {
+      ctx.strokeText(text, a.at.x, y);
+      if (underline) ctx.strokeRect(a.at.x, underline.y, underline.width, thickness);
+    }
     ctx.fillText(text, a.at.x, y);
+    if (underline) ctx.fillRect(a.at.x, underline.y, underline.width, thickness);
   });
 }
 
