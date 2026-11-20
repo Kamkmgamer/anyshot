@@ -1,4 +1,5 @@
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseCli } from '../../src/main/cli';
 
@@ -29,9 +30,11 @@ describe('command line', () => {
   });
 
   it('opens file:// URLs from a desktop entry (%U)', () => {
-    expect(parseCli(['/opt/anyshot/anyshot', 'file:///home/me/My%20shot.jpg'])).toEqual([
-      { action: 'openImage', file: '/home/me/My shot.jpg' },
-    ]);
+    // A path of this platform (file:///C:/… on Windows), with a space escaped as %20.
+    const file = resolve('My shot.jpg');
+    const url = pathToFileURL(file).href;
+    expect(url).toContain('My%20shot.jpg');
+    expect(parseCli(['/opt/anyshot/anyshot', url])).toEqual([{ action: 'openImage', file }]);
   });
 
   it('ignores the executable, switches and other bare arguments', () => {
