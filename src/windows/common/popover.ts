@@ -23,9 +23,18 @@ export function pressOutcome(target: PressTarget | null): 'keep' | 'close' | 'cl
   return target.closest(CONTROLS) ? 'close' : 'close-only';
 }
 
-/** Closes the open tool popover on a press outside it or on Esc. Returns the cleanup. */
+const FOCUSABLE = '.popover button:not(:disabled), .popover input, .popover select';
+
+/**
+ * Closes the open tool popover on a press outside it or on Esc, and handles
+ * focus like a dialog: opened from the keyboard, focus moves to its first
+ * control; closed with focus inside, focus returns to its button. Opened with
+ * the mouse, focus stays put (an open text box keeps it). Returns the cleanup.
+ */
 export function dismissPopovers(store: Store<ToolUiState>, root: Window = window): () => void {
+  let keyboard = false;
   const onPointerDown = (e: PointerEvent) => {
+    keyboard = false;
     if (!store.get().popover) return;
     const outcome = pressOutcome(e.target instanceof Element ? e.target : null);
     if (outcome === 'keep') return;
@@ -36,6 +45,7 @@ export function dismissPopovers(store: Store<ToolUiState>, root: Window = window
     }
   };
   const onKeyDown = (e: KeyboardEvent) => {
+    keyboard = true;
     if (e.key !== 'Escape' || !store.get().popover) return;
     // Esc closes the popover first; the window's own Esc (cancel, close) waits for the next one.
     store.set({ popover: null });
@@ -43,9 +53,22 @@ export function dismissPopovers(store: Store<ToolUiState>, root: Window = window
     e.stopImmediatePropagation();
   };
   // Capture phase: toolbars stop their pointerdown from bubbling to the canvas.
+  let open = store.get().popover;
+  const stopWatching = store.subscribe((s) => {
+    if (s.popover === open) return;
+    open = s.popover;
+    const doc = root.document;
+    // Still the old DOM: the button of the popover that is closing says it is expanded.
+    const opener = doc.querySelector<HTMLElement>('[aria-haspopup="dialog"][aria-expanded="true"]');
+    const focusInside = doc.activeElement?.closest('.popover') != null;
+    if (focusInside && opener) opener.focus();
+    if (s.popover && keyboard)
+      root.requestAnimationFrame(() => doc.querySelector<HTMLElement>(FOCUSABLE)?.focus());
+  });
   root.addEventListener('pointerdown', onPointerDown, true);
   root.addEventListener('keydown', onKeyDown, true);
   return () => {
+    stopWatching();
     root.removeEventListener('pointerdown', onPointerDown, true);
     root.removeEventListener('keydown', onKeyDown, true);
   };

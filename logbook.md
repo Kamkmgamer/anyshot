@@ -13,6 +13,7 @@
 - Tests: unit `pressOutcome`; e2e for the overlay (a press inside keeps it; a drag on the image closes it without drawing, then draws; Esc closes it and keeps the capture; a second Esc cancels) and the editor (toggle, swap with another popover, another tool closes it and is chosen, a click beside the image, Esc keeps the editor). Both e2e specs fail on main.
 
 - CodeRabbit round 1 on PR #8 (1 finding, fixed): the colour, Adjust and Beautify popovers have `role="dialog"` and a name, matching the `aria-haspopup="dialog"` their buttons announce; e2e finds Adjust by that role.
+- CodeRabbit round 2 on PR #8 (1 finding, fixed): popovers handle focus like dialogs. Opened from the keyboard, focus moves to the first control; when one closes with focus inside, focus returns to its button. Opened with the mouse, focus stays where it was, so a text box being typed keeps it (text styles, PR #9). e2e: Enter on Adjust focuses its first preset, Esc returns focus to Adjust.
 
 **Next:** merge; PR #9 (text styles) builds on it.
 
