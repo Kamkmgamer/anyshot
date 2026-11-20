@@ -279,3 +279,43 @@ test('beautify shows its frame live around the image, as it will be copied', asy
   await popover.getByRole('checkbox').uncheck();
   await expect(frame).not.toHaveClass(/beautified/);
 });
+
+test('the colour picker confirms the picked or copied colour with a toast', async () => {
+  const editor = await editorWithAnnotation();
+  await editor.getByTestId('tool-picker').click();
+  const stage = await editor.locator('#stage').boundingBox();
+  if (!stage) throw new Error('no stage');
+  const toast = editor.getByTestId('editor-status');
+  // Away from the yellow rectangle the card's own colour is picked.
+  await editor.mouse.click(stage.x + stage.width - 30, stage.y + stage.height - 30);
+  await expect(toast).toHaveText(/^Colour set to #[0-9A-F]{6}$/);
+  const hex = ((await toast.textContent()) ?? '').slice(-7);
+  expect(near(rgbOf(hex), FIXTURE.card.rgb)).toBe(true);
+  // The toast goes away by itself.
+  await expect(toast).toHaveCount(0, { timeout: 5000 });
+
+  // Shift+click copies the hex instead and says so.
+  await editor.keyboard.down('Shift');
+  await editor.mouse.click(stage.x + stage.width - 30, stage.y + stage.height - 30);
+  await editor.keyboard.up('Shift');
+  await expect(toast).toHaveText(`Copied ${hex} to the clipboard`);
+  expect(await ctx.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(hex.toLowerCase());
+});
+
+test('the colour picker shows its toast in the capture overlay too', async () => {
+  await dispatch(ctx.app, 'captureArea');
+  const overlay = await pageOf(ctx.app, 'overlay');
+  const { card } = FIXTURE;
+  await overlay.mouse.move(card.x, card.y);
+  await overlay.mouse.down();
+  await overlay.mouse.move(card.x + card.width, card.y + card.height, { steps: 5 });
+  await overlay.mouse.up();
+  await overlay.getByTestId('tool-picker').click();
+  await overlay.mouse.click(card.x + 150, card.y + 100);
+  await expect(overlay.getByTestId('overlay-toast')).toHaveText(/^Colour set to #[0-9A-F]{6}$/);
+  await pressClosing(overlay, 'Escape');
+});
+
+function rgbOf(hex: string): number[] {
+  return [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
+}

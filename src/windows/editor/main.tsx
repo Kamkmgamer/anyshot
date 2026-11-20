@@ -57,6 +57,18 @@ let savedDoc: Doc;
 let historyId: string | null = null;
 let cropDraft: Rect | null = null;
 
+const FLASH_MS = 2500;
+let flashTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** A short-lived toast, e.g. for a picked colour; results of saving stay until clicked. */
+function flash(message: string): void {
+  clearTimeout(flashTimer);
+  ui.set({ status: message });
+  flashTimer = setTimeout(() => {
+    if (ui.get().status === message) ui.set({ status: null });
+  }, FLASH_MS);
+}
+
 function el(id: string): HTMLElement {
   const node = document.getElementById(id);
   if (!node) throw new Error(`#${id} missing`);
@@ -493,6 +505,7 @@ function Tools() {
         <button
           type="button"
           class="toast"
+          aria-live="polite"
           data-testid="editor-status"
           onClick={() => ui.set({ status: null })}
         >
@@ -605,7 +618,7 @@ async function boot(): Promise<void> {
     document.body.textContent = 'anyshot could not open this project because its crop is invalid.';
     return;
   }
-  annotator = createAnnotator(stage, size, doc, init.settings);
+  annotator = createAnnotator(stage, size, doc, init.settings, flash);
   annotator.view.setSource(bitmap);
   savedDoc = annotator.docs.doc;
   const tools = annotator.controller.store;
