@@ -24,6 +24,7 @@
 
 - CodeRabbit round 1 on PR #8 (1 finding, fixed): the colour, Adjust and Beautify popovers have `role="dialog"` and a name, matching the `aria-haspopup="dialog"` their buttons announce; e2e finds Adjust by that role.
 - CodeRabbit round 2 on PR #8 (1 finding, fixed): popovers handle focus like dialogs. Opened from the keyboard, focus moves to the first control; when one closes with focus inside, focus returns to its button. Opened with the mouse, focus stays where it was, so a text box being typed keeps it (text styles, PR #9). e2e: Enter on Adjust focuses its first preset, Esc returns focus to Adjust.
+- CodeRabbit round 3 on PR #8 (1 finding, fixed; the last round): the pending move of focus into a keyboard-opened popover is cancelled by a pointer press, another popover change, or cleanup, so it can't pull focus back after the user clicked elsewhere. CI once failed `instant.spec.ts` with an aborted overlay load (`net::ERR_UNEXPECTED`); it passed 8/8 on the box and on a re-run, so it is a flake unrelated to popovers.
 
 **Next:** merge; PR #9 (text styles) builds on it.
 

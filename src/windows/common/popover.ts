@@ -33,8 +33,16 @@ const FOCUSABLE = '.popover button:not(:disabled), .popover input, .popover sele
  */
 export function dismissPopovers(store: Store<ToolUiState>, root: Window = window): () => void {
   let keyboard = false;
+  /** A pending move of focus into a popover just opened from the keyboard. */
+  let pendingFocus = 0;
+  const cancelFocus = () => {
+    root.cancelAnimationFrame(pendingFocus);
+    pendingFocus = 0;
+  };
   const onPointerDown = (e: PointerEvent) => {
     keyboard = false;
+    // The pointer took over: don't pull focus back to the popover's first control.
+    cancelFocus();
     if (!store.get().popover) return;
     const outcome = pressOutcome(e.target instanceof Element ? e.target : null);
     if (outcome === 'keep') return;
@@ -57,17 +65,22 @@ export function dismissPopovers(store: Store<ToolUiState>, root: Window = window
   const stopWatching = store.subscribe((s) => {
     if (s.popover === open) return;
     open = s.popover;
+    cancelFocus();
     const doc = root.document;
     // Still the old DOM: the button of the popover that is closing says it is expanded.
     const opener = doc.querySelector<HTMLElement>('[aria-haspopup="dialog"][aria-expanded="true"]');
     const focusInside = doc.activeElement?.closest('.popover') != null;
     if (focusInside && opener) opener.focus();
     if (s.popover && keyboard)
-      root.requestAnimationFrame(() => doc.querySelector<HTMLElement>(FOCUSABLE)?.focus());
+      pendingFocus = root.requestAnimationFrame(() => {
+        pendingFocus = 0;
+        doc.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+      });
   });
   root.addEventListener('pointerdown', onPointerDown, true);
   root.addEventListener('keydown', onKeyDown, true);
   return () => {
+    cancelFocus();
     stopWatching();
     root.removeEventListener('pointerdown', onPointerDown, true);
     root.removeEventListener('keydown', onKeyDown, true);
