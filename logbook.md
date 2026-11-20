@@ -4,7 +4,15 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). PRs #7 (scroll), #8 (popovers) and #10 (auto-update) are merged. Open: `feat/text-styles` (PR #9). To resume: read this logbook first, then continue from the "Next:" line below.
+- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`), checkout `/home/boxes/repos/anyshot`. PRs #7–#10 are merged; nothing is open. To resume: read this logbook first, then continue from the "Next:" line below.
+
+## 2026-11-20 - wrap-up: PRs #7–#10 merged
+
+- Merged: #7 scroll capture (release 0.1.3), #8 popovers (0.1.4), #10 auto-update (0.1.5, the first release with `latest.yml`, `latest-linux.yml` and blockmaps), #9 text styles (0.1.6). Each had 2–3 CodeRabbit rounds; every finding was fixed.
+- Verified on the box: format, lint, typecheck, unit tests, build, and the full e2e suite under Xvfb on every branch (last: 75 passed, 8 skipped = the screenshot generator); the scroll fix against real wheel scrolling at 100 % and forced 150 %; a release dry run (deleted draft); a real AppImage self-update against a local feed.
+- Not verifiable here: Windows. The NSIS update, DPI scroll capture, and the Windows fonts of the text tool need a real Windows machine.
+
+**Next:** the user checks on Windows: (1) install 0.1.5 (the first release with the updater), start it: it should offer 0.1.6 (or newer); Update downloads, installs silently and restarts on the new version (x64 and, if available, ARM64); (2) scroll capture in a browser and another app, slowly and fast, at 100 % and 150 %, and on a second monitor with different scaling; (3) text styles: each font looks right, and a copied image matches the editor.
 
 ## 2026-11-20 - text tool styles (branch `feat/text-styles`)
 
@@ -16,7 +24,7 @@
 - CodeRabbit round 1 on PR #9 (2 findings, fixed): the edit box previews the outline the canvas draws (`textOutline`, shared; drawn as a ring of text shadows at half the stroke width, because `-webkit-text-stroke` hid the underline in the box) and drops it when Outline is off. With the select tool, the popover and its button show the selected text's own style (the first selected text; size in tool units) and toggle from it, so the first click on Italic for italic text turns it off; for the text tool they show the remembered style. Unit and e2e tests for both.
 - CodeRabbit round 2 on PR #9 (2 findings, fixed): Smaller now undoes Larger across band edges too (62 → 66 → 62; unit test over every size), and the canvas = export e2e checks the exported size and buffer length before comparing pixels. Also found while regenerating the screenshot: `-webkit-text-stroke` hid the underline in the edit box, so the outline preview is a ring of text shadows.
 
-**Next:** merge; the user tries the text styles on Windows (fonts: Segoe UI, Georgia, Consolas, Segoe Print).
+Merged as PR #9. **Next:** see the wrap-up above.
 
 ## 2026-11-20 - auto-update (branch `feat/auto-update`)
 
@@ -29,7 +37,7 @@
 - **Real AppImage self-update on the box:** two AppImages (0.0.1, 0.0.2) built with a local generic feed. 0.0.1 ran packaged under Xvfb, found 0.0.2, showed the window; a click on Update (xdotool) downloaded it, replaced the AppImage file and relaunched it. This caught a bug the e2e couldn't: `import('electron-updater')` gave `autoUpdater` undefined (CommonJS getter, missed by ESM named imports), so packaged builds logged "updater unavailable" and never checked. Fixed by reading it through the module's `default`; e2e "electron-updater loads in the built main process" fails with the old import. (Differential download fell back to a full one only because the test server had no range requests.)
 - CodeRabbit round 1 on PR #10 (1 finding, fixed): install failures after the download (electron-updater emits them instead of throwing, e.g. an AppImage in a folder the user can't write to) now reach the window as an error with Try again; `install()` rejects on the updater's `error`. e2e covers it.
 
-Merged as PR #10 (release 0.1.4 is the first with the updater). **Next:** after merge the first release with the update files is the one that existing installs can update *to* from the next one (0.1.x installs have no updater yet). The user checks on Windows: install release N, publish N+1, start N: the window appears, and Update installs and restarts.
+Merged as PR #10 (release 0.1.5 is the first with the updater; 0.1.4 came from PR #8 and has only the four installers). **Next:** after merge the first release with the update files is the one that existing installs can update *to* from the next one (0.1.x installs have no updater yet). The user checks on Windows: install release N, publish N+1, start N: the window appears, and Update installs and restarts.
 
 ## 2026-11-20 - popovers close on a press outside them (branch `fix/popover-dismiss`)
 
