@@ -80,6 +80,10 @@ body {
 #frame {
   margin: 24px;
 }
+/* The export ends at the padded edge, so a large shadow is cut there too. */
+#frame.beautified {
+  overflow: hidden;
+}
 #clip {
   position: relative;
   overflow: hidden;
