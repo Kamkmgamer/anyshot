@@ -24,8 +24,11 @@ export interface Updater {
  * (the GitHub releases of this repo) and the release's latest.yml (Windows) or
  * latest-linux.yml. Nothing downloads until the user chooses Update.
  */
-async function electronUpdater(): Promise<Updater> {
-  const { autoUpdater } = await import('electron-updater');
+export async function electronUpdater(): Promise<Updater> {
+  const module = await import('electron-updater');
+  // CommonJS: autoUpdater is a getter on its exports, which ESM named imports don't see.
+  const { autoUpdater } = module.default ?? module;
+  if (!autoUpdater) throw new Error('electron-updater has no autoUpdater');
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
   return {

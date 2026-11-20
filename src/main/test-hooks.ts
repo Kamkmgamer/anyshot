@@ -18,6 +18,8 @@ export interface TestHooks {
   /** Runs the startup check against a fake updater and returns how often it was asked. */
   startupCheck(): Promise<number>;
   updateInstalls: number;
+  /** Loads electron-updater as packaged builds do, without checking: whether it worked. */
+  loadUpdater(): Promise<boolean>;
 }
 
 declare global {
@@ -54,6 +56,11 @@ export function installTestHooks(dispatch: (action: AppAction, file?: string) =>
         },
       });
       update.showUpdate(offer);
+    },
+    async loadUpdater() {
+      const update = await import('./update');
+      const real = await update.electronUpdater();
+      return typeof real.check === 'function';
     },
     async startupCheck() {
       const update = await import('./update');

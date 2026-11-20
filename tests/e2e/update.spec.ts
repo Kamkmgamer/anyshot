@@ -55,6 +55,11 @@ test('the app does not check for updates when it runs unpackaged (development, e
   expect(await windowKinds(ctx.app)).toEqual([]);
 });
 
+test('electron-updater loads in the built main process', async () => {
+  // Development and the e2e suite never check, so load it explicitly: packaged builds do.
+  expect(await ctx.app.evaluate(() => globalThis.__anyshot?.loadUpdater())).toBe(true);
+});
+
 test('the update window shows the version and notes, and Update downloads and installs', async () => {
   const page = await showOffer(ctx.app, offer());
   await expect(page.getByTestId('update-title')).toHaveText('anyshot 0.3.0 is available');
