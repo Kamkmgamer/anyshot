@@ -27,6 +27,13 @@ electronFuses:
   enableEmbeddedAsarIntegrityValidation: true
   onlyLoadAppFromAsar: true
   grantFileProtocolExtraPrivileges: false
+# Where the app looks for updates (app-update.yml) and what the latest*.yml metadata
+# points at. CI builds with --publish never and uploads the files to the release itself.
+publish:
+  provider: github
+  owner: mgamergo
+  repo: anyshot
+  releaseType: release
 win:
   target:
     - target: nsis

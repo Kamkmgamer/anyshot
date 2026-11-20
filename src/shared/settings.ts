@@ -62,6 +62,8 @@ export const settingsSchema = obj({
     launchAtLogin: bool(false),
     toolbarTheme: oneOf(['dark', 'light', 'system'], 'dark'),
     accent: color('#14b8a6'),
+    /** Look for a newer release on GitHub at startup (packaged builds only). */
+    checkForUpdates: bool(true),
   }),
   capture: obj({
     quickAction: oneOf(['copy', 'save', 'copy+save', 'save+copyPath', 'none'], 'copy'),

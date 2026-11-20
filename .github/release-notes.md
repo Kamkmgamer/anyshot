@@ -9,3 +9,5 @@
 | Source code (zip) | The source at this tag |
 
 The Windows installers are not code-signed yet, so SmartScreen may warn the first time: choose **More info** and then **Run anyway**.
+
+Installed copies offer this update at startup: the Windows installer and the AppImage update themselves, a `.deb` install links here.

@@ -553,6 +553,13 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
               onChange={(v) => patch({ general: { launchAtLogin: v } })}
             />
           </Row>
+          <Row label="Check for updates" hint="Looks for a new release at startup">
+            <Toggle
+              value={s.general.checkForUpdates}
+              testId="check-updates"
+              onChange={(v) => patch({ general: { checkForUpdates: v } })}
+            />
+          </Row>
           <Row label="Appearance" hint="Windows and toolbars" group>
             <Segmented
               label="Appearance"

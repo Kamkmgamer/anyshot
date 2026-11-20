@@ -9,6 +9,7 @@
   "type": "module",
   "dependencies": {
     "@tesseract.js-data/eng": "1.0.0",
+    "electron-updater": "^6.8.11",
     "gifenc": "^1.0.3",
     "mediabunny": "^1.66.1",
     "node-screenshots": "0.2.8",
