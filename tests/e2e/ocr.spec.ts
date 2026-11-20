@@ -5,7 +5,7 @@ import { dispatch, type Launched, launch, pageOf, processTypes, verifyAndClose }
 let ctx: Launched;
 
 test.beforeEach(async () => {
-  ctx = await launch([], undefined, { ANYSHOT_OCR_IDLE_MS: '2000' });
+  ctx = await launch([], {}, { ANYSHOT_OCR_IDLE_MS: '2000' });
   await ctx.app.evaluate(async () => {
     await globalThis.__anyshot?.patch({ capture: { ocrAction: 'copy', showThumbnail: false } });
   });

@@ -68,7 +68,8 @@ function byId(id: string): HTMLElement {
   return el;
 }
 
-const screenSize = () => ({ width: window.innerWidth, height: window.innerHeight });
+// The display's size, not the window's: a capture taken at load runs before the window has its final size.
+const screenSize = () => ({ width: init.bounds.width, height: init.bounds.height });
 
 function pointOf(e: MouseEvent): Point {
   return { x: e.clientX, y: e.clientY };
@@ -207,10 +208,21 @@ function onPointerUp(e: PointerEvent): void {
   if (current.type === 'new') afterSelected();
 }
 
+/**
+ * Without instant preview a chosen area is captured at once (quick action and
+ * the floating thumbnail, whose Edit opens the editor); with it, the selection
+ * stays open with the edit tools.
+ */
+function capturesAtOnce(): boolean {
+  if (init.mode === 'quick') return true;
+  const plain = init.mode === 'area' || init.mode === 'screen' || init.mode === 'last';
+  return plain && !init.settings.capture.instantPreview;
+}
+
 /** Modes that act as soon as an area is chosen. */
 function afterSelected(): void {
   if (init.mode === 'ocr') void finish('ocr');
-  else if (init.mode === 'quick') void finish('quick');
+  else if (capturesAtOnce()) void finish('quick');
 }
 
 function isRecordingSetup(): boolean {
@@ -521,6 +533,7 @@ async function boot(): Promise<void> {
   if (init.selectAll) setSelection(fullScreen());
   else if (init.mode === 'last' && init.lastSelection) setSelection(init.lastSelection);
   else scheduleChrome();
+  if (init.selectAll || (init.mode === 'last' && init.lastSelection)) afterSelected();
   window.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);

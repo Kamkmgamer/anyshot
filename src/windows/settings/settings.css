@@ -163,6 +163,12 @@ input[type="radio"] {
   align-items: center;
   gap: 8px;
 }
+.about .logo {
+  display: block;
+  margin-bottom: 12px;
+  /* The logo's own rounded square; a soft shadow lifts it off the page. */
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.18));
+}
 .about h2 {
   margin: 0 0 8px;
 }

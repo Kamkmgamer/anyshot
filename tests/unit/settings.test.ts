@@ -15,6 +15,14 @@ describe('settings schema', () => {
     expect(parseSettings([1, 2])).toEqual(DEFAULT_SETTINGS);
   });
 
+  it('captures at once by default: instant preview off, thumbnail on', () => {
+    expect(DEFAULT_SETTINGS.capture.instantPreview).toBe(false);
+    expect(DEFAULT_SETTINGS.capture.showThumbnail).toBe(true);
+    // Settings saved before the option existed get the default too.
+    expect(parseSettings({ capture: { quickAction: 'copy' } }).capture.instantPreview).toBe(false);
+    expect(parseSettings({ capture: { instantPreview: true } }).capture.instantPreview).toBe(true);
+  });
+
   it('keeps valid values and replaces invalid ones field by field', () => {
     const parsed = parseSettings({
       capture: { quickAction: 'save', thumbnailDismissSeconds: 'soon', showThumbnail: false },

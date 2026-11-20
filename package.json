@@ -42,7 +42,7 @@
     "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "icons": "node scripts/make-icons.mjs",
+    "icons": "electron scripts/make-icons.mjs",
     "dist": "electron-vite build && electron-builder",
     "dist:dir": "electron-vite build && electron-builder --dir"
   },

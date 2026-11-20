@@ -90,7 +90,7 @@ export async function startCapture(mode: CaptureMode): Promise<void> {
         if (session !== current || win.isDestroyed()) throw new Error('Capture ended');
         const frameId = putFrame(frame);
         state.frameId = frameId;
-        return buildInit(mode, display, frameId, frame);
+        return buildInit(mode, display, frameId, frame, display.id === cursor.id);
       }),
     };
     // The renderer may close before it asks for the grab result.
@@ -118,7 +118,9 @@ function buildInit(
   display: Display,
   frameId: string,
   frame: { width: number; height: number },
+  underCursor: boolean,
 ): OverlayInit {
+  const settings = getSettings();
   const last = lastArea && lastArea.displayId === display.id ? lastArea.rect : null;
   return {
     mode,
@@ -127,8 +129,9 @@ function buildInit(
     scaleFactor: frame.width / display.bounds.width,
     bounds: display.bounds,
     lastSelection: last,
-    selectAll: mode === 'screen',
-    settings: getSettings(),
+    // Without instant preview the full screen is captured at once: only the display under the pointer.
+    selectAll: mode === 'screen' && (settings.capture.instantPreview || underCursor),
+    settings,
     warm: false,
   };
 }

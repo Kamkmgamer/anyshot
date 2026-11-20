@@ -2,6 +2,7 @@ import '../common/ui.css';
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { ScrollInit } from '../../shared/ipc';
+import { pointerArea } from '../../shared/stitch';
 import type { StitchMessage, StitchReply } from '../../workers/stitch.worker';
 import { Icon } from '../common/icons';
 import { followTheme } from '../common/theme';
@@ -13,6 +14,8 @@ type State = {
   phase: 'starting' | 'capturing' | 'finishing';
   width: number;
   height: number;
+  /** The last frames did not overlap the stitched ones (scrolled too far at once). */
+  lost?: boolean;
   error?: string;
 };
 let setState: (s: State) => void = () => {};
@@ -35,7 +38,9 @@ function Hud() {
       ? 'Starting…'
       : state.phase === 'finishing'
         ? 'Stitching…'
-        : `Scroll now · ${state.width} × ${state.height}`);
+        : state.lost
+          ? 'Lost track · scroll back up a little'
+          : `Scroll now · ${state.width} × ${state.height}`);
   return (
     <div
       class="bar"
@@ -127,7 +132,10 @@ async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
     };
     worker.onmessage = ({ data }: MessageEvent<StitchReply>) => {
       if (data.type === 'lost-overlap') {
-        fail(new Error('Frames stopped overlapping. Start again and scroll more slowly.'));
+        // Recoverable: the stitch so far is kept, and frames match again once the
+        // user scrolls back to content that overlaps it.
+        busy = false;
+        if (!finishing) setState({ phase: 'capturing', width: crop.width, height, lost: true });
       } else if (data.type === 'progress') {
         busy = false;
         height = data.height;
@@ -136,33 +144,30 @@ async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
         finish(data);
       }
     };
+    // Screen captures draw the mouse pointer in; the stitcher ignores and later repaints it.
+    let spot: { x: number; y: number } | null = null;
+    const sample = async () => {
+      const pointer = await api.invoke('scroll:pointer');
+      // Main gives it relative to the crop in display pixels; scale to stream pixels.
+      const now = pointer && { x: pointer.x * sx, y: pointer.y * sy };
+      ctx.drawImage(video, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
+      const rgba = ctx.getImageData(0, 0, crop.width, crop.height).data.buffer as ArrayBuffer;
+      const spots = [spot, now].filter((p) => p !== null);
+      spot = now;
+      const message: StitchMessage = {
+        type: 'frame',
+        rgba,
+        width: crop.width,
+        height: crop.height,
+        maxHeight: init.maxHeight,
+        pointer: pointerArea(spots, init.scaleFactor * sx, crop.width, crop.height),
+      };
+      worker.postMessage(message, [rgba]);
+    };
     timer = setInterval(() => {
       if (busy || video.readyState < 2) return;
-      try {
-        busy = true;
-        ctx.drawImage(
-          video,
-          crop.x,
-          crop.y,
-          crop.width,
-          crop.height,
-          0,
-          0,
-          crop.width,
-          crop.height,
-        );
-        const rgba = ctx.getImageData(0, 0, crop.width, crop.height).data.buffer as ArrayBuffer;
-        const message: StitchMessage = {
-          type: 'frame',
-          rgba,
-          width: crop.width,
-          height: crop.height,
-          maxHeight: init.maxHeight,
-        };
-        worker.postMessage(message, [rgba]);
-      } catch (error) {
-        fail(error instanceof Error ? error : new Error(String(error)));
-      }
+      busy = true;
+      sample().catch((error) => fail(error instanceof Error ? error : new Error(String(error))));
     }, SAMPLE_MS);
 
     const keep = await Promise.race([

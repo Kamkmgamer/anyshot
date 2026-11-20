@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
-import { showFixture } from './fixture';
+import { FIXTURE, showFixture } from './fixture';
 import { dispatch, launch, pageOf, pressClosing, verifyAndClose, windowKinds } from './harness';
 
 // Regenerates docs/screenshots. Run with ANYSHOT_SCREENSHOTS=1.
@@ -91,6 +91,49 @@ test('settings appearance screenshots', async () => {
       await page.waitForTimeout(200);
       await page.screenshot({ path: out(`settings-theme-${name.toLowerCase()}.png`) });
     }
+  } finally {
+    await verifyAndClose(ctx);
+  }
+});
+
+test('about, instant preview setting and thumbnail screenshots', async () => {
+  const ctx = await launch([], { capture: { instantPreview: false, thumbnailDismissSeconds: 0 } });
+  try {
+    await dispatch(ctx.app, 'settings');
+    const page = await pageOf(ctx.app, 'settings');
+    await page.getByTestId('tab-about').click();
+    await expect
+      .poll(() =>
+        page.locator('.about .logo').evaluate((img: HTMLImageElement) => img.naturalWidth),
+      )
+      .toBe(256);
+    await page.screenshot({ path: out('settings-about.png') });
+    await page.getByTestId('tab-capture').click();
+    await expect(page.getByTestId('instant-preview')).toBeVisible();
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: out('settings-instant-preview.png') });
+    await pressClosing(page, 'Escape');
+
+    await showFixture(ctx.app);
+    await dispatch(ctx.app, 'captureArea');
+    const overlay = await pageOf(ctx.app, 'overlay');
+    await expect
+      .poll(() =>
+        ctx.app.evaluate(() =>
+          globalThis.__anyshot?.windows().some((w) => w.kind === 'overlay' && w.visible),
+        ),
+      )
+      .toBe(true);
+    const { card } = FIXTURE;
+    await overlay.mouse.move(card.x, card.y);
+    await overlay.mouse.down();
+    await overlay.mouse.move(card.x + card.width, card.y + card.height, { steps: 5 });
+    await overlay.mouse.up();
+    const floating = await pageOf(ctx.app, 'floating');
+    await floating.getByTestId('floating-card').hover();
+    await expect(floating.getByTestId('floating-edit')).toBeVisible();
+    await floating.waitForTimeout(300);
+    await floating.screenshot({ path: out('floating-thumbnail.png') });
   } finally {
     await verifyAndClose(ctx);
   }

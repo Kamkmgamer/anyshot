@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { expect, test } from '@playwright/test';
 import { dispatch, type Launched, launch, pageOf, windowKinds, verifyAndClose } from './harness';
 
@@ -35,7 +36,23 @@ test.afterEach(async () => {
   await verifyAndClose(ctx);
 });
 
-test('scroll capture stitches frames into one tall image', async () => {
+/** Moves the real X pointer: screen captures draw it into their frames. */
+function movePointer(x: number, y: number): void {
+  execFileSync('xdotool', ['mousemove', String(x), String(y)]);
+}
+
+for (const pointer of [null, { x: 300, y: 200 }]) {
+  const title = pointer
+    ? 'scroll capture works with the mouse pointer over the region'
+    : 'scroll capture stitches frames into one tall image';
+  test(title, async () => {
+    await scrollCapture(pointer);
+  });
+}
+
+async function scrollCapture(pointer: { x: number; y: number } | null): Promise<void> {
+  // Keep the pointer outside the region unless the test puts it inside.
+  movePointer(pointer?.x ?? 1000, pointer?.y ?? 700);
   await dispatch(ctx.app, 'scrollCapture');
   const overlay = await pageOf(ctx.app, 'overlay');
   await expect
@@ -65,6 +82,7 @@ test('scroll capture stitches frames into one tall image', async () => {
     await new Promise((r) => setTimeout(r, 450));
   }
   await expect(hud.getByTestId('scroll-status')).toContainText('600 × 1060');
+  await expect(hud.getByTestId('scroll-status')).not.toContainText('Lost track');
   await hud
     .getByTestId('scroll-stop')
     .click()
@@ -79,4 +97,4 @@ test('scroll capture stitches frames into one tall image', async () => {
     return null;
   });
   expect(size).toEqual({ width: 600, height: 1060 });
-});
+}

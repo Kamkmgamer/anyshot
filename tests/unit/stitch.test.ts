@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { findShift, type RgbaFrame, rowProfiles, Stitcher } from '../../src/shared/stitch';
+import {
+  findShift,
+  pointerArea,
+  profileOf,
+  type RgbaFrame,
+  Stitcher,
+} from '../../src/shared/stitch';
 
 const W = 120;
 
@@ -24,6 +30,18 @@ function page(height: number, seed = 7): Uint8ClampedArray {
     }
   }
   return data;
+}
+
+/** Draws a mouse pointer (dark, 8 × 20 px) at a fixed spot of the frame, as screen captures do. */
+const SPOT = { x: 50, y: 90 };
+function withPointer(f: RgbaFrame): RgbaFrame {
+  const data = f.data.slice(0);
+  for (let y = SPOT.y; y < SPOT.y + 20; y++)
+    for (let x = SPOT.x; x < SPOT.x + 8 - Math.floor((y - SPOT.y) / 3); x++) {
+      const i = (y * W + x) * 4;
+      data[i] = data[i + 1] = data[i + 2] = 0;
+    }
+  return { ...f, data };
 }
 
 function view(
@@ -54,9 +72,9 @@ function noisy(f: RgbaFrame): RgbaFrame {
 describe('scroll stitching', () => {
   it('finds the scroll distance between two frames', () => {
     const src = page(600);
-    const a = rowProfiles(view(src, 0, 200));
+    const a = profileOf(view(src, 0, 200));
     for (const d of [1, 13, 57, 150]) {
-      expect(findShift(a, rowProfiles(view(src, d, 200)), 200)?.shift).toBe(d);
+      expect(findShift(a, profileOf(view(src, d, 200)), 200)?.shift).toBe(d);
     }
     expect(findShift(a, a, 200)?.shift).toBe(0);
   });
@@ -114,5 +132,80 @@ describe('scroll stitching', () => {
     const result = stitcher.result();
     expect(result.height).toBe(100);
     expect(result.data).toEqual(src.subarray(0, 100 * W * 4));
+  });
+
+  it('ignores the mouse pointer drawn into every frame and repaints it from later frames', () => {
+    const src = page(700);
+    // Steps well under the frame height, as sampling every 150 ms gives.
+    const tops = [0, 40, 80, 125, 170, 210, 250, 300, 340, 380, 420, 460, 500];
+    // Without knowing where the pointer is, the frames don't match.
+    const blind = new Stitcher(W, 200, 10_000);
+    blind.push(withPointer(view(src, 0, 200)));
+    expect(blind.push(withPointer(view(src, 40, 200)))).toBeNull();
+
+    const area = pointerArea([SPOT], 1, W, 200);
+    const stitcher = new Stitcher(W, 200, 10_000);
+    for (const top of tops)
+      expect(stitcher.push(withPointer(view(src, top, 200)), area)).not.toBeNull();
+    const out = stitcher.result();
+    expect(out.height).toBe(700);
+    // Every row the pointer covered was later seen without it, so none is left.
+    expect(stitcher.pointerAreas).toEqual([]);
+    expect(out.data).toEqual(src);
+  });
+
+  it('keeps the stitch after lost overlap and continues once frames overlap again', () => {
+    const src = page(600);
+    const stitcher = new Stitcher(W, 200, 1000);
+    stitcher.push(view(src, 0, 200));
+    expect(stitcher.push(view(src, 250, 200))).toBeNull();
+    expect(stitcher.height).toBe(200);
+    expect(stitcher.push(view(src, 120, 200))).toBe(120);
+    expect(stitcher.result().data).toEqual(src.subarray(0, 320 * W * 4));
+  });
+
+  it('places the pointer area around its recent spots, clamped to the frame', () => {
+    expect(pointerArea([], 1, 100, 100)).toBeNull();
+    expect(pointerArea([{ x: 50, y: 40 }], 2, 100, 100)).toEqual({
+      top: 16,
+      bottom: 100,
+      left: 26,
+      right: 100,
+    });
+    // It moved between samples: both spots are covered.
+    expect(
+      pointerArea(
+        [
+          { x: 20, y: 20 },
+          { x: 30, y: 25 },
+        ],
+        1,
+        200,
+        200,
+      ),
+    ).toEqual({
+      top: 8,
+      bottom: 69,
+      left: 8,
+      right: 66,
+    });
+    // Outside the frame.
+    expect(pointerArea([{ x: -100, y: 50 }], 1, 100, 100)).toBeNull();
+  });
+
+  it('still repaints the pointer once the height limit is reached', () => {
+    const src = page(400);
+    const stitcher = new Stitcher(W, 200, 200);
+    // The first frame fills the limit and has the pointer in it.
+    expect(stitcher.push(withPointer(view(src, 0, 200)), pointerArea([SPOT], 1, W, 200))).toBe(200);
+    expect(stitcher.pointerAreas).not.toEqual([]);
+    // The pointer moved away: a clean frame at the same scroll position repairs it, adding nothing.
+    expect(stitcher.push(view(src, 0, 200), null)).toBe(0);
+    expect(stitcher.pointerAreas).toEqual([]);
+    expect(stitcher.result().data).toEqual(src.subarray(0, 200 * W * 4));
+    // Scrolling further, even past any overlap, adds nothing and isn't reported as lost.
+    expect(stitcher.push(view(src, 40, 200))).toBe(0);
+    expect(stitcher.push(view(src, 200, 200))).toBe(0);
+    expect(stitcher.height).toBe(200);
   });
 });

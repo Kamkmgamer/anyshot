@@ -16,6 +16,7 @@ import {
 import { Icon, type IconName } from '../common/icons';
 import { applyTheme } from '../common/theme';
 import { TOOL_LABELS } from '../common/tools';
+import logo from '../../../resources/icon-256.png';
 
 const api = window.anyshot;
 type Tab =
@@ -214,9 +215,14 @@ function Secret(props: {
     <input
       id={props.id}
       type="password"
-      value=""
+      // Uncontrolled: a controlled value="" would wipe what the user is typing whenever
+      // the page re-renders (e.g. another setting saved in between). Cleared once sent.
       placeholder={props.stored ? '•••••••• (stored)' : (props.placeholder ?? '')}
-      onChange={(e) => props.onChange((e.target as HTMLInputElement).value)}
+      onChange={(e) => {
+        const input = e.target as HTMLInputElement;
+        props.onChange(input.value);
+        input.value = '';
+      }}
     />
   );
 }
@@ -581,6 +587,16 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
               onChange={(quickAction) => patch({ capture: { quickAction } })}
             />
           </Row>
+          <Row
+            label="Instant preview"
+            hint="Edit the selection right away. Off: capture at once, then use Edit on the thumbnail"
+          >
+            <Toggle
+              value={c.instantPreview}
+              onChange={(v) => patch({ capture: { instantPreview: v } })}
+              testId="instant-preview"
+            />
+          </Row>
           <Row label="Also open in the editor after quick capture">
             <Toggle
               value={c.openEditorAfterQuick}
@@ -847,6 +863,7 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
     case 'about':
       return (
         <div class="about">
+          <img class="logo" src={logo} alt="" width={72} height={72} />
           <h2>anyshot</h2>
           <p>A lean screenshot, annotation and screen-recording app for Windows and Linux.</p>
           <p>

@@ -26,6 +26,9 @@ jobs:
       - name: Allow Chromium's user-namespace sandbox
         # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor.
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Install xdotool
+        # The scroll capture e2e moves the real pointer into the captured region.
+        run: sudo apt-get update && sudo apt-get install -y xdotool
       - name: End-to-end under Xvfb
         run: xvfb-run -a -s '-screen 0 1280x800x24' bun run test:e2e
       - name: Package (unpacked)
