@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import type { UpdateOffer } from '../shared/update';
 import type { AppAction } from './cli';
 import { frameCount } from './frames';
 import { getSettings, patchSettings } from './settings-store';
@@ -12,6 +13,11 @@ export interface TestHooks {
   settings(): unknown;
   patch(patch: unknown): Promise<unknown>;
   timings: Record<string, number[]>;
+  /** Shows the update window with a fake updater: its download reports progress, then fails or "installs". */
+  offerUpdate(offer: UpdateOffer, plan?: { fail?: string }): Promise<void>;
+  /** Runs the startup check against a fake updater and returns how often it was asked. */
+  startupCheck(): Promise<number>;
+  updateInstalls: number;
 }
 
 declare global {
@@ -31,6 +37,38 @@ export function installTestHooks(dispatch: (action: AppAction, file?: string) =>
     settings: getSettings,
     patch: (patch) => patchSettings(patch as never),
     timings: {},
+    updateInstalls: 0,
+    async offerUpdate(offer, plan = {}) {
+      const update = await import('./update');
+      update.useUpdater({
+        check: async () => null,
+        async download(onProgress) {
+          onProgress(30);
+          await new Promise((r) => setTimeout(r, 300));
+          if (plan.fail) throw new Error(plan.fail);
+          onProgress(100);
+        },
+        install: () => {
+          const hooks = globalThis.__anyshot;
+          if (hooks) hooks.updateInstalls++;
+        },
+      });
+      update.showUpdate(offer);
+    },
+    async startupCheck() {
+      const update = await import('./update');
+      let checks = 0;
+      update.useUpdater({
+        check: async () => {
+          checks++;
+          return { version: '99.0.0', releaseNotes: null };
+        },
+        download: async () => {},
+        install: () => {},
+      });
+      await update.checkAtStartup();
+      return checks;
+    },
   };
 }
 

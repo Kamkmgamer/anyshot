@@ -14,6 +14,7 @@ const WINDOWS = [
   'recorder',
   'scroll',
   'ocr',
+  'update',
 ] as const;
 
 const rendererInputs = Object.fromEntries(
