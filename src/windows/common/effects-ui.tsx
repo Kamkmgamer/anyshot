@@ -100,7 +100,13 @@ export function EffectPopovers({ c }: { c: Controller }) {
       />
     );
     return (
-      <div class="popover effects" onPointerDown={stop} data-testid="adjust-popover">
+      <div
+        class="popover effects"
+        role="dialog"
+        aria-label="Adjust"
+        onPointerDown={stop}
+        data-testid="adjust-popover"
+      >
         <div class="presets">
           {PRESETS.map((p) => (
             <button
@@ -141,7 +147,13 @@ export function EffectPopovers({ c }: { c: Controller }) {
       />
     );
     return (
-      <div class="popover effects" onPointerDown={stop} data-testid="beautify-popover">
+      <div
+        class="popover effects"
+        role="dialog"
+        aria-label="Beautify"
+        onPointerDown={stop}
+        data-testid="beautify-popover"
+      >
         <label class="opt">
           <input
             type="checkbox"

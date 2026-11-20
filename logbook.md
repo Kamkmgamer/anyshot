@@ -12,7 +12,9 @@
 - Popover buttons carry `aria-haspopup="dialog"` and `aria-expanded` instead of `aria-pressed` (also the marker the dismissal keeps open for). The editor's save menu already closed on outside clicks and Esc.
 - Tests: unit `pressOutcome`; e2e for the overlay (a press inside keeps it; a drag on the image closes it without drawing, then draws; Esc closes it and keeps the capture; a second Esc cancels) and the editor (toggle, swap with another popover, another tool closes it and is chosen, a click beside the image, Esc keeps the editor). Both e2e specs fail on main.
 
-**Next:** CodeRabbit on PR, merge; then the text style popover uses the same dismissal.
+- CodeRabbit round 1 on PR #8 (1 finding, fixed): the colour, Adjust and Beautify popovers have `role="dialog"` and a name, matching the `aria-haspopup="dialog"` their buttons announce; e2e finds Adjust by that role.
+
+**Next:** merge; PR #9 (text styles) builds on it.
 
 ## 2026-11-20 - releases from main (branch `ci/release-on-main`)
 
