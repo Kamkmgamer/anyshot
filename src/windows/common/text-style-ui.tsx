@@ -17,9 +17,12 @@ const SIZE_PRESETS = [16, 24, 36, 48, 72];
 
 /** The next text size up or down: steps of 2 up to 24, 4 up to 64, then 8, so up and down retrace each other. */
 export function stepTextSize(size: number, direction: 1 | -1): number {
-  const at = direction > 0 ? size : size - 1;
-  const step = at < 24 ? 2 : at < 64 ? 4 : 8;
-  return Math.max(TEXT_SIZE.min, Math.min(TEXT_SIZE.max, size + direction * step));
+  const clamp = (v: number) => Math.max(TEXT_SIZE.min, Math.min(TEXT_SIZE.max, v));
+  const up = (v: number) => v + (v < 24 ? 2 : v < 64 ? 4 : 8);
+  if (direction > 0) return clamp(up(size));
+  // Smaller undoes Larger: the size one step up from it, whatever band that step started in.
+  const from = [8, 4, 2].map((step) => size - step).find((v) => up(v) === size);
+  return clamp(from ?? size - (size <= 24 ? 2 : size <= 64 ? 4 : 8));
 }
 
 /**

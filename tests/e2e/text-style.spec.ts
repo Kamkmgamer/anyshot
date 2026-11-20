@@ -177,6 +177,8 @@ test('the text style popover restyles text live, and the canvas matches the expo
   const exported = await clipboardPixels();
   const shown = await screenPixels(editor);
   expect({ width: shown.width, height: shown.height }).toEqual({ width: 300, height: 200 });
+  expect({ width: exported?.width, height: exported?.height }).toEqual({ width: 300, height: 200 });
+  expect(exported?.bgra.length).toBe(shown.rgba.length);
   let differing = 0;
   let white = 0;
   for (let i = 0; i < shown.rgba.length; i += 4) {

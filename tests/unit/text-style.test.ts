@@ -81,8 +81,13 @@ describe('text styles', () => {
     expect(stepTextSize(72, -1)).toBe(64);
     expect(stepTextSize(8, -1)).toBe(8);
     expect(stepTextSize(200, 1)).toBe(200);
-    for (const size of [8, 12, 22, 24, 30, 60, 64, 100, 184])
-      expect(stepTextSize(stepTextSize(size, 1), -1)).toBe(size);
+    // Across band edges too: 62 → 66 → 62, 23 → 25 → 23.
+    expect(stepTextSize(stepTextSize(62, 1), -1)).toBe(62);
+    expect(stepTextSize(stepTextSize(23, 1), -1)).toBe(23);
+    for (let size = 8; size < 200; size++) {
+      const larger = stepTextSize(size, 1);
+      if (larger < 200) expect(stepTextSize(larger, -1)).toBe(size);
+    }
   });
 
   it('defaults the tool to the old look', () => {

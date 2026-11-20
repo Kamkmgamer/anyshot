@@ -14,8 +14,9 @@
 - The overlay's floating toolbar measured only itself, so popovers hanging below it could run off the screen. Popovers now open above the bar when there is no room below (`popoverSide`).
 - Tests: unit (font string, italic box, old docs, malformed style, `restyle` with unit, size steps, settings defaults, outline and underline drawing calls); e2e (live restyle while typing, saved style, remembered settings, canvas = export pixels, restyling selected text with undo, popovers upwards near the bottom). Screenshot `text-style.png`.
 - CodeRabbit round 1 on PR #9 (2 findings, fixed): the edit box previews the outline the canvas draws (`textOutline`, shared; drawn as a ring of text shadows at half the stroke width, because `-webkit-text-stroke` hid the underline in the box) and drops it when Outline is off. With the select tool, the popover and its button show the selected text's own style (the first selected text; size in tool units) and toggle from it, so the first click on Italic for italic text turns it off; for the text tool they show the remembered style. Unit and e2e tests for both.
+- CodeRabbit round 2 on PR #9 (2 findings, fixed): Smaller now undoes Larger across band edges too (62 → 66 → 62; unit test over every size), and the canvas = export e2e checks the exported size and buffer length before comparing pixels. Also found while regenerating the screenshot: `-webkit-text-stroke` hid the underline in the edit box, so the outline preview is a ring of text shadows.
 
-**Next:** CodeRabbit round 2, merge.
+**Next:** merge; the user tries the text styles on Windows (fonts: Segoe UI, Georgia, Consolas, Segoe Print).
 
 ## 2026-11-20 - auto-update (branch `feat/auto-update`)
 
