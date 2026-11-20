@@ -3,7 +3,7 @@ import { parseAnnotation } from '../../src/engine/document';
 import { DEFAULT_TEXT_STYLE, type TextAnnotation } from '../../src/engine/model';
 import { drawAnnotation, type RenderEnv, textOutline } from '../../src/engine/render';
 import { estimateTextWidth, setTextMeasurer, textBox, textFont } from '../../src/engine/shapes';
-import { restyle } from '../../src/engine/view';
+import { outlineShadow, restyle } from '../../src/engine/view';
 import { DEFAULT_SETTINGS, parseSettings } from '../../src/shared/settings';
 import { selectedTextStyle } from '../../src/windows/common/annotator';
 import { shownTextStyle, stepTextSize } from '../../src/windows/common/text-style-ui';
@@ -168,5 +168,10 @@ describe('text style shown for the selection', () => {
     expect(textOutline({ ...text, color: '#ffffff' })?.color).toBe('rgba(0,0,0,0.6)');
     expect(textOutline({ ...text, style: { ...text.style, outline: false } })).toBeNull();
     expect(textOutline({ ...text, background: true })).toBeNull();
+    // The edit box draws it as shadows all around, at half the stroke width.
+    const ring = outlineShadow(2, 'red').split(', ');
+    expect(ring).toHaveLength(8);
+    expect(ring).toContain('2px 0px 0 red');
+    expect(ring).toContain('-1.41px -1.41px 0 red');
   });
 });

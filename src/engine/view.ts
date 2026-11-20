@@ -669,13 +669,12 @@ export class CanvasView {
       lineHeight: String(TEXT_LINE_HEIGHT),
       textDecoration: draft.style.underline ? 'underline' : 'none',
     });
-    // The canvas strokes the outline under the letters (centred on their edge, so half shows).
+    // The canvas strokes the outline under the letters, centred on their edge, so half of
+    // it shows. A ring of shadows draws the same, and also around the underline.
     const outline = textOutline(draft);
-    editor.style.setProperty(
-      '-webkit-text-stroke',
-      outline ? `${outline.width * scale}px ${outline.color}` : '0',
-    );
-    editor.style.setProperty('paint-order', 'stroke fill');
+    editor.style.textShadow = outline
+      ? outlineShadow((outline.width / 2) * scale, outline.color)
+      : 'none';
     target.fit();
   }
 
@@ -729,6 +728,22 @@ export class CanvasView {
     }
     this.source = null;
   }
+}
+
+/** Text shadows in eight directions at radius r: an outline for HTML text. */
+export function outlineShadow(r: number, color: string): string {
+  const d = Math.round(r * Math.SQRT1_2 * 100) / 100;
+  const at = (x: number, y: number) => `${x}px ${y}px 0 ${color}`;
+  return [
+    at(r, 0),
+    at(-r, 0),
+    at(0, r),
+    at(0, -r),
+    at(d, d),
+    at(-d, d),
+    at(d, -d),
+    at(-d, -d),
+  ].join(', ');
 }
 
 function context(canvas: HTMLCanvasElement, options?: CanvasRenderingContext2DSettings) {

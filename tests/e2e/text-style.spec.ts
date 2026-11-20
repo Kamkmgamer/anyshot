@@ -121,10 +121,10 @@ test('the text style popover restyles text live, and the canvas matches the expo
   await popover.getByTestId('text-italic').click();
   await popover.getByTestId('text-underline').click();
   // The box previews the outline the canvas draws, until it is turned off.
-  const strokeWidth = () => box.evaluate((el) => getComputedStyle(el).webkitTextStrokeWidth);
-  expect(Number.parseFloat(await strokeWidth())).toBeGreaterThan(0);
+  const shadow = () => box.evaluate((el) => getComputedStyle(el).textShadow);
+  expect(await shadow()).toContain('rgba(255, 255, 255, 0.85)');
   await popover.getByTestId('text-outline').click();
-  await expect.poll(strokeWidth).toBe('0px');
+  await expect.poll(shadow).toBe('none');
   await popover.getByTestId('text-size-up').click();
   await popover.getByTestId('text-size-up').click();
   await expect(popover.getByTestId('text-size')).toHaveText('36');
