@@ -173,25 +173,24 @@ function App() {
 
   const lastIndex = Math.max(0, shown.length - 1);
   const selected = Math.min(selection, lastIndex);
-  useEffect(() => {
-    if (selection !== selected) setSelected(selected);
-  }, [selection, selected]);
   const previewed = previewing ? shown[selected] : undefined;
-  // The selection follows its capture when the list reloads (a capture added or
-  // removed elsewhere shifts the indexes), so actions never hit another capture.
+  // The selection follows its capture when the list reloads or the filter
+  // changes (a capture added or removed elsewhere shifts the indexes), so
+  // actions never hit another capture. Only when that capture is gone does it
+  // fall back to the nearest index. One update, so neither overrides the other.
   const selectedId = useRef<string | undefined>(undefined);
   const deletedByUser = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
     const id = selectedId.current;
-    if (!id) return;
-    const i = shown.findIndex((e) => e.id === id);
+    const i = id ? shown.findIndex((e) => e.id === id) : -1;
     if (i >= 0) {
-      if (i !== selected) setSelected(i);
-    } else if (previewing && id !== deletedByUser.current) {
-      // Removed elsewhere (e.g. pruned): close rather than show another capture.
-      setPreviewing(false);
+      if (i !== selection) setSelected(i);
+      return;
     }
-  }, [entries]);
+    // Removed elsewhere (e.g. pruned): close rather than show another capture.
+    if (previewing && id && id !== deletedByUser.current) setPreviewing(false);
+    if (selection !== selected) setSelected(selected);
+  }, [entries, filter]);
   useLayoutEffect(() => {
     selectedId.current = shown[selected]?.id;
   });

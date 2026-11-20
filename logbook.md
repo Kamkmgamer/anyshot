@@ -21,9 +21,10 @@
 - Third CodeRabbit pass (on `519eb02`): a move drag re-clamps its delta on release against the current endpoints, since an arrow-key nudge during the drag moves them (e2e fails without it: end at 340). The history preview's initial focus and Tab trap moved to layout effects too.
 - Fourth CodeRabbit pass (on `e2a723f`): replacing a capture keeps its id, so the History window kept showing the old pixels (preview and, pre-existing, grid thumbnails: same URL, cached image). Entries now get `updatedAt` on replace and the window's media URLs carry `?v=<updatedAt ?? createdAt>` (the protocol route ignores the query). e2e fails without it.
 - Fifth CodeRabbit pass (on `8f8b160`): the history selection was an index, so a capture arriving while the preview was open shifted it and actions hit another capture. The selection now re-anchors to its capture's id when the list reloads; if the previewed capture is removed elsewhere (e.g. pruned) the preview closes, while Delete from the preview still moves on to the next one. The replace e2e now also compares a pixel of the edit, not just the width.
+- Sixth CodeRabbit pass (on `af4149b`): the id re-anchor and a separate index-bounds effect both corrected the selection in one render, and the deferred bounds update won (e.g. Clear keeping two held captures moved the selection from the kept capture to the other one). One layout effect now does both: keep the capture by id, and clamp only when it is gone. e2e fails without it.
 - GitHub Actions is disabled for this repository (`actions/permissions` → `enabled: false`), so no CI has run since the v1 pushes at 20:40; a manual dispatch stays queued. Checks were run on the box instead.
 
-**Next:** re-enable Actions (repo Settings ▸ Actions) to get Linux + Windows CI on PR #2; verify on Windows (see the user-feedback entry); merge PR #2 after review.
+**Next:** PR #2 merged; re-enable Actions (repo Settings ▸ Actions) for Linux + Windows CI and verify on Windows (see the user-feedback entry).
 
 ## 2026-11-19 - user feedback (branch `feat/user-feedback`)
 

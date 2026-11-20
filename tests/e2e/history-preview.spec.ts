@@ -196,3 +196,36 @@ test('the preview stays on its capture when a new capture arrives', async () => 
   await expect(history.getByText('3 / 4')).toBeVisible();
   await expect(meta).toContainText('200 × 100');
 });
+
+test('the selection stays on its capture when captures before it are cleared', async () => {
+  await capture(300, 200);
+  await capture(250, 150);
+  await capture(200, 100);
+  await capture(100, 50);
+  await dispatch(ctx.app, 'history');
+  const history = await pageOf(ctx.app, 'history');
+  const cards = history.getByTestId('history-card');
+  await expect(cards).toHaveCount(4);
+  // Open editors keep the two oldest captures through Clear.
+  await cards.nth(2).dblclick();
+  await expect.poll(() => windowKinds(ctx.app)).toContain('editor');
+  await cards.nth(3).dblclick();
+  await expect
+    .poll(async () => (await windowKinds(ctx.app)).filter((k) => k === 'editor').length)
+    .toBe(2);
+  // Select the 250 × 150 capture, third of four.
+  await cards.nth(2).click();
+  await expect(history.getByTestId('preview-meta')).toContainText('250 × 150');
+  await history.keyboard.press('Escape');
+  await expect(history.getByRole('dialog')).toHaveCount(0);
+
+  history.once('dialog', (d) => void d.accept());
+  await history.getByRole('button', { name: 'Clear' }).click();
+  await expect(cards).toHaveCount(2);
+  // It is now first; the old index (2) clamped to the last card must not win.
+  await expect(cards.nth(0)).toHaveClass(/\bselected\b/);
+  await expect(cards.nth(1)).not.toHaveClass(/\bselected\b/);
+  // Focus is still on Clear, so copy with the shortcut rather than Enter.
+  await history.keyboard.press('Control+c');
+  await expect.poll(clipboardSize).toEqual({ width: 250, height: 150 });
+});
