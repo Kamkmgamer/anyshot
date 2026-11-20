@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 import { closeFixture, FIXTURE, showFixture } from './fixture';
 import {
+  clickClosing,
   dispatch,
   type Launched,
   launch,
@@ -75,7 +76,7 @@ test('a capture lands in history and shows a floating preview that can save', as
   await expect.poll(async () => (await readdir(saveDir).catch(() => [])).length).toBe(1);
   await expect.poll(async () => (await historyIndex())[0]?.savedPath).toContain(saveDir);
 
-  await floating.getByRole('button', { name: 'Close' }).click();
+  await clickClosing(floating.getByRole('button', { name: 'Close' }));
   await expect.poll(() => windowKinds(ctx.app)).not.toContain('floating');
 });
 
@@ -125,7 +126,7 @@ test('closing previews and pins returns to no renderers', async () => {
   const again = await captureCard();
   await pressClosing(again, 'Control+c');
   const floating = await pageOf(ctx.app, 'floating');
-  await floating.getByRole('button', { name: 'Close' }).click();
+  await clickClosing(floating.getByRole('button', { name: 'Close' }));
   await expect.poll(() => windowKinds(ctx.app)).toEqual([]);
   await expect
     .poll(async () => rendererCount(await processTypes(ctx.app)), { timeout: 30_000 })

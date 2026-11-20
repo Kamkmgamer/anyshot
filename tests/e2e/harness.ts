@@ -1,7 +1,13 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { _electron, type ElectronApplication, expect, type Page } from '@playwright/test';
+import {
+  _electron,
+  type ElectronApplication,
+  expect,
+  type Page,
+  type Locator,
+} from '@playwright/test';
 import type { WindowKind } from '../../src/shared/ipc';
 import { FIXTURE } from './fixture';
 
@@ -133,6 +139,13 @@ export function rendererCount(types: string[]): number {
 /** Presses a key that may close the page (e.g. Esc in the overlay). */
 export async function pressClosing(page: Page, key: string): Promise<void> {
   await page.keyboard.press(key).catch((error: Error) => {
+    if (!/closed/i.test(error.message)) throw error;
+  });
+}
+
+/** Clicks a control that closes its own window: the window may be gone before the click returns. */
+export async function clickClosing(locator: Locator): Promise<void> {
+  await locator.click().catch((error: Error) => {
     if (!/closed/i.test(error.message)) throw error;
   });
 }

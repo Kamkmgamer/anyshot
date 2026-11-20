@@ -215,9 +215,14 @@ function Secret(props: {
     <input
       id={props.id}
       type="password"
-      value=""
+      // Uncontrolled: a controlled value="" would wipe what the user is typing whenever
+      // the page re-renders (e.g. another setting saved in between). Cleared once sent.
       placeholder={props.stored ? '•••••••• (stored)' : (props.placeholder ?? '')}
-      onChange={(e) => props.onChange((e.target as HTMLInputElement).value)}
+      onChange={(e) => {
+        const input = e.target as HTMLInputElement;
+        props.onChange(input.value);
+        input.value = '';
+      }}
     />
   );
 }

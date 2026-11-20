@@ -2,7 +2,15 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { FIXTURE, showFixture } from './fixture';
-import { dispatch, type Launched, launch, pageOf, verifyAndClose, windowKinds } from './harness';
+import {
+  clickClosing,
+  dispatch,
+  type Launched,
+  launch,
+  pageOf,
+  verifyAndClose,
+  windowKinds,
+} from './harness';
 
 let ctx: Launched;
 
@@ -42,7 +50,11 @@ async function dragCard() {
 }
 
 async function historyWidths(): Promise<number[]> {
-  const index = JSON.parse(await readFile(join(ctx.userData, 'history', 'index.json'), 'utf8'));
+  // Written once the capture is delivered; polled until then.
+  const text = await readFile(join(ctx.userData, 'history', 'index.json'), 'utf8').catch(
+    () => '[]',
+  );
+  const index = JSON.parse(text);
   return (index as { width: number }[]).map((e) => e.width);
 }
 
@@ -67,7 +79,7 @@ test('selecting an area captures it at once and shows the thumbnail, whose Edit 
   await expect(floating.getByTestId('floating-card')).toHaveCount(1);
 
   await floating.getByTestId('floating-card').hover();
-  await floating.getByTestId('floating-edit').click();
+  await clickClosing(floating.getByTestId('floating-edit'));
   const editor = await pageOf(ctx.app, 'editor');
   await expect(editor.getByTestId('editor-size')).toHaveText(
     `${FIXTURE.card.width} × ${FIXTURE.card.height}`,
