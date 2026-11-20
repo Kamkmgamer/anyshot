@@ -291,3 +291,46 @@ test('record bar audio toggles screenshot', async () => {
     await verifyAndClose(ctx);
   }
 });
+
+test('text style popover screenshot', async () => {
+  const ctx = await launch();
+  try {
+    await ctx.app.evaluate(async () => {
+      await globalThis.__anyshot?.patch({
+        capture: { showThumbnail: false },
+        tools: { color: '#ff3b30' },
+      });
+    });
+    await showFixture(ctx.app);
+    await dispatch(ctx.app, 'captureArea');
+    const overlay = await pageOf(ctx.app, 'overlay');
+    await expect
+      .poll(() =>
+        ctx.app.evaluate(() =>
+          globalThis.__anyshot?.windows().some((w) => w.kind === 'overlay' && w.visible),
+        ),
+      )
+      .toBe(true);
+    await overlay.mouse.move(500, 100);
+    await overlay.mouse.down();
+    await overlay.mouse.move(1100, 520, { steps: 6 });
+    await overlay.mouse.up();
+    await overlay.getByTestId('tool-text').click();
+    // A placed text in the default style, then a styled one being typed.
+    await overlay.mouse.click(560, 300);
+    await overlay.keyboard.type('Default style');
+    await overlay.keyboard.press('Enter');
+    await overlay.mouse.click(560, 400);
+    await overlay.keyboard.type('Serif, italic, underlined');
+    await overlay.getByTestId('text-style').click();
+    const popover = overlay.getByTestId('text-popover');
+    await popover.getByTestId('text-font-serif').click();
+    await popover.getByTestId('text-italic').click();
+    await popover.getByTestId('text-underline').click();
+    await popover.getByRole('button', { name: '#007aff' }).click();
+    await overlay.waitForTimeout(300);
+    await overlay.screenshot({ path: out('text-style.png') });
+  } finally {
+    await verifyAndClose(ctx);
+  }
+});

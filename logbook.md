@@ -4,7 +4,17 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). Open branches: `fix/scroll-hud` (PR #7), `fix/popover-dismiss`. To resume: read this logbook first, then continue from the "Next:" line below.
+- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). Open branches: `fix/scroll-hud` (PR #7), `fix/popover-dismiss` (PR #8), `feat/text-styles` (on #8). To resume: read this logbook first, then continue from the "Next:" line below.
+
+## 2026-11-20 - text tool styles (branch `feat/text-styles`, on top of `fix/popover-dismiss`)
+
+- Text had one style (semibold sans with an outline). Text annotations now carry a `style` (`font`, `bold`, `italic`, `underline`, `outline`). Older documents and projects without one read as the old look (`DEFAULT_TEXT_STYLE`), and malformed fields fall back field by field. Fonts are system-safe families, each listing the Windows font first, then Linux ones, then the generic family: Sans (Segoe UI), Serif (Georgia), Mono (Consolas), Hand (Segoe Print / Comic Sans MS, `cursive` on Linux).
+- One renderer: `drawText` (used by the canvas and the export) builds the font with `textFont(size, style)`, draws the outline only when asked, and draws the underline as a rect under each non-empty line at its measured width. Italic boxes are 0.2 em wider for the lean. e2e: the on-screen layers (image + annotations) and the copied image are compared pixel by pixel: 0 pixels differ by more than 8.
+- **Style popover:** the text tool's options row shows a "Text style" button that previews the style ("Aa", font · size) and opens a popover with font, B / I / U / Outline, size (−/+, steps 2/4/8 that retrace each other, presets 16–72) and colour. Its buttons don't take focus, so a text box being typed keeps focus and restyles live; typing continues and Enter places it in the new style. With the select tool, the button also shows for selected text and restyles it, one undo step per change. Choices persist as tool settings (`textFont`, `textBold`, `textItalic`, `textUnderline`, `textOutline`). It closes on a press outside and on Esc, like the other popovers.
+- The overlay's floating toolbar measured only itself, so popovers hanging below it could run off the screen. Popovers now open above the bar when there is no room below (`popoverSide`).
+- Tests: unit (font string, italic box, old docs, malformed style, `restyle` with unit, size steps, settings defaults, outline and underline drawing calls); e2e (live restyle while typing, saved style, remembered settings, canvas = export pixels, restyling selected text with undo, popovers upwards near the bottom). Screenshot `text-style.png`.
+
+**Next:** CodeRabbit on the PR; merge after PR #8.
 
 ## 2026-11-20 - popovers close on a press outside them (branch `fix/popover-dismiss`)
 
