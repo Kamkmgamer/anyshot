@@ -4,7 +4,15 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Branch `ci/release-on-main` (from `main` at `5c73f32`, PR #4 merged). Session box `98774d41-e95f-40e0-bf34-7b9c66510d54`. To resume: read this logbook first, then continue from the "Next:" line below.
+- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). Open branches: `fix/scroll-hud` (PR #7), `fix/popover-dismiss`. To resume: read this logbook first, then continue from the "Next:" line below.
+
+## 2026-11-20 - popovers close on a press outside them (branch `fix/popover-dismiss`)
+
+- The colour, Adjust and Beautify popovers (overlay and editor) only closed from their own button or Esc. `dismissPopovers` (in `common/popover.ts`, installed by `createAnnotator`, so both windows get it) listens in the capture phase. A press outside the open popover closes it. On the canvas or page the press is swallowed, so it doesn't also draw or start a new selection; on another control (a tool, undo) it closes the popover and still acts. A press inside the popover or on a popover toggle keeps it, so the toggles still toggle. Esc closes the popover first and stops there; the window's own Esc (cancel the capture) waits for the next press. The overlay's and editor's separate Esc branches for popovers are gone.
+- Popover buttons carry `aria-haspopup="dialog"` and `aria-expanded` instead of `aria-pressed` (also the marker the dismissal keeps open for). The editor's save menu already closed on outside clicks and Esc.
+- Tests: unit `pressOutcome`; e2e for the overlay (a press inside keeps it; a drag on the image closes it without drawing, then draws; Esc closes it and keeps the capture; a second Esc cancels) and the editor (toggle, swap with another popover, another tool closes it and is chosen, a click beside the image, Esc keeps the editor). Both e2e specs fail on main.
+
+**Next:** CodeRabbit on PR, merge; then the text style popover uses the same dismissal.
 
 ## 2026-11-20 - releases from main (branch `ci/release-on-main`)
 
