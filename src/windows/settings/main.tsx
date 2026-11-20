@@ -581,6 +581,16 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
               onChange={(quickAction) => patch({ capture: { quickAction } })}
             />
           </Row>
+          <Row
+            label="Instant preview"
+            hint="Edit the selection right away. Off: capture at once, then use Edit on the thumbnail"
+          >
+            <Toggle
+              value={c.instantPreview}
+              onChange={(v) => patch({ capture: { instantPreview: v } })}
+              testId="instant-preview"
+            />
+          </Row>
           <Row label="Also open in the editor after quick capture">
             <Toggle
               value={c.openEditorAfterQuick}

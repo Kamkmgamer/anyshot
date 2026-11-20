@@ -20,13 +20,16 @@ export interface Launched {
  */
 export async function launch(
   args: string[] = [],
-  settings?: unknown,
+  settings: { capture?: Record<string, unknown> } & Record<string, unknown> = {},
   env: Record<string, string> = {},
 ): Promise<Launched> {
   const userData = await mkdtemp(join(tmpdir(), 'anyshot-e2e-'));
   let launched: ElectronApplication | undefined;
   try {
-    if (settings) await writeFile(join(userData, 'settings.json'), JSON.stringify(settings));
+    // Most specs drive the edit tools on the selection, so instant preview starts on;
+    // specs of the default flow pass `instantPreview: false`.
+    const initial = { ...settings, capture: { instantPreview: true, ...settings.capture } };
+    await writeFile(join(userData, 'settings.json'), JSON.stringify(initial));
     const errors: string[] = [];
     const app = await _electron.launch({
       args: ['.', ...args],

@@ -72,8 +72,17 @@ function Card({
       <div class="hover">
         {corner('close', 'Close', 'tl', () => void api.invoke('floating:dismiss', item.id))}
         {corner('pin', 'Pin to screen', 'tr', () => void run('pin', true))}
-        {corner('editor', 'Open in editor', 'bl', () => void run('edit', true))}
         <div class="center">
+          <button
+            type="button"
+            data-testid="floating-edit"
+            onClick={(e) => {
+              e.stopPropagation();
+              void run('edit', true);
+            }}
+          >
+            Edit
+          </button>
           <button
             type="button"
             data-testid="floating-copy"

@@ -66,6 +66,8 @@ export const settingsSchema = obj({
   capture: obj({
     quickAction: oneOf(['copy', 'save', 'copy+save', 'save+copyPath', 'none'], 'copy'),
     openEditorAfterQuick: bool(false),
+    /** Show the edit tools on the selection instead of capturing it at once. */
+    instantPreview: bool(false),
     doubleClickToCopy: bool(true),
     hideInstructions: bool(false),
     dimOutside: bool(true),

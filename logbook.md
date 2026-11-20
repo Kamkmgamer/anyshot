@@ -4,7 +4,15 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Branch `feat/user-feedback` (from `main` at `ea910ce`). To resume: read this logbook first, then continue from the "Next:" line below.
+- Branch `feat/capture-flow-icons` (from `main` at `a5dba9e`, PR #2 merged). To resume: read this logbook first, then continue from the "Next:" line below.
+
+## 2026-11-20 - capture flow, scroll capture, logo (branch `feat/capture-flow-icons`)
+
+Feedback from testing on Windows.
+
+- **Capture at once, instant preview opt-in.** New `capture.instantPreview` (default off). Off: choosing an area (drag, click, F, R), full-screen capture and "capture last area" run the quick action at once and show the floating thumbnail; its new **Edit** button (with Copy and Save) opens the editor. On: the old flow, with the edit tools on the selection. Full-screen capture without preview takes only the display under the pointer. `quick` mode and OCR are unchanged. The overlay's full-screen size now comes from the display bounds, not `innerWidth` (a capture at load ran before the window had its final size: 1279 instead of 1280). e2e harness: specs start with `instantPreview: true` (they drive the edit tools); `capture-flow.spec.ts` covers the default flow.
+
+**Next:** scroll capture on Windows, then the new logo.
 
 ## 2026-11-19 - PR #2 CodeRabbit fixes
 
