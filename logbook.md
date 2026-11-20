@@ -4,7 +4,17 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Branch `ci/release-on-main` (from `main` at `5c73f32`, PR #4 merged). Session box `98774d41-e95f-40e0-bf34-7b9c66510d54`. To resume: read this logbook first, then continue from the "Next:" line below.
+- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). Open branches: `fix/scroll-hud` (PR #7), `fix/popover-dismiss` (PR #8), `feat/text-styles` (PR #9, on #8), `feat/auto-update`. To resume: read this logbook first, then continue from the "Next:" line below.
+
+## 2026-11-20 - auto-update (branch `feat/auto-update`)
+
+- **electron-updater** (6.8.11) reads `app-update.yml`, which electron-builder now writes from the new `publish:` block (GitHub, this repo, `releaseType: release`). CI still builds with `--publish never` and uploads the files itself. Checked on the box with a Linux build: `latest-linux.yml` lists the AppImage (first, with `blockMapSize`) and the `.deb`; `app-update.yml` points at GitHub; only the deb gets `package-type` (so an AppImage gets `AppImageUpdater`, a deb `DebUpdater`).
+- **Windows metadata for both arches:** each NSIS build writes a `latest.yml` with only its own installer. The release workflow keeps both and merges them (`scripts/merge-update-metadata.ts`, dependency-free, unit-tested; the x64 one stays the default `path`). electron-updater picks the file whose name contains `process.arch` (checked in its `findFile`), so ARM64 machines get the `-arm64.exe`. The workflow uploads the `.exe.blockmap`s, `latest.yml` and `latest-linux.yml`, checks each by name, and checks that every unpacked build has `app-update.yml`.
+- **Startup check** (`main/update.ts`): 5 s after startup, only when packaged, not under test, and if Settings ▸ General ▸ "Check for updates" (new, on by default) allows. No auto-download. A failed check (offline, rate limit, no release yet) is logged and nothing else. `checkForUpdate` in `shared/update.ts` takes its dependencies, so this is unit-tested without Electron.
+- **Update window** (`windows/update`): version, "You have X", up to 5 notes (the release's list items without "by @user in #12" credits or the download table; `shortNotes`), a Release notes link, **Later** / **Update**. Update downloads with a progress bar, then `quitAndInstall(silent, run after)`. A failure shows the reason and "Try again". Self-update: the NSIS install and an AppImage (`APPIMAGE` set). A `.deb` install says so and offers **Download**, which opens the release page. The release notes gained a line about this.
+- Tests: unit (notes from GitHub HTML and Markdown, self-update by platform, startup check: offers / disabled / offline / latest, metadata merge). e2e with a fake updater through test hooks: no check when unpackaged, the window's text, notes and links, progress then install, a failed download and Try again, Later, the `.deb` Download, the Settings toggle. Screenshot `update.png`.
+
+**Next:** CodeRabbit on the PR; after merge the first release with the update files is the one that existing installs can update *to* from the next one (0.1.x installs have no updater yet). The user checks on Windows: install release N, publish N+1, start N: the window appears, and Update installs and restarts.
 
 ## 2026-11-20 - releases from main (branch `ci/release-on-main`)
 
