@@ -264,6 +264,13 @@ function onKeyDown(e: KeyboardEvent): void {
   if (ui.get().busy) return;
   const mod = e.ctrlKey || e.metaKey;
   if (!mod && e.key !== 'Escape' && nativeInputOwnsKey(e)) return;
+  // A record-bar button reached with Tab keeps its own Enter and Space.
+  if (
+    (e.key === 'Enter' || e.key === ' ') &&
+    e.target instanceof HTMLButtonElement &&
+    e.target.closest('[data-testid="record-actions"]')
+  )
+    return;
   const key = e.key.toLowerCase();
   if (e.key === ' ') {
     spaceHeld = true;
@@ -435,8 +442,9 @@ function Floating(props: {
 function AudioToggles() {
   const { microphone, systemAudio } = useStore(ui, (s) => s.audio);
   const onOff = (on: boolean) => (on ? 'on' : 'off');
+  // A click doesn't move focus here, so Enter afterwards still starts the recording.
   return (
-    <>
+    <div class="audio-toggles" onMouseDown={(e) => e.preventDefault()}>
       <Button
         icon={systemAudio ? 'speaker' : 'speakerOff'}
         label={
@@ -456,7 +464,7 @@ function AudioToggles() {
         onClick={() => toggleAudio('microphone')}
         testId="audio-mic"
       />
-    </>
+    </div>
   );
 }
 

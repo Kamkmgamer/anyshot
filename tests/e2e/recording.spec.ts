@@ -69,6 +69,9 @@ async function recordFor(
   setup?: (overlay: Page) => Promise<void>,
 ): Promise<string> {
   const before = await readdir(dir).catch((): string[] => []);
+  const started = () =>
+    ctx.app.evaluate(() => globalThis.__anyshot?.timings.recordingStarted?.length ?? 0);
+  const startsBefore = await started();
   const overlay = await recordBar(action);
   await setup?.(overlay);
   await overlay
@@ -76,6 +79,8 @@ async function recordFor(
     .click()
     .catch(() => {});
   await expect.poll(() => windowKinds(ctx.app)).toEqual(['recorder']);
+  // The window exists before capture starts; time the clip from the recorder's own start.
+  await expect.poll(started, { timeout: 15_000 }).toBeGreaterThan(startsBefore);
   const tray = await ctx.app.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items[0]?.label);
   expect(tray).toBe('Stop recording');
   await new Promise((r) => setTimeout(r, ms));
@@ -168,6 +173,15 @@ test('the record bar toggles the microphone and computer audio, and remembers th
   await overlay.keyboard.press('m');
   await expect(mic).toHaveAttribute('aria-pressed', 'false');
   await expect.poll(async () => (await recordingSettings()).microphone).toBe(false);
+  // A click leaves focus alone, so Enter would still start the recording...
+  expect(await mic.evaluate((el) => el === document.activeElement)).toBe(false);
+  // ...but a toggle reached with the keyboard takes its own Enter and Space.
+  await mic.focus();
+  await overlay.keyboard.press('Enter');
+  await expect(mic).toHaveAttribute('aria-pressed', 'true');
+  await overlay.keyboard.press(' ');
+  await expect(mic).toHaveAttribute('aria-pressed', 'false');
+  expect(await windowKinds(ctx.app)).not.toContain('recorder');
   // Linux has no loopback capture: computer audio is off and explains why.
   await expect(system).toBeDisabled();
   await expect(system).toHaveAttribute('title', /only be recorded on Windows/);
