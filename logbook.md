@@ -4,7 +4,7 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). Open branches: `fix/scroll-hud` (PR #7), `fix/popover-dismiss` (PR #8), `feat/text-styles` (PR #9, on #8), `feat/auto-update`. To resume: read this logbook first, then continue from the "Next:" line below.
+- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). PRs #7 (scroll) and #8 (popovers) are merged. Open: `feat/auto-update` (PR #10), `feat/text-styles` (PR #9). To resume: read this logbook first, then continue from the "Next:" line below.
 
 ## 2026-11-20 - auto-update (branch `feat/auto-update`)
 

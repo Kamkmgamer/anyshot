@@ -130,3 +130,18 @@ export function evenRect(r: Rect): Rect {
     height: Math.max(2, Math.floor(r.height / 2) * 2),
   };
 }
+
+/**
+ * The pointer relative to the capture crop, in display pixels. `physical`, when
+ * given, has the pointer and the display's top-left corner in physical screen pixels.
+ */
+export function pointerInCrop(
+  dip: Point,
+  bounds: Rect,
+  init: { scaleFactor: number; crop: Point },
+  physical: { point: Point; origin: Point } | null,
+): Point {
+  const x = physical ? physical.point.x - physical.origin.x : (dip.x - bounds.x) * init.scaleFactor;
+  const y = physical ? physical.point.y - physical.origin.y : (dip.y - bounds.y) * init.scaleFactor;
+  return { x: x - init.crop.x, y: y - init.crop.y };
+}

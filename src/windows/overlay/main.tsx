@@ -278,9 +278,9 @@ function onKeyDown(e: KeyboardEvent): void {
     e.preventDefault();
     return;
   }
+  // An open popover takes Esc first (see dismissPopovers).
   if (e.key === 'Escape') {
-    if (annotator.controller.store.get().popover) annotator.controller.store.set({ popover: null });
-    else if (!annotator.view.keyDown(e)) void api.invoke('overlay:cancel');
+    if (!annotator.view.keyDown(e)) void api.invoke('overlay:cancel');
     return;
   }
   const phase = ui.get().phase;

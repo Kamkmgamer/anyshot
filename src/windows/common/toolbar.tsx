@@ -36,14 +36,19 @@ export function Button(props: {
   onClick: () => void;
   testId?: string;
   danger?: boolean;
+  /** Set for buttons that toggle a popover: whether it is open. */
+  expanded?: boolean;
 }) {
+  const popover = props.expanded !== undefined;
   return (
     <button
       type="button"
       class={`tb-btn${props.active ? ' active' : ''}${props.danger ? ' danger' : ''}`}
       title={props.label}
       aria-label={props.label}
-      aria-pressed={props.active}
+      aria-pressed={popover ? undefined : props.active}
+      aria-haspopup={popover ? 'dialog' : undefined}
+      aria-expanded={popover ? props.expanded : undefined}
       disabled={props.disabled}
       data-testid={props.testId}
       onClick={props.onClick}
@@ -124,6 +129,8 @@ export function ToolStrip({ c, extra }: { c: Controller; extra?: ComponentChildr
         class="tb-btn swatch-btn"
         title="Colour"
         aria-label="Colour"
+        aria-haspopup="dialog"
+        aria-expanded={s.popover === 'color'}
         data-testid="color"
         onClick={() => c.store.set({ popover: s.popover === 'color' ? null : 'color' })}
       >
@@ -156,7 +163,13 @@ export function ColorPopover({ c }: { c: Controller }) {
   }));
   if (!s.open) return null;
   return (
-    <div class="popover colors" onPointerDown={stop} data-testid="color-popover">
+    <div
+      class="popover colors"
+      role="dialog"
+      aria-label="Colour"
+      onPointerDown={stop}
+      data-testid="color-popover"
+    >
       {s.presets.map((color) => (
         <button
           type="button"
