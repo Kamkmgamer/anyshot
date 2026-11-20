@@ -8,6 +8,7 @@ import { getSettings } from '../settings-store';
 import { recordTiming } from '../test-hooks';
 import { createWindow, send } from '../windows';
 import { grabDisplay } from './grab';
+import { SYSTEM_AUDIO_AVAILABLE } from '../system-audio';
 
 interface OverlayState {
   win: BrowserWindow;
@@ -132,6 +133,7 @@ function buildInit(
     // Without instant preview the full screen is captured at once: only the display under the pointer.
     selectAll: mode === 'screen' && (settings.capture.instantPreview || underCursor),
     settings,
+    systemAudio: SYSTEM_AUDIO_AVAILABLE,
     warm: false,
   };
 }
@@ -295,7 +297,7 @@ handle('capture:record', async (request, { win }) => {
   endCapture();
   if (!display) return;
   const { startRecording } = await import('../recording');
-  await startRecording(display, request.rect, request.gif);
+  await startRecording(display, request.rect, request.gif, request.audio);
 });
 
 handle('capture:scroll', async (request, { win }) => {

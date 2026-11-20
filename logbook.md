@@ -12,7 +12,11 @@
 
 - **Quick capture left the tray menu.** With instant preview off (the default), Capture area already captures at once, so the item was a duplicate. Its shortcut (unbound by default) and `--quick-capture` still work, so a bound key keeps doing what it did. Unit test: the tray template has no Quick capture.
 
-**Next:** recording audio toggles.
+- **Audio toggles on the record bar.** Before, only the microphone could be recorded, and only via Settings; computer audio wasn't recorded at all (`getDisplayMedia` asked for `audio: false`). The record bar (video only; GIFs and scroll capture have no audio) now has two icon toggles under Start: computer audio (speaker) and microphone (mic), with slashed icons when off, `aria-pressed`, and A / M as keys. A toggle also saves itself as the default (`recording.systemAudio`, `recording.microphone`), and the chosen values travel with the record request (`recordingAudio` validates them and falls back to the saved defaults). Computer audio comes from the display stream, which main answers with Windows loopback; Linux has no loopback, so there the toggle is disabled and its tooltip says so. With both on, the recorder mixes them into one track with Web Audio (a file takes one audio track). Settings ▸ Recording gained the computer audio toggle too.
+- GIF conversion read the intermediate video with `UrlSource`, which reads ahead; disposing it aborted those requests, which the e2e harness reports as failed requests (it showed up as a flaky GIF test here). It now reads the local file in one request into a `BufferSource`.
+- Tests: unit `recordingAudio` (choice, defaults, malformed input, GIF, unavailable platform); e2e: toggles by click and key, persisted, computer audio disabled on Linux, no toggles for GIFs; a recording with the microphone toggle on has an audio track (Chromium's fake capture device). Screenshot `record-audio.png`. Not verified: computer audio on real Windows.
+
+**Next:** PR, CodeRabbit rounds, merge; then check computer audio + microphone on Windows.
 
 ## 2026-11-20 - capture flow, scroll capture, logo (branch `feat/capture-flow-icons`)
 

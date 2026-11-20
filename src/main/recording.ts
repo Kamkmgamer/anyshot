@@ -4,6 +4,7 @@ import { app, type BrowserWindow, type Display, Notification, shell } from 'elec
 import { expandTemplate } from '../shared/filename';
 import { evenRect, type Rect, scaleRect } from '../shared/geometry';
 import type { RecorderInit, RecorderStatus } from '../shared/ipc';
+import { recordingAudio } from '../shared/recording-audio';
 import { setAppState } from './app-state';
 import { createUniqueFile } from './atomic-file';
 import { copyText } from './clipboard';
@@ -12,6 +13,7 @@ import { handle } from './ipc';
 import { paths } from './paths';
 import { registerMediaRoute } from './protocol';
 import { getSettings } from './settings-store';
+import { SYSTEM_AUDIO_AVAILABLE } from './system-audio';
 import { recordTiming } from './test-hooks';
 import { createWindow, send } from './windows';
 
@@ -32,9 +34,15 @@ export function isRecording(): boolean {
 }
 
 /** Starts recording a region (CSS px, relative to the display) in a hidden recorder window. */
-export async function startRecording(display: Display, rect: Rect, gif: boolean): Promise<void> {
+export async function startRecording(
+  display: Display,
+  rect: Rect,
+  gif: boolean,
+  chosen?: unknown,
+): Promise<void> {
   if (active) return;
   const settings = getSettings();
+  const audio = recordingAudio(settings.recording, chosen, gif, SYSTEM_AUDIO_AVAILABLE);
   const physical = {
     width: Math.round(display.bounds.width * display.scaleFactor),
     height: Math.round(display.bounds.height * display.scaleFactor),
@@ -45,7 +53,8 @@ export async function startRecording(display: Display, rect: Rect, gif: boolean)
     crop: evenRect(scaleRect(rect, display.scaleFactor)),
     scaleFactor: display.scaleFactor,
     fps: gif ? Math.min(15, settings.recording.fps) : settings.recording.fps,
-    microphone: settings.recording.microphone && !gif,
+    microphone: audio.microphone,
+    systemAudio: audio.systemAudio,
     gif,
   };
   // Only the recorder keeps running while hidden; every other window throttles.

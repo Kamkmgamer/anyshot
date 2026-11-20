@@ -261,3 +261,33 @@ test('history preview, split save and measure screenshots', async () => {
     await verifyAndClose(ctx);
   }
 });
+
+test('record bar audio toggles screenshot', async () => {
+  const ctx = await launch();
+  try {
+    await showFixture(ctx.app);
+    await dispatch(ctx.app, 'recordArea');
+    const overlay = await pageOf(ctx.app, 'overlay');
+    await expect
+      .poll(() =>
+        ctx.app.evaluate(() =>
+          globalThis.__anyshot?.windows().some((w) => w.kind === 'overlay' && w.visible),
+        ),
+      )
+      .toBe(true);
+    await overlay.mouse.move(300, 150);
+    await overlay.mouse.down();
+    await overlay.mouse.move(900, 550, { steps: 4 });
+    await overlay.mouse.up();
+    await overlay.getByTestId('audio-mic').click();
+    await overlay.mouse.move(1000, 700);
+    await overlay.waitForTimeout(300);
+    await overlay.screenshot({
+      path: out('record-audio.png'),
+      clip: { x: 250, y: 100, width: 760, height: 520 },
+    });
+    await pressClosing(overlay, 'Escape');
+  } finally {
+    await verifyAndClose(ctx);
+  }
+});

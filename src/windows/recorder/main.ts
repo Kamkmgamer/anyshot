@@ -1,5 +1,6 @@
 import {
   ALL_FORMATS,
+  BufferSource,
   CanvasSink,
   type CropRectangle,
   getFirstEncodableAudioCodec,
@@ -12,7 +13,6 @@ import {
   QUALITY_HIGH,
   QUALITY_MEDIUM,
   StreamTarget,
-  UrlSource,
   WebMOutputFormat,
 } from 'mediabunny';
 import type { RecorderInit, RecorderStatus } from '../../shared/ipc';
@@ -63,13 +63,26 @@ function cropFor(init: RecorderInit, track: MediaStreamTrack): CropRectangle {
   };
 }
 
+/** Mixes computer audio and the microphone into one track (a file takes one audio track). */
+function mixAudio(sources: MediaStreamTrack[]): { track: MediaStreamTrack; close: () => void } {
+  const context = new AudioContext();
+  const mix = context.createMediaStreamDestination();
+  for (const source of sources)
+    context.createMediaStreamSource(new MediaStream([source])).connect(mix);
+  const track = mix.stream.getAudioTracks()[0];
+  if (!track) throw new Error('Could not mix the audio');
+  return { track, close: () => void context.close() };
+}
+
 async function record(init: RecorderInit): Promise<string> {
   const started = performance.now();
   const stream = await navigator.mediaDevices.getDisplayMedia({
     video: { frameRate: { ideal: init.fps, max: init.fps } },
-    audio: false,
+    // Computer audio comes with the display stream (main answers with Windows loopback).
+    audio: init.systemAudio,
   });
   const tracks: MediaStreamTrack[] = [...stream.getTracks()];
+  let closeMix = () => {};
   try {
     const video = stream.getVideoTracks()[0];
     if (!video) throw new Error('No screen video track');
@@ -80,14 +93,29 @@ async function record(init: RecorderInit): Promise<string> {
     });
     if (!codec) throw new Error('No supported video encoder (H.264, VP9 or VP8) is available');
     const mp4 = codec === 'avc';
-    let audioSource: MediaStreamAudioTrackSource | undefined;
+    const audioTracks = stream.getAudioTracks();
+    if (init.systemAudio && audioTracks.length === 0) {
+      // Recording still goes ahead, just without computer audio.
+      console.warn('[recorder] computer audio was requested but the stream has none');
+    }
     if (init.microphone) {
       const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       tracks.push(...mic.getTracks());
       const audio = mic.getAudioTracks()[0];
       if (!audio) throw new Error('No microphone audio track');
+      audioTracks.push(audio);
+    }
+    let audioSource: MediaStreamAudioTrackSource | undefined;
+    if (audioTracks.length > 0) {
+      let audio = audioTracks[0] as MediaStreamTrack;
+      if (audioTracks.length > 1) {
+        const mixed = mixAudio(audioTracks);
+        tracks.push(mixed.track);
+        closeMix = mixed.close;
+        audio = mixed.track;
+      }
       const audioCodec = await getFirstEncodableAudioCodec(mp4 ? ['aac', 'opus'] : ['opus']);
-      if (!audioCodec) throw new Error('No supported microphone audio encoder is available');
+      if (!audioCodec) throw new Error('No supported audio encoder is available');
       audioSource = new MediaStreamAudioTrackSource(audio as MediaStreamAudioTrack, {
         codec: audioCodec,
         quality: QUALITY_MEDIUM,
@@ -130,14 +158,18 @@ async function record(init: RecorderInit): Promise<string> {
     return path;
   } finally {
     for (const track of tracks) track.stop();
+    closeMix();
   }
 }
 
 /** Converts the intermediate recording to a GIF, decoding and encoding frame by frame. */
 async function toGif(videoPath: string, init: RecorderInit): Promise<void> {
   const gifPath = await api.invoke('recorder:open-file', { ext: 'gif' });
+  // Read in one request: UrlSource reads ahead, and disposing it aborts those requests.
+  const response = await fetch(`/@recording/${encodeURIComponent(videoPath)}`);
+  if (!response.ok) throw new Error(`Could not read the recording (${response.status})`);
   const input = new Input({
-    source: new UrlSource(`/@recording/${encodeURIComponent(videoPath)}`),
+    source: new BufferSource(await response.arrayBuffer()),
     formats: ALL_FORMATS,
   });
   const track = await input.getPrimaryVideoTrack();
