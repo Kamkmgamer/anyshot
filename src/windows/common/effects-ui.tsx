@@ -154,33 +154,50 @@ export function EffectPopovers({ c }: { c: Controller }) {
         onPointerDown={stop}
         data-testid="beautify-popover"
       >
-        <label class="opt">
-          <input
-            type="checkbox"
-            checked={b.enabled}
-            onChange={(e) => set({ enabled: (e.target as HTMLInputElement).checked })}
-          />
-          <span>Frame the output with a background</span>
-        </label>
-        {range('padding', 'Padding', 16, 96)}
-        {range('radius', 'Corners', 0, 30)}
-        {range('shadow', 'Shadow', 0, 100)}
-        <div class="gradients">
-          {BACKGROUNDS.map(([from, to], i) => (
-            <button
-              type="button"
-              key={from}
-              class={i === b.background ? 'active' : ''}
-              aria-label={`Background ${i + 1}`}
-              style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
-              onClick={() => set({ background: i, enabled: true })}
-            />
-          ))}
+        <div class="fx-head">
+          <span>Background</span>
+          <span class={`fx-state${b.enabled ? ' on' : ''}`} data-testid="beautify-state">
+            {b.enabled ? 'On' : 'Off'}
+          </span>
         </div>
+        {/* "None" sits with the backgrounds: removing the frame is picking no background. */}
+        <fieldset class="gradients" aria-label="Background">
+          <button
+            type="button"
+            class={`none${b.enabled ? '' : ' active'}`}
+            title="No background"
+            aria-label="No background"
+            aria-pressed={!b.enabled}
+            data-testid="beautify-none"
+            onClick={() => set({ enabled: false })}
+          />
+          {BACKGROUNDS.map(([from, to], i) => {
+            const chosen = b.enabled && i === b.background;
+            return (
+              <button
+                type="button"
+                key={from}
+                class={chosen ? 'active' : ''}
+                title={`Background ${i + 1}`}
+                aria-label={`Background ${i + 1}`}
+                aria-pressed={chosen}
+                style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
+                onClick={() => set({ background: i, enabled: true })}
+              />
+            );
+          })}
+        </fieldset>
+        <fieldset class="fx-sliders" disabled={!b.enabled} data-testid="beautify-sliders">
+          {range('padding', 'Padding', 16, 96)}
+          {range('radius', 'Corners', 0, 30)}
+          {range('shadow', 'Shadow', 0, 100)}
+        </fieldset>
         <span class="opt hint">
-          {s.framePreview
-            ? 'Shown around the image; applied when you copy, save or pin.'
-            : 'Applied when you copy, save or pin.'}
+          {!b.enabled
+            ? 'Pick a background to frame the image.'
+            : s.framePreview
+              ? 'Shown around the image; applied when you copy, save or pin.'
+              : 'Applied when you copy, save or pin.'}
         </span>
       </div>
     );

@@ -207,7 +207,7 @@ test('invert, beautify and censor change the exported image', async () => {
   await page.getByTestId('fx-invert').click();
   await expect(page.getByTestId('fx-invert')).toHaveAttribute('aria-pressed', 'true');
   await page.getByTestId('fx-beautify').click();
-  await page.getByTestId('beautify-popover').getByRole('checkbox').check();
+  await page.getByTestId('beautify-popover').getByRole('button', { name: 'Background 1' }).click();
   await pressClosing(page, 'Control+c');
   await overlaysGone();
   // Padding 48 on each side at unit 1; the card is inverted inside the frame.
