@@ -330,6 +330,26 @@ test('text style popover screenshot', async () => {
     await popover.getByRole('button', { name: '#007aff' }).click();
     await overlay.waitForTimeout(300);
     await overlay.screenshot({ path: out('text-style.png') });
+test('update window screenshot', async () => {
+  const ctx = await launch();
+  try {
+    await ctx.app.evaluate(() =>
+      globalThis.__anyshot?.offerUpdate({
+        version: '0.3.0',
+        current: '0.1.2',
+        notes: [
+          'Scroll capture: keep track while scrolling slowly, at any scaling',
+          'Close popovers on a click outside them and on Esc',
+          'Text tool styles: font, bold, italic, underline, outline, size, colour',
+        ],
+        releaseUrl: 'https://github.com/mgamergo/anyshot/releases/tag/v0.3.0',
+        canInstall: true,
+      }),
+    );
+    const page = await pageOf(ctx.app, 'update');
+    await expect(page.getByTestId('update-notes')).toBeVisible();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: out('update.png') });
   } finally {
     await verifyAndClose(ctx);
   }

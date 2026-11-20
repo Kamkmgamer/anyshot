@@ -67,5 +67,11 @@ app.whenReady().then(async () => {
   onAppState(() => refreshTray(getSettings()));
   if (isTest) (await import('./test-hooks')).installTestHooks(dispatch);
   if (settings.capture.instantCapture) (await import('./capture/session')).prewarm();
+  // Look for an update once startup has settled; it never blocks or fails startup.
+  setTimeout(() => {
+    import('./update')
+      .then((m) => m.checkAtStartup())
+      .catch((error) => console.warn('[update] check skipped', error));
+  }, 5000);
   for (const command of parseCli(process.argv)) dispatch(command.action, command.file);
 });

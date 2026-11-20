@@ -5,6 +5,7 @@
  */
 import type { Point, Rect, Size } from './geometry';
 import type { DeepPartial, Settings, ToolChoices, ToolId } from './settings';
+import type { UpdateOffer, UpdateStatus } from './update';
 
 export const APP_ORIGIN = 'app://local';
 
@@ -17,7 +18,8 @@ export type WindowKind =
   | 'settings'
   | 'recorder'
   | 'scroll'
-  | 'ocr';
+  | 'ocr'
+  | 'update';
 
 export type CaptureMode =
   | 'area'
@@ -273,6 +275,10 @@ export interface InvokeContract {
 
   'ocr:init': Channel<void, OcrResult>;
 
+  'update:init': Channel<void, { offer: UpdateOffer; status: UpdateStatus }>;
+  /** Downloads the offered update, then quits, installs it and restarts. */
+  'update:install': Channel<void, void>;
+
   'secrets:status': Channel<
     void,
     { available: boolean; backend: string; keys: string[]; weakOptIn: boolean }
@@ -298,6 +304,7 @@ const ALL: readonly WindowKind[] = [
   'recorder',
   'scroll',
   'ocr',
+  'update',
 ];
 
 /** Which window kinds may call each channel. Main enforces this per call. */
@@ -308,7 +315,7 @@ export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind
   'window:close': ALL,
   'window:set-size': ['floating', 'pin'],
   'clipboard:text': ['ocr', 'editor', 'overlay', 'settings'],
-  'shell:open-url': ['ocr', 'settings', 'floating'],
+  'shell:open-url': ['ocr', 'settings', 'floating', 'update'],
 
   'overlay:init': ['overlay'],
   'overlay:painted': ['overlay'],
@@ -353,6 +360,9 @@ export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind
 
   'ocr:init': ['ocr'],
 
+  'update:init': ['update'],
+  'update:install': ['update'],
+
   'secrets:status': ['settings'],
   'secrets:set': ['settings'],
   'uploads:test': ['settings'],
@@ -370,6 +380,7 @@ export interface EventContract {
   'recorder:command': 'stop' | 'pause' | 'resume';
   'recorder:status': RecorderStatus;
   'scroll:command': 'stop' | 'cancel' | 'copy';
+  'update:status': UpdateStatus;
 }
 export type EventChannel = keyof EventContract;
 
@@ -382,6 +393,7 @@ export const EVENT_CHANNELS: readonly EventChannel[] = [
   'recorder:command',
   'recorder:status',
   'scroll:command',
+  'update:status',
 ];
 
 /** The API the preload exposes on `window.anyshot`. */

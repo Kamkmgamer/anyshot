@@ -82,22 +82,38 @@ jobs:
       - run: bun run typecheck
       - run: bun run test
       - run: bun run build
+      # Each build writes latest.yml (the auto-update metadata) for its own installer only:
+      # keep both and merge them, so installed copies find the installer for their CPU.
       - name: Package the x64 and ARM64 installers
+        shell: bash
         run: |
+          set -euo pipefail
           bunx electron-builder --win nsis --x64 --publish never
+          mv dist/latest.yml dist/latest-x64.yml
           bunx electron-builder --win nsis --arm64 --publish never
-      - name: Check each build carries its own screenshot module
+          mv dist/latest.yml dist/latest-arm64.yml
+          bun scripts/merge-update-metadata.ts dist/latest.yml dist/latest-x64.yml dist/latest-arm64.yml
+      - name: Check each build carries its own screenshot module and update files
         shell: bash
         run: |
           set -euo pipefail
           modules() { find "$1" -name 'node-screenshots.*.node' | sed 's#.*/##'; }
           modules dist/win-unpacked | grep -qx 'node-screenshots.win32-x64-msvc.node'
           modules dist/win-arm64-unpacked | grep -qx 'node-screenshots.win32-arm64-msvc.node'
-          ls -l dist/*.exe
+          v="${{ needs.version.outputs.version }}"
+          for arch in x64 arm64; do
+            grep -q "url: anyshot-Setup-$v-$arch.exe" dist/latest.yml
+            test -s "dist/anyshot-Setup-$v-$arch.exe.blockmap"
+            grep -q 'provider: github' "dist/win-$([ $arch = x64 ] && echo unpacked || echo arm64-unpacked)/resources/app-update.yml"
+          done
+          ls -l dist/*.exe dist/*.blockmap dist/latest.yml
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
           if-no-files-found: error
 
   linux:
@@ -116,16 +132,21 @@ jobs:
       - run: bun run build
       - name: Package the .deb and the AppImage
         run: bunx electron-builder --linux deb AppImage --x64 --publish never
-      - name: Check the build carries the screenshot module
+      - name: Check the build carries the screenshot module and update files
         run: |
+          set -euo pipefail
           find dist/linux-unpacked -name 'node-screenshots.linux-x64-gnu.node' | grep -q .
-          ls -l dist/*.deb dist/*.AppImage
+          v="${{ needs.version.outputs.version }}"
+          grep -q "url: anyshot-$v-x86_64.AppImage" dist/latest-linux.yml
+          grep -q 'provider: github' dist/linux-unpacked/resources/app-update.yml
+          ls -l dist/*.deb dist/*.AppImage dist/latest-linux.yml
       - uses: actions/upload-artifact@v4
         with:
           name: linux
           path: |
             dist/*.deb
             dist/*.AppImage
+            dist/latest-linux.yml
           if-no-files-found: error
 
   release:
@@ -148,7 +169,14 @@ jobs:
           set -euo pipefail
           tag="v$version"
           ls -l artifacts
-          test "$(ls artifacts | wc -l)" -eq 4
+          # The installers, plus what electron-updater reads: latest*.yml and the blockmaps.
+          for file in "anyshot-Setup-$version-x64.exe" "anyshot-Setup-$version-x64.exe.blockmap" \
+            "anyshot-Setup-$version-arm64.exe" "anyshot-Setup-$version-arm64.exe.blockmap" \
+            latest.yml "anyshot_${version}_amd64.deb" "anyshot-$version-x86_64.AppImage" \
+            latest-linux.yml; do
+            test -s "artifacts/$file" || { echo "::error::$file is missing"; exit 1; }
+          done
+          test "$(ls artifacts | wc -l)" -eq 8
           {
             sed "s/{{version}}/$version/g" .github/release-notes.md
             echo

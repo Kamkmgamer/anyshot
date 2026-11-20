@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import type { UpdateOffer } from '../shared/update';
 import type { AppAction } from './cli';
 import { frameCount } from './frames';
 import { getSettings, patchSettings } from './settings-store';
@@ -12,6 +13,13 @@ export interface TestHooks {
   settings(): unknown;
   patch(patch: unknown): Promise<unknown>;
   timings: Record<string, number[]>;
+  /** Shows the update window with a fake updater: its download reports progress, then fails or "installs". */
+  offerUpdate(offer: UpdateOffer, plan?: { fail?: string; installFail?: string }): Promise<void>;
+  /** Runs the startup check against a fake updater and returns how often it was asked. */
+  startupCheck(): Promise<number>;
+  updateInstalls: number;
+  /** Loads electron-updater as packaged builds do, without checking: whether it worked. */
+  loadUpdater(): Promise<boolean>;
 }
 
 declare global {
@@ -31,6 +39,44 @@ export function installTestHooks(dispatch: (action: AppAction, file?: string) =>
     settings: getSettings,
     patch: (patch) => patchSettings(patch as never),
     timings: {},
+    updateInstalls: 0,
+    async offerUpdate(offer, plan = {}) {
+      const update = await import('./update');
+      update.useUpdater({
+        check: async () => null,
+        async download(onProgress) {
+          onProgress(30);
+          await new Promise((r) => setTimeout(r, 300));
+          if (plan.fail) throw new Error(plan.fail);
+          onProgress(100);
+        },
+        install: async () => {
+          const hooks = globalThis.__anyshot;
+          if (hooks) hooks.updateInstalls++;
+          if (plan.installFail) throw new Error(plan.installFail);
+        },
+      });
+      update.showUpdate(offer);
+    },
+    async loadUpdater() {
+      const update = await import('./update');
+      const real = await update.electronUpdater();
+      return typeof real.check === 'function';
+    },
+    async startupCheck() {
+      const update = await import('./update');
+      let checks = 0;
+      update.useUpdater({
+        check: async () => {
+          checks++;
+          return { version: '99.0.0', releaseNotes: null };
+        },
+        download: async () => {},
+        install: async () => {},
+      });
+      await update.checkAtStartup();
+      return checks;
+    },
   };
 }
 
