@@ -10,6 +10,8 @@ files:
   # Only the compact English OCR model ships; the larger variant is excluded.
   - '!node_modules/@tesseract.js-data/eng/4.0.0/**'
   - '!**/*.{md,map,ts,tsx}'
+  # Windows release builds install the x64 and ARM64 screenshot modules; 32-bit isn't shipped.
+  - '!node_modules/node-screenshots-win32-ia32-msvc/**'
 extraResources:
   - from: resources
     to: .
@@ -31,6 +33,7 @@ win:
       arch: [x64]
   icon: resources/icon.png
 nsis:
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
@@ -52,5 +55,8 @@ linux:
       Comment: Screenshots, annotation and screen recording
       Categories: Graphics;Utility;
       StartupWMClass: anyshot
+appImage:
+  artifactName: ${productName}-${version}-x86_64.${ext}
 deb:
+  artifactName: ${productName}_${version}_amd64.${ext}
   depends: [libnss3, libgtk-3-0, libxss1, libxtst6, libnotify4, libsecret-1-0]
