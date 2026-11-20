@@ -2,28 +2,21 @@ import '../common/ui.css';
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { ScrollInit } from '../../shared/ipc';
-import { pointerArea } from '../../shared/stitch';
+import { pointerAreas } from '../../shared/stitch';
 import type { StitchMessage, StitchReply } from '../../workers/stitch.worker';
 import { Icon } from '../common/icons';
 import { followTheme } from '../common/theme';
+import { type HudState, hudLabel, initialHud, onFrameReply } from './status';
 
 const api = window.anyshot;
 const SAMPLE_MS = 150;
 
-type State = {
-  phase: 'starting' | 'capturing' | 'finishing';
-  width: number;
-  height: number;
-  /** The last frames did not overlap the stitched ones (scrolled too far at once). */
-  lost?: boolean;
-  error?: string;
-};
-let setState: (s: State) => void = () => {};
+let update: (change: (s: HudState) => HudState) => void = () => {};
 let stop: ((keep: boolean) => void) | null = null;
 
 function Hud() {
-  const [state, set] = useState<State>({ phase: 'starting', width: 0, height: 0 });
-  setState = set;
+  const [state, set] = useState<HudState>(initialHud);
+  update = set;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter') stop?.(true);
@@ -32,15 +25,6 @@ function Hud() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  const label =
-    state.error ??
-    (state.phase === 'starting'
-      ? 'Starting…'
-      : state.phase === 'finishing'
-        ? 'Stitching…'
-        : state.lost
-          ? 'Lost track · scroll back up a little'
-          : `Scroll now · ${state.width} × ${state.height}`);
   return (
     <div
       class="bar"
@@ -48,7 +32,7 @@ function Hud() {
     >
       <Icon name="scroll" />
       <span data-testid="scroll-status" style={{ flex: 1, fontVariantNumeric: 'tabular-nums' }}>
-        {label}
+        {hudLabel(state)}
       </span>
       <button
         type="button"
@@ -116,7 +100,6 @@ async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
   try {
     let busy = false;
     let height = 0;
-    let finishing = false;
     let fail: (error: Error) => void = () => {};
     const failure = new Promise<never>((_resolve, reject) => {
       fail = reject;
@@ -131,15 +114,12 @@ async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
       fail(new Error(event.message || 'The scroll worker stopped unexpectedly.'));
     };
     worker.onmessage = ({ data }: MessageEvent<StitchReply>) => {
-      if (data.type === 'lost-overlap') {
-        // Recoverable: the stitch so far is kept, and frames match again once the
-        // user scrolls back to content that overlaps it.
+      if (data.type === 'progress' || data.type === 'lost-overlap') {
+        // A lost overlap is recoverable: the stitch so far is kept, and frames match
+        // again once the user scrolls back to content that overlaps it.
         busy = false;
-        if (!finishing) setState({ phase: 'capturing', width: crop.width, height, lost: true });
-      } else if (data.type === 'progress') {
-        busy = false;
-        height = data.height;
-        if (!finishing) setState({ phase: 'capturing', width: data.width, height });
+        if (data.type === 'progress') height = data.height;
+        update((s) => onFrameReply(s, data));
       } else {
         finish(data);
       }
@@ -160,7 +140,7 @@ async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
         width: crop.width,
         height: crop.height,
         maxHeight: init.maxHeight,
-        pointer: pointerArea(spots, init.scaleFactor * sx, crop.width, crop.height),
+        pointer: pointerAreas(spots, init.scaleFactor * sx, crop.width, crop.height),
       };
       worker.postMessage(message, [rgba]);
     };
@@ -183,8 +163,7 @@ async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
       await api.invoke('scroll:finish', { image: null });
       return;
     }
-    finishing = true;
-    setState({ phase: 'finishing', width: crop.width, height });
+    update((s) => ({ ...s, phase: 'finishing', width: crop.width, height }));
     worker.postMessage({ type: 'finish' } satisfies StitchMessage);
     const done = await Promise.race([finished, failure]);
     await api.invoke(
@@ -210,11 +189,6 @@ void api
   .then(run)
   .catch((error) => {
     console.warn('[scroll]', error);
-    setState({
-      phase: 'starting',
-      width: 0,
-      height: 0,
-      error: `Scroll capture failed: ${String(error)}`,
-    });
+    update(() => ({ ...initialHud, error: `Scroll capture failed: ${String(error)}` }));
     setTimeout(() => void api.invoke('scroll:finish', { image: null }), 3000);
   });

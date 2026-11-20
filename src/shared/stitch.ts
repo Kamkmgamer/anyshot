@@ -1,15 +1,19 @@
 /**
  * Scroll-capture stitching. Frames are RGBA of the same size taken while the
- * user scrolls down. Each frame is compared with the previous one to find how
- * far the content moved; only the newly revealed rows are kept.
+ * user scrolls. Each frame is compared with the last placed one to find how
+ * far the content moved (either way); rows past the end of the stitch so far
+ * are appended.
  *
  * Frames come from a video stream (YUV with subsampled colour), so rows are
  * compared by their luma profile with a small tolerance, not byte for byte.
+ * Smooth scrolling and display scaling also paint content at sub-pixel
+ * offsets, which redraws anti-aliased edges slightly differently from frame to
+ * frame: a match needs most rows, not all, to agree.
  *
  * Screen captures draw the mouse pointer into every frame, and it sits over
- * the page while the user scrolls. Each frame can carry a mask around the
- * pointer: matching ignores it, and rows stitched with the pointer in them are
- * repainted from a later frame that shows the same content without it.
+ * the page while the user scrolls. Each frame can carry masks around the
+ * pointer: matching ignores them, and rows stitched with the pointer in them
+ * are repainted from a later frame that shows the same content without it.
  */
 
 export interface RgbaFrame {
@@ -30,40 +34,40 @@ export interface Area {
 const POINTER = { left: 12, top: 12, right: 36, bottom: 44 };
 
 /**
- * The frame area the pointer may cover, from its hot spot at the last samples
- * (it can move in between), in frame pixels. `scale` is frame pixels per CSS px.
- * Null when the pointer is outside the frame.
+ * The frame areas the pointer may cover, one around each recent hot spot (it
+ * can move between samples), in frame pixels. `scale` is frame pixels per CSS
+ * px. Spots whose area falls outside the frame are left out.
  */
-export function pointerArea(
+export function pointerAreas(
   spots: readonly { x: number; y: number }[],
   scale: number,
   width: number,
   height: number,
-): Area | null {
-  if (spots.length === 0) return null;
-  const xs = spots.map((p) => p.x);
-  const ys = spots.map((p) => p.y);
-  const area = {
-    top: Math.max(0, Math.min(...ys) - POINTER.top * scale),
-    bottom: Math.min(height, Math.max(...ys) + POINTER.bottom * scale),
-    left: Math.max(0, Math.min(...xs) - POINTER.left * scale),
-    right: Math.min(width, Math.max(...xs) + POINTER.right * scale),
-  };
-  return area.top < area.bottom && area.left < area.right ? area : null;
-}
-
-/** A frame's area in profile terms: rows [top, bottom), buckets [first, last]. */
-interface Mask {
-  top: number;
-  bottom: number;
-  first: number;
-  last: number;
+): Area[] {
+  const areas: Area[] = [];
+  for (const { x, y } of spots) {
+    const area = {
+      top: Math.max(0, y - POINTER.top * scale),
+      bottom: Math.min(height, y + POINTER.bottom * scale),
+      left: Math.max(0, x - POINTER.left * scale),
+      right: Math.min(width, x + POINTER.right * scale),
+    };
+    if (area.top < area.bottom && area.left < area.right) areas.push(area);
+  }
+  return areas;
 }
 
 const BUCKETS = 48;
 const ROW_TOLERANCE = 2.5; // mean absolute luma difference per bucket
+const BUCKET_TOLERANCE = 12; // any one bucket further off than this is a different row
 const MIN_OVERLAP = 24;
-const MIN_MATCH = 0.95;
+/** Share of comparable rows that must agree: sub-pixel offsets redraw some edges differently. */
+const MIN_MATCH = 0.85;
+/** Fewest comparable rows a shift must be checked on. */
+const MIN_CHECKED = 4;
+/** Rows sampled to rank candidate shifts before checking the best ones in full. */
+const SAMPLES = 64;
+const FINALISTS = 4;
 
 /** Per-row luma averaged into column buckets: height × BUCKETS bytes. */
 export function rowProfiles(frame: RgbaFrame): Uint8Array {
@@ -91,60 +95,86 @@ export function rowProfiles(frame: RgbaFrame): Uint8Array {
   return out;
 }
 
-function maskOf(area: Area | null | undefined, width: number, height: number): Mask | null {
-  if (!area) return null;
-  const top = Math.max(0, Math.floor(area.top));
-  const bottom = Math.min(height, Math.ceil(area.bottom));
-  const left = Math.max(0, Math.floor(area.left));
-  const right = Math.min(width, Math.ceil(area.right));
-  if (top >= bottom || left >= right) return null;
-  const bucket = (x: number) => Math.min(BUCKETS - 1, Math.floor((x * BUCKETS) / width));
-  return { top, bottom, first: bucket(left), last: bucket(right - 1) };
-}
-
-function covers(m: Mask | null, row: number, k: number): boolean {
-  return m !== null && row >= m.top && row < m.bottom && k >= m.first && k <= m.last;
-}
-
-/** Profiles of a frame, with its pointer mask. */
+/** Profiles of a frame, with the buckets its pointer hides (1 = hidden), if any. */
 export interface Profile {
   rows: Uint8Array;
-  mask: Mask | null;
+  hidden: Uint8Array | null;
 }
 
-export function profileOf(frame: RgbaFrame, pointer?: Area | null): Profile {
-  return { rows: rowProfiles(frame), mask: maskOf(pointer, frame.width, frame.height) };
+function hiddenBuckets(areas: readonly Area[], width: number, height: number): Uint8Array | null {
+  let hidden: Uint8Array | null = null;
+  const bucket = (x: number) => Math.min(BUCKETS - 1, Math.floor((x * BUCKETS) / width));
+  for (const area of areas) {
+    const top = Math.max(0, Math.floor(area.top));
+    const bottom = Math.min(height, Math.ceil(area.bottom));
+    const left = Math.max(0, Math.floor(area.left));
+    const right = Math.min(width, Math.ceil(area.right));
+    if (top >= bottom || left >= right) continue;
+    hidden ??= new Uint8Array(height * BUCKETS);
+    for (let y = top; y < bottom; y++)
+      hidden.fill(1, y * BUCKETS + bucket(left), y * BUCKETS + bucket(right - 1) + 1);
+  }
+  return hidden;
 }
 
-function rowsMatch(a: Profile, ai: number, b: Profile, bi: number): boolean {
+export function profileOf(frame: RgbaFrame, pointer: readonly Area[] = []): Profile {
+  return {
+    rows: rowProfiles(frame),
+    hidden: hiddenBuckets(pointer, frame.width, frame.height),
+  };
+}
+
+const isHidden = (p: Profile, i: number) => p.hidden !== null && p.hidden[i] === 1;
+
+/**
+ * Mean luma difference of two rows over the buckets neither pointer hides, and
+ * the largest single difference. Null when the pointer hides too much of either
+ * row to tell anything.
+ */
+function compareRows(
+  a: Profile,
+  ai: number,
+  b: Profile,
+  bi: number,
+): { mean: number; worst: number } | null {
   let total = 0;
+  let worst = 0;
   let compared = 0;
+  const ra = ai * BUCKETS;
+  const rb = bi * BUCKETS;
   for (let k = 0; k < BUCKETS; k++) {
-    if (covers(a.mask, ai, k) || covers(b.mask, bi, k)) continue;
-    const diff = Math.abs((a.rows[ai * BUCKETS + k] ?? 0) - (b.rows[bi * BUCKETS + k] ?? 0));
-    if (diff > 12) return false;
+    if (isHidden(a, ra + k) || isHidden(b, rb + k)) continue;
+    const diff = Math.abs((a.rows[ra + k] ?? 0) - (b.rows[rb + k] ?? 0));
     total += diff;
+    if (diff > worst) worst = diff;
     compared++;
   }
-  // A row hidden mostly by the pointer proves nothing either way.
-  return compared >= BUCKETS / 2 && total / compared <= ROW_TOLERANCE;
+  return compared >= BUCKETS / 2 ? { mean: total / compared, worst } : null;
 }
 
-/** Rows with visible structure; blank rows match anything and prove nothing. */
+/** Whether two rows show the same content; null when the pointer hides too much to tell. */
+function rowsMatch(a: Profile, ai: number, b: Profile, bi: number): boolean | null {
+  const c = compareRows(a, ai, b, bi);
+  return c && c.worst <= BUCKET_TOLERANCE && c.mean <= ROW_TOLERANCE;
+}
+
+/** Rows with visible structure outside the pointer; blank rows match anything and prove nothing. */
 function distinctive(p: Profile, i: number): boolean {
   let min = 255;
   let max = 0;
+  let seen = 0;
   for (let k = 0; k < BUCKETS; k++) {
-    if (covers(p.mask, i, k)) continue;
+    if (isHidden(p, i * BUCKETS + k)) continue;
     const v = p.rows[i * BUCKETS + k] ?? 0;
     if (v < min) min = v;
     if (v > max) max = v;
+    seen++;
   }
-  return max - min > 8;
+  return seen >= BUCKETS / 2 && max - min > 8;
 }
 
 export interface Shift {
-  /** Rows the content moved up by. 0 means unchanged. */
+  /** Rows the content moved up by (negative: down, after scrolling back up). 0 means unchanged. */
   shift: number;
   fixedTop: number;
   fixedBottom: number;
@@ -153,40 +183,70 @@ export interface Shift {
 /** Rows at the top/bottom that stayed put (sticky headers, footers). */
 function fixedRows(prev: Profile, next: Profile, height: number) {
   let top = 0;
-  while (top < height && rowsMatch(prev, top, next, top)) top++;
+  while (top < height && rowsMatch(prev, top, next, top) === true) top++;
   if (top === height) return { top: height, bottom: 0 };
   let bottom = 0;
-  while (bottom < height - top && rowsMatch(prev, height - 1 - bottom, next, height - 1 - bottom))
+  while (
+    bottom < height - top &&
+    rowsMatch(prev, height - 1 - bottom, next, height - 1 - bottom) === true
+  )
     bottom++;
   return { top, bottom };
 }
 
-function verify(prev: Profile, next: Profile, start: number, end: number, d: number): number {
+/** How well `next` row i matches `prev` row i + d across the band [start, end). */
+function score(prev: Profile, next: Profile, start: number, end: number, d: number) {
   let checked = 0;
   let matched = 0;
-  for (let i = start; i < end - d; i++) {
+  let total = 0;
+  for (let i = Math.max(start, start - d); i < Math.min(end, end - d); i++) {
     if (!distinctive(next, i)) continue;
+    const c = compareRows(next, i, prev, i + d);
+    if (!c) continue;
     checked++;
-    if (rowsMatch(next, i, prev, i + d)) matched++;
+    total += c.mean;
+    if (c.worst <= BUCKET_TOLERANCE && c.mean <= ROW_TOLERANCE) matched++;
   }
-  return checked >= 3 ? matched / checked : 0;
+  return {
+    checked,
+    match: checked > 0 ? matched / checked : 0,
+    mean: checked > 0 ? total / checked : Infinity,
+  };
 }
 
 function search(prev: Profile, next: Profile, start: number, end: number): number | null {
   const band = end - start;
   if (band < MIN_OVERLAP * 2) return null;
-  // Anchor on the first few distinctive rows near the top of the band: they are still
-  // visible in the previous frame for any plausible shift.
-  const anchors: number[] = [];
-  for (let i = start; i < end - MIN_OVERLAP && anchors.length < 3; i++)
-    if (distinctive(next, i)) anchors.push(i);
-  const first = anchors[0];
-  if (first === undefined) return null;
-  let best: { d: number; score: number } | null = null;
-  for (let d = 1; first + d < end && band - d >= MIN_OVERLAP; d++) {
-    if (!anchors.every((a) => a + d >= end || rowsMatch(next, a, prev, a + d))) continue;
-    const score = verify(prev, next, start, end, d);
-    if (score >= MIN_MATCH && (!best || score > best.score)) best = { d, score };
+  const rows: number[] = [];
+  for (let i = start; i < end; i++) if (distinctive(next, i)) rows.push(i);
+  if (rows.length < MIN_CHECKED) return null;
+  // Rank every shift either way on a sample of rows, then check the best few on all rows.
+  const step = Math.max(1, Math.floor(rows.length / SAMPLES));
+  const sample = rows.filter((_, n) => n % step === 0);
+  const limit = band - MIN_OVERLAP;
+  const ranked: { d: number; mean: number }[] = [];
+  for (let d = -limit; d <= limit; d++) {
+    let total = 0;
+    let n = 0;
+    for (const i of sample) {
+      const j = i + d;
+      if (j < start || j >= end) continue;
+      const c = compareRows(next, i, prev, j);
+      if (!c) continue;
+      // Cap each row so one odd row (an animation, a hover) can't sink a true shift.
+      total += Math.min(c.mean, 32);
+      n++;
+    }
+    if (n < Math.min(MIN_CHECKED, sample.length)) continue;
+    ranked.push({ d, mean: total / n });
+  }
+  ranked.sort((x, y) => x.mean - y.mean || Math.abs(x.d) - Math.abs(y.d));
+  let best: { d: number; mean: number } | null = null;
+  for (const { d } of ranked.slice(0, FINALISTS)) {
+    const s = score(prev, next, start, end, d);
+    if (s.checked < MIN_CHECKED || s.match < MIN_MATCH) continue;
+    if (!best || s.mean < best.mean || (s.mean === best.mean && Math.abs(d) < Math.abs(best.d)))
+      best = { d, mean: s.mean };
   }
   return best?.d ?? null;
 }
@@ -206,6 +266,7 @@ export function findShift(prev: Profile, next: Profile, height: number): Shift |
 export class Stitcher {
   private out = new Uint8ClampedArray(0);
   private rows = 0;
+  /** The last frame placed in the stitch; frames are matched against it. */
   private last: { frame: RgbaFrame; profile: Profile } | null = null;
   /** Output row = frame row + offset, for the last frame's content rows. */
   private offset = 0;
@@ -223,16 +284,23 @@ export class Stitcher {
     return this.rows + this.footer;
   }
 
+  /** The stitch reached the height limit: later frames add nothing. */
+  get full(): boolean {
+    return this.height >= this.maxHeight;
+  }
+
   /** Output areas that still show the pointer (for tests and diagnostics). */
   get pointerAreas(): readonly Area[] {
     return this.dirty;
   }
 
   /**
-   * Adds a frame and returns its new rows, or null if the overlap is unknown.
-   * `pointer` is where the mouse pointer was drawn into the frame, if known.
+   * Adds a frame and returns how many rows it added, or null if it doesn't
+   * overlap the last placed frame (scrolled too far between samples). The
+   * stitch is kept, and frames match again once the view is back over it.
+   * `pointer` is where the mouse pointer may be drawn into the frame.
    */
-  push(frame: RgbaFrame, pointer?: Area | null): number | null {
+  push(frame: RgbaFrame, pointer: readonly Area[] = []): number | null {
     if (frame.width !== this.width || frame.height !== this.frameHeight)
       throw new Error('Frame size changed');
     const profile = profileOf(frame, pointer);
@@ -245,24 +313,22 @@ export class Stitcher {
     }
     const found = findShift(this.last.profile, profile, frame.height);
     // At the height limit nothing more is added, so a lost overlap no longer matters.
-    if (!found) return this.height >= this.maxHeight ? 0 : null;
-    let take = 0;
-    if (found.shift > 0) {
-      if (this.footer === 0 && found.fixedBottom > 0) {
-        // The first frame's bottom rows were a sticky footer: hold them back until the end.
-        this.trimRows(found.fixedBottom);
-        this.footer = found.fixedBottom;
-      }
-      const end = frame.height - this.footer;
-      // The content moved up by `shift`, wherever appending stopped.
-      this.offset += found.shift;
-      const room = this.maxHeight - this.height;
-      take = Math.max(0, Math.min(found.shift, room));
-      this.append(frame, end - found.shift, take);
-      this.markDirty(pointer, end - found.shift, end - found.shift + take);
+    if (!found) return this.full ? 0 : null;
+    if (found.shift > 0 && this.footer === 0 && found.fixedBottom > 0) {
+      // The first frame's bottom rows were a sticky footer: hold them back until the end.
+      this.trimRows(found.fixedBottom);
+      this.footer = found.fixedBottom;
     }
+    const end = frame.height - this.footer;
+    // The content moved by `shift`, wherever appending stopped and whichever way it went.
+    this.offset += found.shift;
+    // Frame rows past the end of the stitch are new; scrolling back up reveals none.
+    const from = Math.max(0, this.rows - this.offset);
+    const take = Math.max(0, Math.min(end - from, this.maxHeight - this.height));
+    this.append(frame, from, take);
+    this.markDirty(pointer, from, from + take);
     // Also at the height limit: frames still clear the pointer from rows already kept.
-    this.repair(frame, pointer, found.fixedTop, frame.height - this.footer);
+    this.repair(frame, pointer, found.fixedTop, end);
     this.last = { frame, profile };
     return take;
   }
@@ -284,20 +350,21 @@ export class Stitcher {
   }
 
   /** Records the pointer's part of frame rows [from, to), just written to the output. */
-  private markDirty(pointer: Area | null | undefined, from: number, to: number): void {
-    if (!pointer) return;
-    const top = Math.max(from, Math.floor(pointer.top));
-    const bottom = Math.min(to, Math.ceil(pointer.bottom));
-    const left = Math.max(0, Math.floor(pointer.left));
-    const right = Math.min(this.width, Math.ceil(pointer.right));
-    if (top >= bottom || left >= right) return;
-    this.dirty.push({ top: top + this.offset, bottom: bottom + this.offset, left, right });
+  private markDirty(pointer: readonly Area[], from: number, to: number): void {
+    for (const area of pointer) {
+      const top = Math.max(from, Math.floor(area.top));
+      const bottom = Math.min(to, Math.ceil(area.bottom));
+      const left = Math.max(0, Math.floor(area.left));
+      const right = Math.min(this.width, Math.ceil(area.right));
+      if (top >= bottom || left >= right) continue;
+      this.dirty.push({ top: top + this.offset, bottom: bottom + this.offset, left, right });
+    }
   }
 
   /** Repaints the dirty rows this frame shows away from its own pointer; the rest stay dirty. */
   private repair(
     frame: RgbaFrame,
-    pointer: Area | null | undefined,
+    pointer: readonly Area[],
     contentTop: number,
     contentEnd: number,
   ): void {
@@ -305,13 +372,13 @@ export class Stitcher {
     const rowBytes = this.width * 4;
     const left: Area[] = [];
     for (const area of this.dirty) {
-      const blocked =
-        pointer && area.left < pointer.right && area.right > pointer.left ? pointer : null;
+      // Pointer areas of this frame that share columns with the dirty area.
+      const blocking = pointer.filter((p) => area.left < p.right && area.right > p.left);
       let run: Area | null = null;
       for (let row = area.top; row < area.bottom; row++) {
         const y = row - this.offset;
         const visible =
-          y >= contentTop && y < contentEnd && !(blocked && y >= blocked.top && y < blocked.bottom);
+          y >= contentTop && y < contentEnd && !blocking.some((p) => y >= p.top && y < p.bottom);
         if (visible) {
           const src = y * rowBytes;
           this.out.set(
