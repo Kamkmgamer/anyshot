@@ -18,12 +18,38 @@ describe('command line', () => {
     expect(parseCli(['--open', '--capture'])).toEqual([{ action: 'captureArea' }]);
   });
 
+  it('opens a bare image or project path, as "Open with" passes it', () => {
+    expect(
+      parseCli(['C:\\Program Files\\anyshot\\anyshot.exe', 'C:\\Users\\me\\Shot 1.PNG']),
+    ).toEqual([{ action: 'openImage', file: 'C:\\Users\\me\\Shot 1.PNG' }]);
+    expect(parseCli(['/opt/anyshot/anyshot', '/home/me/a.webp', '/home/me/b.anyshot'])).toEqual([
+      { action: 'openImage', file: '/home/me/a.webp' },
+      { action: 'openImage', file: '/home/me/b.anyshot' },
+    ]);
+  });
+
+  it('opens file:// URLs from a desktop entry (%U)', () => {
+    expect(parseCli(['/opt/anyshot/anyshot', 'file:///home/me/My%20shot.jpg'])).toEqual([
+      { action: 'openImage', file: '/home/me/My shot.jpg' },
+    ]);
+  });
+
+  it('ignores the executable, switches and other bare arguments', () => {
+    expect(parseCli(['/tmp/odd-name.png'])).toEqual([]);
+    expect(
+      parseCli(['/usr/bin/electron', '.', 'notes.txt', '--flag=x.png', 'file://%%bad.png']),
+    ).toEqual([]);
+  });
+
   it('resolves relative files against the requesting instance directory', () => {
     const caller = resolve('caller');
     const absolute = resolve('b.png');
     expect(parseCli(['--open', 'shot.png', `--open=${absolute}`], caller)).toEqual([
       { action: 'openImage', file: join(caller, 'shot.png') },
       { action: 'openImage', file: absolute },
+    ]);
+    expect(parseCli(['anyshot', 'shot.png'], caller)).toEqual([
+      { action: 'openImage', file: join(caller, 'shot.png') },
     ]);
   });
 });

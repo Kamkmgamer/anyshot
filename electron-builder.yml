@@ -46,6 +46,8 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: false
   shortcutName: anyshot
+  # Registers anyshot in "Open with" for images (not as their default app).
+  include: resources/installer.nsh
 linux:
   target:
     - AppImage
@@ -53,6 +55,8 @@ linux:
     - rpm
   category: Graphics
   icon: resources/icon.png
+  # Listed in the desktop entry, so file managers offer anyshot in "Open with".
+  mimeTypes: [image/png, image/jpeg, image/webp, image/gif, image/bmp]
   synopsis: Lean screenshots, annotation and screen recording
   description: Capture, annotate, pin, record and upload screenshots. Built with Electron.
   executableArgs: []

@@ -1,4 +1,6 @@
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { PROJECT_EXTENSION } from '../shared/project';
 import type { HotkeyAction } from '../shared/settings';
 
 export type AppAction =
@@ -44,6 +46,8 @@ export function parseCli(argv: readonly string[], workingDirectory?: string): Cl
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i] ?? '';
     const action = FLAGS[arg];
+    // The first argument is the executable itself.
+    const bare = i > 0 ? openableFile(arg) : null;
     if (action) commands.push({ action });
     else if (arg === '--open') {
       const file = argv[i + 1];
@@ -53,9 +57,30 @@ export function parseCli(argv: readonly string[], workingDirectory?: string): Cl
       }
     } else if (arg.startsWith('--open=')) {
       commands.push(openFile(arg.slice('--open='.length)));
-    }
+    } else if (bare) commands.push(openFile(bare));
   }
   return commands;
+}
+
+/**
+ * Files anyshot opens when they are passed bare, as "Open with" does
+ * (`anyshot.exe "C:\shot.png"` on Windows, `anyshot %U` from a Linux desktop entry).
+ */
+export const OPENABLE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', PROJECT_EXTENSION];
+const OPENABLE = new RegExp(`\\.(${OPENABLE_EXTENSIONS.join('|')})$`, 'i');
+
+/** A bare argument that names an image or project: a path or a file:// URL. */
+function openableFile(arg: string): string | null {
+  if (arg.startsWith('-')) return null;
+  let path = arg;
+  if (/^file:/i.test(arg)) {
+    try {
+      path = fileURLToPath(arg);
+    } catch {
+      return null;
+    }
+  }
+  return OPENABLE.test(path) ? path : null;
 }
 
 export const CLI_FLAGS = Object.keys(FLAGS);
