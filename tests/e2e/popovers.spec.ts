@@ -90,6 +90,8 @@ test('editor popovers close on a press outside them, and their buttons still tog
   const beautify = editor.getByTestId('beautify-popover');
   await editor.getByTestId('fx-adjust').click();
   await expect(editor.getByTestId('fx-adjust')).toHaveAttribute('aria-expanded', 'true');
+  // The button announces a dialog, and the popover is one, named after it.
+  await expect(editor.getByRole('dialog', { name: 'Adjust' })).toBeVisible();
   await adjust.getByRole('button', { name: 'Mono' }).click();
   await expect(adjust).toBeVisible();
   // Its own button closes it again.

@@ -164,7 +164,13 @@ export function ColorPopover({ c }: { c: Controller }) {
   }));
   if (!s.open) return null;
   return (
-    <div class="popover colors" onPointerDown={stop} data-testid="color-popover">
+    <div
+      class="popover colors"
+      role="dialog"
+      aria-label="Colour"
+      onPointerDown={stop}
+      data-testid="color-popover"
+    >
       {s.presets.map((color) => (
         <button
           type="button"
