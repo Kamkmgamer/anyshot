@@ -123,4 +123,12 @@ test('editor popovers close on a press outside them, and their buttons still tog
   await editor.keyboard.press('Escape');
   await expect(beautify).toHaveCount(0);
   expect(await windowKinds(ctx.app)).toEqual(['editor']);
+
+  // From the keyboard, focus moves into the popover and back to its button on Esc.
+  await editor.getByTestId('fx-adjust').focus();
+  await editor.keyboard.press('Enter');
+  await expect(adjust.getByRole('button', { name: 'None' })).toBeFocused();
+  await editor.keyboard.press('Escape');
+  await expect(adjust).toHaveCount(0);
+  await expect(editor.getByTestId('fx-adjust')).toBeFocused();
 });
