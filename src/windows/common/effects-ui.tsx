@@ -33,6 +33,7 @@ export function EffectButtons({ c }: { c: Controller }) {
         icon="adjust"
         label="Adjust"
         active={s.popover === 'adjust' || !isAdjustNeutral(s.effects.adjust)}
+        expanded={s.popover === 'adjust'}
         onClick={() => toggle('adjust')}
         testId="fx-adjust"
       />
@@ -40,6 +41,7 @@ export function EffectButtons({ c }: { c: Controller }) {
         icon="beautify"
         label="Beautify"
         active={s.popover === 'beautify' || s.effects.beautify.enabled}
+        expanded={s.popover === 'beautify'}
         onClick={() => toggle('beautify')}
         testId="fx-beautify"
       />
