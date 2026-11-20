@@ -19,6 +19,7 @@ User report: the output is mostly fine, but even when scrolling very slowly the 
 - Tests: 6 new unit tests (sub-pixel edges, moving pointer, back up then down, repaint without scrolling, recovery above the last matched frame, `full`), all failing on the old stitcher; HUD and `pointerInCrop` tests. e2e: slow wheel scrolling with a hover-highlighting page and the pointer over it, at 100 % and at `--force-device-scale-factor=1.5`: no "Lost track" ever shown, and the image height is the first view plus the distance scrolled (±2 px). Both fail on main.
 
 - CodeRabbit round 1 on PR #7 (1 finding, fixed): the e2e's HUD polling loop stops in a `finally`, and a closed page ends it, so a failing step can't leave it running into the next test.
+- CI on that commit hit a race in `settings.spec.ts` (unrelated to this change): the Tools reset test read `settings.json` before `tools` was written and threw. Missing `tools` now reads as the defaults, so the poll waits.
 
 **Next:** merge; the user checks scroll capture on Windows at 100 % and 150 %, in a browser and another app.
 
