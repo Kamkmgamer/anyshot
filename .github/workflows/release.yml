@@ -1,15 +1,26 @@
 name: Release
 
-# Every push to main (except docs-only changes) builds the installers and publishes a
-# release. Its version is package.json's if that isn't released yet, else the next patch
-# after the latest release. A tag vX.Y.Z publishes exactly that version. Running it by
-# hand builds the same files into a draft release to check first.
+# Releases go out only when someone decides to: merging to main never releases.
+# Run it by hand (Actions → Release → Run workflow, or `gh workflow run release.yml`)
+# on main once enough has been merged. Its version is package.json's if that is newer
+# than every release, else the latest release bumped by `bump` (patch by default).
+# Pushing a tag vX.Y.Z publishes exactly that version (it must match package.json).
+# `draft` builds the same files into a draft release to check before publishing; a
+# later run for the same version publishes that draft.
 on:
   push:
-    branches: ['main']
     tags: ['v*']
-    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
   workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the latest release's version to increase
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      draft:
+        description: Make a draft release to check first instead of publishing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,6 +41,8 @@ jobs:
         id: pick
         env:
           GH_TOKEN: ${{ github.token }}
+          BUMP: ${{ inputs.bump || 'patch' }}
+          DRAFT: ${{ inputs.draft || false }}
         run: |
           set -euo pipefail
           pkg=$(jq -r .version package.json)
@@ -57,11 +70,26 @@ jobs:
               version="$pkg"
             else
               IFS=. read -r major minor patch <<< "$latest"
-              version="$major.$minor.$((patch + 1))"
+              case "$BUMP" in
+                major) version="$((major + 1)).0.0" ;;
+                minor) version="$major.$((minor + 1)).0" ;;
+                patch) version="$major.$minor.$((patch + 1))" ;;
+                *) echo "::error::Unknown bump: $BUMP"; exit 1 ;;
+              esac
             fi
           fi
-          # Only pushes publish; a manual run stays a draft, even when started on a tag.
-          if [ "$GITHUB_EVENT_NAME" = push ]; then draft=false; else draft=true; fi
+          # A tag push publishes; a manual run publishes unless it asked for a draft.
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$DRAFT" = true ]; then
+            draft=true
+          else
+            draft=false
+          fi
+          # Published releases come from main (or a tag); a draft may be built from any branch.
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$draft" = false ] \
+            && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Publish from main (or make a draft): this run is on $GITHUB_REF"
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "draft=$draft" >> "$GITHUB_OUTPUT"
           echo "Building $version (draft: $draft)"
@@ -188,7 +216,8 @@ jobs:
             gh release create "$tag" artifacts/* --title "anyshot $version" \
               --notes-file notes.md --target "$GITHUB_SHA" --draft="$draft"
           elif [ "$existing" = true ]; then
-            # A draft (from a manual run): refresh its files and notes; a push publishes it.
+            # A draft from an earlier run: refresh its files and notes, and publish it unless
+            # this run is a draft too.
             gh release upload "$tag" artifacts/* --clobber
             gh release edit "$tag" --title "anyshot $version" --notes-file notes.md \
               --target "$GITHUB_SHA" --draft="$draft"

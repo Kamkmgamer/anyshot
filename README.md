@@ -77,6 +77,23 @@ The end-to-end tests launch the built app with an isolated profile, open a fixtu
 
 Architecture and performance budgets: [docs/reference/lean-electron-guide.md](docs/reference/lean-electron-guide.md). Feature list: [docs/reference/feature-reference.md](docs/reference/feature-reference.md). Decisions and deviations: [logbook.md](logbook.md).
 
+## Releasing
+
+Merging to `main` doesn't release anything. When enough has been merged, start a
+release by hand: **Actions → Release → Run workflow** on `main`, or
+
+```sh
+gh workflow run release.yml --ref main                 # next patch, e.g. 0.1.7 → 0.1.8
+gh workflow run release.yml --ref main -f bump=minor   # 0.1.7 → 0.2.0 (major: 1.0.0)
+gh workflow run release.yml --ref main -f draft=true   # a draft release to check first
+```
+
+It builds the Windows (x64, ARM64) and Linux installers and publishes them with the
+update metadata and notes listing every PR merged since the last release. A draft
+from an earlier run is published by the next run for the same version. A version
+set in `package.json` that is newer than every release is used as is, and pushing a
+tag `vX.Y.Z` publishes exactly that version.
+
 ## Licence
 
 [MIT](LICENSE)

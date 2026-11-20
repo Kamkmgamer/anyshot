@@ -6,6 +6,14 @@
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
 - Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`), checkout `/home/boxes/repos/anyshot`. PRs #7–#11 are merged. To resume: read this logbook first, then continue from the "Next:" line below.
 
+## 2026-11-20 - releases only by hand (branch `ci/manual-releases`)
+
+- The user decides when a release goes out; merging to main no longer releases. `release.yml` runs on `workflow_dispatch` (inputs `bump`: patch/minor/major, default patch; `draft`: boolean, default false) and on `v*` tag pushes; the `push: branches: [main]` trigger is gone. A manual run publishes (before, it always made a draft) unless `draft` is set; publishing is refused from any ref but main, drafts work from any branch. Version: package.json's if newer than every release, else the latest release bumped by `bump`. Release notes still come from generate-notes, so they now list every PR since the previous release. README has a Releasing section.
+- Checked: actionlint clean; the version step run against a fake `gh` (patch 0.1.7→0.1.8, minor→0.2.0, major→1.0.0, draft on a branch, publish on a branch refused, bumped package.json, no releases yet); a real draft run from the branch (minor, draft), whose draft was then deleted.
+- Rule from the user (also in the global agent instructions): never mention the logbook in PR text or release notes/titles, and no logbook-only PRs.
+
+**Next:** merge; releases from now on via Actions → Release → Run workflow on main.
+
 ## 2026-11-20 - picker toast, Open with, Beautify None, editor minimum size (branch `feat/polish-picker-openwith-beautify-minsize`)
 
 - **Colour picker toast:** picking a colour shows "Colour set to #RRGGBB"; Shift+click shows "Copied #RRGGBB to the clipboard" once the copy succeeded (or "Could not copy"). In the editor and in the capture overlay (whose `toast` was never set before); both go away after 2.5 s. Unit (`pickedColorMessage`) and e2e (editor: set, auto-hide, Shift+click and the clipboard text; overlay).
