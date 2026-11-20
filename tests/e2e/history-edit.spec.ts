@@ -189,4 +189,11 @@ test('the editor window keeps room for its whole toolbar, so Done is never cut o
   // The title gives way first, but stays readable.
   const title = await editor.locator('#top .title').boundingBox();
   expect(title?.width ?? 0).toBeGreaterThanOrEqual(79);
+
+  // The Save options menu hangs below its button; opening it doesn't widen the minimum.
+  await editor.getByTestId('save-menu-toggle').click();
+  await expect(editor.getByTestId('save-menu')).toBeVisible();
+  await editor.waitForTimeout(300);
+  expect((await editorWindow()).min).toEqual(min);
+  await editor.keyboard.press('Escape');
 });

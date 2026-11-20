@@ -18,9 +18,12 @@ function px(value: string): number {
 /** The width a single-row flex container needs to show every item uncut. */
 export function rowWidth(row: Element): number {
   const style = getComputedStyle(row);
-  const items = [...row.children].filter(
-    (item) => item instanceof HTMLElement && getComputedStyle(item).display !== 'none',
-  );
+  // Menus hanging off a button (the Save options) are out of the row's flow.
+  const items = [...row.children].filter((item) => {
+    if (!(item instanceof HTMLElement)) return false;
+    const style = getComputedStyle(item);
+    return style.display !== 'none' && style.position !== 'absolute' && style.position !== 'fixed';
+  });
   let width =
     px(style.paddingLeft) +
     px(style.paddingRight) +
