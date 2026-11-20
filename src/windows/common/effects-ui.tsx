@@ -33,6 +33,7 @@ export function EffectButtons({ c }: { c: Controller }) {
         icon="adjust"
         label="Adjust"
         active={s.popover === 'adjust' || !isAdjustNeutral(s.effects.adjust)}
+        expanded={s.popover === 'adjust'}
         onClick={() => toggle('adjust')}
         testId="fx-adjust"
       />
@@ -40,6 +41,7 @@ export function EffectButtons({ c }: { c: Controller }) {
         icon="beautify"
         label="Beautify"
         active={s.popover === 'beautify' || s.effects.beautify.enabled}
+        expanded={s.popover === 'beautify'}
         onClick={() => toggle('beautify')}
         testId="fx-beautify"
       />
@@ -98,7 +100,13 @@ export function EffectPopovers({ c }: { c: Controller }) {
       />
     );
     return (
-      <div class="popover effects" onPointerDown={stop} data-testid="adjust-popover">
+      <div
+        class="popover effects"
+        role="dialog"
+        aria-label="Adjust"
+        onPointerDown={stop}
+        data-testid="adjust-popover"
+      >
         <div class="presets">
           {PRESETS.map((p) => (
             <button
@@ -139,7 +147,13 @@ export function EffectPopovers({ c }: { c: Controller }) {
       />
     );
     return (
-      <div class="popover effects" onPointerDown={stop} data-testid="beautify-popover">
+      <div
+        class="popover effects"
+        role="dialog"
+        aria-label="Beautify"
+        onPointerDown={stop}
+        data-testid="beautify-popover"
+      >
         <label class="opt">
           <input
             type="checkbox"

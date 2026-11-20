@@ -525,8 +525,6 @@ function onKeyDown(e: KeyboardEvent): void {
   else if (mod && (key === '=' || key === '+')) zoomBy(ZOOM_STEP);
   else if (mod && key === '-') zoomBy(1 / ZOOM_STEP);
   else if (!mod && key === 'c') startCrop();
-  else if (e.key === 'Escape' && annotator.controller.store.get().popover)
-    annotator.controller.store.set({ popover: null });
   else if (!annotator.handleKey(e)) return;
   e.preventDefault();
 }

@@ -2,6 +2,7 @@ import { DocStore } from '../../engine/document';
 import type { Doc } from '../../engine/model';
 import { CanvasView, type ToolOptions } from '../../engine/view';
 import type { Settings, ToolId } from '../../shared/settings';
+import { dismissPopovers } from './popover';
 import type { Controller } from './toolbar';
 import { createToolStore, persistToolChoices, TOOL_KEYS } from './tools';
 
@@ -46,6 +47,8 @@ export function createAnnotator(
   });
   store.set({ effects: doc.effects });
   const stopPersisting = persistToolChoices(store);
+  // Every tool popover closes on a press outside it and on Esc.
+  const stopDismissing = dismissPopovers(store);
   // A slider preview is committed on release. If its popover closes first (Esc, another
   // tool, another popover), drop the preview so the screen matches what will be exported.
   let popover = store.get().popover;
@@ -119,6 +122,7 @@ export function createAnnotator(
     handleKey,
     dispose() {
       stopPersisting();
+      stopDismissing();
       stopWatchingPopover();
       view.dispose();
     },
