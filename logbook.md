@@ -21,7 +21,9 @@ Feedback from testing on Windows.
 - **CI was flaky** (Actions is enabled again): three intermittent failures. (1) The Settings secret field was controlled with `value=""`, so a re-render between typing and leaving the field (another setting saved) wiped the key and it was never stored: a real bug, now uncontrolled and cleared after sending. (2) Clicking a control that closes its own window (thumbnail Close/Edit) could throw "page closed": `clickClosing` tolerates only that error. (3) `capture-flow` read `history/index.json` before the first delivery wrote it. 4 × repeats of the three specs: 52/52.
 - **Releases.** `.github/workflows/release.yml`: a `vX.Y.Z` tag (must match package.json) builds on GitHub's free runners and publishes a release with the Windows x64 and ARM64 NSIS installers (one Windows runner: `bun install --cpu="*"` installs both prebuilt screenshot modules; a check fails the build if an installer lacks its own), the `.deb` and the AppImage (x64), plus GitHub's automatic source code zip. Notes = `.github/release-notes.md` (download table, unsigned-installer note) + GitHub's generated notes. A manual run makes a draft instead; a later tag push refreshes and publishes that draft. "ARM64" was read as Windows on ARM. Not signed: SmartScreen warns.
 
-**Next:** review the PR, then check on Windows: scroll capture in a browser and in another app, at 100 % and 150 % scaling.
+- CodeRabbit on PR #3 (2 findings, both fixed): `make-icons` now exits 1 when generation fails (Electron otherwise keeps running); the stitcher keeps matching and repairing pointer rows after the height limit without adding rows (offset now advances by the scroll shift, which stays right when appends stop). Release dry run from a temporary branch produced draft `v0.1.0` with all four installers.
+
+**Next:** merge PR #3, push tag `v0.1.0` to publish the draft release; check on Windows: scroll capture in a browser and in another app, at 100 % and 150 % scaling.
 
 ## 2026-11-19 - PR #2 CodeRabbit fixes
 
