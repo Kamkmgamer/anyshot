@@ -42,6 +42,9 @@ async function capture(width: number, height: number): Promise<void> {
   await overlay.mouse.move(x + width, y + height, { steps: 4 });
   await overlay.mouse.up();
   await pressClosing(overlay, 'Control+c');
+  // The app forgets the window before Playwright sees its page close (a wider gap on
+  // Windows); wait, so the next capture doesn't pick up this closing page.
+  await expect.poll(() => overlay.isClosed()).toBe(true);
 }
 
 async function clipboardSize() {

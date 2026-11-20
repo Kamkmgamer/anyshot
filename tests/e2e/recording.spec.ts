@@ -101,7 +101,9 @@ test('records an area to a playable file and stops cleanly', async () => {
     expect(await readFile(join(dir, `clip.${ext}`), 'utf8')).toBe('previous');
   }
   const bytes = await readFile(file);
-  expect(bytes.length).toBeGreaterThan(2000);
+  // Not empty. A still area compresses to ~2 KB with Windows' H.264 encoder; the frame count
+  // and duration below are the real checks.
+  expect(bytes.length).toBeGreaterThan(1000);
   const isMp4 = bytes.subarray(4, 8).toString('latin1') === 'ftyp';
   const isWebm = bytes.readUInt32BE(0) === 0x1a45dfa3;
   expect(isMp4 || isWebm).toBe(true);
@@ -182,11 +184,23 @@ test('the record bar toggles the microphone and computer audio, and remembers th
   await overlay.keyboard.press(' ');
   await expect(mic).toHaveAttribute('aria-pressed', 'false');
   expect(await windowKinds(ctx.app)).not.toContain('recorder');
-  // Linux has no loopback capture: computer audio is off and explains why.
-  await expect(system).toBeDisabled();
-  await expect(system).toHaveAttribute('title', /only be recorded on Windows/);
-  await overlay.keyboard.press('a');
-  expect((await recordingSettings()).systemAudio).toBe(false);
+  if (process.platform === 'win32') {
+    // Windows records computer audio through loopback: A toggles it and it is remembered.
+    await expect(system).toBeEnabled();
+    await overlay.keyboard.press('a');
+    await expect(system).toHaveAttribute('aria-pressed', 'true');
+    await expect(system).toHaveAttribute('title', 'Computer audio: on (A)');
+    await expect.poll(async () => (await recordingSettings()).systemAudio).toBe(true);
+    await overlay.keyboard.press('a');
+    await expect(system).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(async () => (await recordingSettings()).systemAudio).toBe(false);
+  } else {
+    // Linux has no loopback capture: computer audio is off and explains why.
+    await expect(system).toBeDisabled();
+    await expect(system).toHaveAttribute('title', /only be recorded on Windows/);
+    await overlay.keyboard.press('a');
+    expect((await recordingSettings()).systemAudio).toBe(false);
+  }
   await pressClosing(overlay, 'Escape');
   await expect.poll(() => windowKinds(ctx.app)).toEqual([]);
 
@@ -211,3 +225,36 @@ test('records microphone audio when its toggle is on', async () => {
   expect(await audio?.computeDuration()).toBeGreaterThan(1);
   expect(await input.getPrimaryVideoTrack()).not.toBeNull();
 });
+
+// Windows records computer audio through loopback. Nothing has to be playing: a silent
+// output must still give an audio track that lasts as long as the video.
+for (const microphone of [false, true]) {
+  test(`records computer audio${microphone ? ' mixed with the microphone' : ''} (Windows)`, async () => {
+    test.skip(process.platform !== 'win32', 'Computer audio is only recorded on Windows');
+    await verifyAndClose(ctx);
+    await start(microphone ? ['--use-fake-device-for-media-stream'] : []);
+    const file = await recordFor('recordArea', 2500, async (overlay) => {
+      const system = overlay.getByTestId('audio-system');
+      await system.click();
+      await expect(system).toHaveAttribute('aria-pressed', 'true');
+      if (microphone) await overlay.getByTestId('audio-mic').click();
+    });
+    const input = new Input({
+      source: new BufferSource(await readFile(file)),
+      formats: ALL_FORMATS,
+    });
+    const audio = await input.getPrimaryAudioTrack();
+    const video = await input.getPrimaryVideoTrack();
+    expect(audio).not.toBeNull();
+    expect(video).not.toBeNull();
+    const [audioSeconds, videoSeconds] = [
+      await audio?.computeDuration(),
+      await video?.computeDuration(),
+    ];
+    console.log(
+      `computer audio: audio ${audioSeconds?.toFixed(2)} s, video ${videoSeconds?.toFixed(2)} s`,
+    );
+    expect(audioSeconds).toBeGreaterThan(1.5);
+    expect(videoSeconds).toBeGreaterThan(1.5);
+  });
+}
