@@ -257,6 +257,23 @@ test('beautify shows its frame live around the image, as it will be copied', asy
   expect(close(corner?.rgb, from)).toBe(true);
   expect(close((await clipboardPixel(393, 293))?.rgb, to)).toBe(true);
 
+  // The frame clips the shadow where the export ends.
+  expect(await frame.evaluate((el) => getComputedStyle(el).overflow)).toBe('hidden');
+
+  // A slider drag previews; closing the popover before release drops the preview.
+  await editor.getByTestId('fx-beautify').click();
+  const padding = popover.locator('input[type="range"]').first();
+  const shown = () => frame.evaluate((el) => Number.parseFloat(getComputedStyle(el).paddingLeft));
+  const committed = await shown();
+  await padding.evaluate((input: HTMLInputElement) => {
+    input.value = '96';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect.poll(shown).toBeCloseTo(committed * 2, 0);
+  await editor.keyboard.press('Escape');
+  await expect(popover).toHaveCount(0);
+  await expect.poll(shown).toBeCloseTo(committed, 0);
+
   // Turning it off removes the frame.
   await editor.getByTestId('fx-beautify').click();
   await popover.getByRole('checkbox').uncheck();
