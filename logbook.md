@@ -19,6 +19,35 @@
 
 **Next:** CodeRabbit round 2, merge; after merge the first release with the update files is the one that existing installs can update *to* from the next one (0.1.x installs have no updater yet). The user checks on Windows: install release N, publish N+1, start N: the window appears, and Update installs and restarts.
 
+## 2026-11-20 - popovers close on a press outside them (branch `fix/popover-dismiss`)
+
+- The colour, Adjust and Beautify popovers (overlay and editor) only closed from their own button or Esc. `dismissPopovers` (in `common/popover.ts`, installed by `createAnnotator`, so both windows get it) listens in the capture phase. A press outside the open popover closes it. On the canvas or page the press is swallowed, so it doesn't also draw or start a new selection; on another control (a tool, undo) it closes the popover and still acts. A press inside the popover or on a popover toggle keeps it, so the toggles still toggle. Esc closes the popover first and stops there; the window's own Esc (cancel the capture) waits for the next press. The overlay's and editor's separate Esc branches for popovers are gone.
+- Popover buttons carry `aria-haspopup="dialog"` and `aria-expanded` instead of `aria-pressed` (also the marker the dismissal keeps open for). The editor's save menu already closed on outside clicks and Esc.
+- Tests: unit `pressOutcome`; e2e for the overlay (a press inside keeps it; a drag on the image closes it without drawing, then draws; Esc closes it and keeps the capture; a second Esc cancels) and the editor (toggle, swap with another popover, another tool closes it and is chosen, a click beside the image, Esc keeps the editor). Both e2e specs fail on main.
+
+- CodeRabbit round 1 on PR #8 (1 finding, fixed): the colour, Adjust and Beautify popovers have `role="dialog"` and a name, matching the `aria-haspopup="dialog"` their buttons announce; e2e finds Adjust by that role.
+- CodeRabbit round 2 on PR #8 (1 finding, fixed): popovers handle focus like dialogs. Opened from the keyboard, focus moves to the first control; when one closes with focus inside, focus returns to its button. Opened with the mouse, focus stays where it was, so a text box being typed keeps it (text styles, PR #9). e2e: Enter on Adjust focuses its first preset, Esc returns focus to Adjust.
+- CodeRabbit round 3 on PR #8 (1 finding, fixed; the last round): the pending move of focus into a keyboard-opened popover is cancelled by a pointer press, another popover change, or cleanup, so it can't pull focus back after the user clicked elsewhere. CI once failed `instant.spec.ts` with an aborted overlay load (`net::ERR_UNEXPECTED`); it passed 8/8 on the box and on a re-run, so it is a flake unrelated to popovers.
+
+**Next:** merge; PR #9 (text styles) builds on it.
+
+## 2026-11-20 - scroll capture keeps track while scrolling (branch `fix/scroll-hud`)
+
+User report: the output is mostly fine, but even when scrolling very slowly the HUD keeps saying "Lost track · scroll back up a little", scrolling back up doesn't clear it, and only sometimes the pixel count rises.
+
+- **Reproduced under Xvfb** with real wheel scrolling (`xdotool click 5`, one notch every 350–400 ms, pointer over the page): the HUD went to "Lost track" a dozen times in 25 notches. Dumped the sampled frames and replayed them through `Stitcher` offline: about a third of frames returned `null`.
+- **Cause 1: sub-pixel scroll offsets.** Wheel scrolling is smooth, so frames land mid-animation at fractional offsets, and anti-aliased edges are drawn differently every ~35 rows. The true shift had a mean row difference of ~0.45 (every other shift ≥ 7), but only 92–93 % of rows matched exactly, under the hard 95 % threshold. Display scaling (125 %, 150 %) puts content at sub-pixel offsets on every scroll, so this is worse on Windows. Now a match needs 85 % of comparable rows, and among the candidates the one with the lowest mean difference wins. Every shift is ranked on a sample of 64 rows first, then the best four are checked on all rows (~10 ms per 600 × 400 frame).
+- **Cause 2: the pointer mask.** It was one box around the pointer's last two spots; when the pointer moved, that box covered most of the frame, and rows hidden by it counted as *mismatches*. Now there is one area per spot (`pointerAreas`), and a row the pointer hides is "unknown", which counts neither way.
+- **Why it stuck:** shifts were only searched downwards (d ≥ 1). A frame that didn't scroll but changed a little (a hover highlight, a caret) was "lost", and so was any frame after scrolling back up past the last matched frame. Since a lost frame isn't placed, each later frame was compared with an ever older one. Now shifts are signed (0 and upwards too): the stitch tracks where the view is, adds only rows past its end, and scrolling back up re-anchors it.
+- **HUD:** state moved to `windows/scroll/status.ts` (`onFrameReply`, `hudLabel`, unit-tested). One missed frame is ignored; "Lost track · scroll back a little" shows after two in a row and clears on the next match. At the height limit it says "Height limit · W × H" instead of a count that silently stops (the worker's progress carries `full`).
+- **DPI:** on Windows the pointer is mapped through physical pixels (`screen.dipToScreenPoint` / `dipToScreenRect`), since displays with different scaling don't share one DIP grid; elsewhere DIPs scale from the display's origin (`pointerInCrop`, unit-tested).
+- Tests: 6 new unit tests (sub-pixel edges, moving pointer, back up then down, repaint without scrolling, recovery above the last matched frame, `full`), all failing on the old stitcher; HUD and `pointerInCrop` tests. e2e: slow wheel scrolling with a hover-highlighting page and the pointer over it, at 100 % and at `--force-device-scale-factor=1.5`: no "Lost track" ever shown, and the image height is the first view plus the distance scrolled (±2 px). Both fail on main.
+
+- CodeRabbit round 1 on PR #7 (1 finding, fixed): the e2e's HUD polling loop stops in a `finally`, and a closed page ends it, so a failing step can't leave it running into the next test.
+- CI on that commit hit a race in `settings.spec.ts` (unrelated to this change): the Tools reset test read `settings.json` before `tools` was written and threw. Missing `tools` now reads as the defaults, so the poll waits.
+
+Merged as PR #7. **Next:** the user checks scroll capture on Windows at 100 % and 150 %, in a browser and another app.
+
 ## 2026-11-20 - releases from main (branch `ci/release-on-main`)
 
 - Every push to `main` now builds and publishes a release (docs-only pushes are skipped). A `version` job picks the version: package.json's if it is newer than every published release and not released yet, else the next patch after the latest release (drafts don't count). The build jobs stamp it into package.json before packaging, so the installers carry it. A `vX.Y.Z` tag still publishes exactly that version (must match package.json); manual runs still make drafts. The first push publishes the existing `v0.1.0` draft, refreshed from main. Why releases didn't show: `v0.1.0` was a draft, which GitHub doesn't list in the sidebar.
