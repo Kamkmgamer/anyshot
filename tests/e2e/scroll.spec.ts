@@ -130,22 +130,31 @@ for (const scale of [1, 1.5]) {
     let polling = true;
     const poll = (async () => {
       while (polling) {
-        seen.add((await hud.getByTestId('scroll-status').textContent()) ?? '');
+        // A closed page (the test failed and the app is closing) ends the loop.
+        const label = await hud
+          .getByTestId('scroll-status')
+          .textContent()
+          .catch(() => null);
+        if (label === null) return;
+        seen.add(label);
         await new Promise((r) => setTimeout(r, 40));
       }
     })();
-    for (let i = 0; i < 20; i++) {
-      execFileSync('xdotool', ['click', '5']);
-      await new Promise((r) => setTimeout(r, 350));
+    try {
+      for (let i = 0; i < 20; i++) {
+        execFileSync('xdotool', ['click', '5']);
+        await new Promise((r) => setTimeout(r, 350));
+      }
+      // A few notches back up, then down again: the stitch follows without adding rows twice.
+      for (const button of ['4', '4', '5', '5', '5']) {
+        execFileSync('xdotool', ['click', button]);
+        await new Promise((r) => setTimeout(r, 350));
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    } finally {
+      polling = false;
+      await poll;
     }
-    // A few notches back up, then down again: the stitch follows without adding rows twice.
-    for (const button of ['4', '4', '5', '5', '5']) {
-      execFileSync('xdotool', ['click', button]);
-      await new Promise((r) => setTimeout(r, 350));
-    }
-    await new Promise((r) => setTimeout(r, 1000));
-    polling = false;
-    await poll;
     expect([...seen].filter((label) => label.includes('Lost track'))).toEqual([]);
     const scrollY = Number(await pageScript(app, 'window.scrollY'));
     expect(scrollY).toBeGreaterThan(1500);
