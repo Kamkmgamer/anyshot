@@ -330,6 +330,11 @@ test('text style popover screenshot', async () => {
     await popover.getByRole('button', { name: '#007aff' }).click();
     await overlay.waitForTimeout(300);
     await overlay.screenshot({ path: out('text-style.png') });
+  } finally {
+    await verifyAndClose(ctx);
+  }
+});
+
 test('update window screenshot', async () => {
   const ctx = await launch();
   try {
