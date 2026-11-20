@@ -248,6 +248,8 @@ export interface InvokeContract {
   'editor:open': Channel<void, boolean>;
   'editor:save-project': Channel<{ bytes: ArrayBuffer; saveAs: boolean }, string | null>;
   'editor:set-title': Channel<{ title: string; dirty: boolean }, void>;
+  /** The content size the toolbars need; main makes it the window's minimum. */
+  'editor:min-size': Channel<{ width: number; height: number }, void>;
 
   'history:list': Channel<void, HistoryEntry[]>;
   'history:clear': Channel<void, void>;
@@ -334,6 +336,7 @@ export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind
   'editor:open': ['editor'],
   'editor:save-project': ['editor'],
   'editor:set-title': ['editor'],
+  'editor:min-size': ['editor'],
 
   'history:list': ['history'],
   'history:clear': ['history'],

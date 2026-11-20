@@ -15,6 +15,7 @@ import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
 import { followTheme } from '../common/theme';
 import { Bar, Button, ColorPopover, OptionsRow, RepeatButton, ToolStrip } from '../common/toolbar';
+import { watchMinimumSize } from './min-size';
 import { SaveSplitButton } from './save-menu';
 import { modeForShortcut, type SaveMode } from './save-mode';
 
@@ -643,6 +644,14 @@ async function boot(): Promise<void> {
   ui.set({ title: init.title, crop: doc.crop, saveMode: init.settings.editor.saveMode });
   render(<TopBar />, el('top'));
   render(<Tools />, el('tools'));
+  watchMinimumSize(
+    {
+      top: el('top'),
+      tools: el('tools'),
+      strip: () => el('tools').querySelector('[data-testid="tools"]'),
+    },
+    (min) => void api.invoke('editor:min-size', min),
+  );
   wirePointer();
   window.addEventListener('keydown', onKeyDown);
   ui.set({ zoom: fitZoom() });

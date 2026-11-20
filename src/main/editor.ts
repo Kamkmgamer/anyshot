@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
 import { app, type BrowserWindow, dialog, Notification, screen } from 'electron';
+import { growToMinimum } from '../shared/geometry';
 import type { EditorInit, EditorSource } from '../shared/ipc';
 import { isProject, PROJECT_EXTENSION, unpackProject } from '../shared/project';
 import { readPng } from './clipboard';
@@ -47,9 +48,11 @@ function open(
   held: string | null = null,
 ) {
   const { workArea, scaleFactor } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  // Fit the image at its native size if possible, with room for the toolbars.
+  // Fit the image at its native size if possible, with room for the toolbars. The page
+  // then reports what its toolbars need exactly (editor:min-size); 820 covers them as
+  // they are, so the window rarely has to grow once shown.
   const width = Math.round(
-    Math.min(workArea.width * 0.9, Math.max(760, size.width / scaleFactor + 80)),
+    Math.min(workArea.width * 0.9, Math.max(820, size.width / scaleFactor + 80)),
   );
   const height = Math.round(
     Math.min(workArea.height * 0.9, Math.max(520, size.height / scaleFactor + 170)),
@@ -238,6 +241,23 @@ handle('editor:init', (_req, { win }) => {
 });
 
 handle('editor:open', () => openImage());
+
+handle('editor:min-size', ({ width, height }, { win }) => {
+  if (![width, height].every((n) => Number.isFinite(n) && n > 0)) return;
+  const { workArea } = screen.getDisplayMatching(win.getBounds());
+  const bounds = win.getContentBounds();
+  const grown = growToMinimum(bounds, { width, height }, workArea);
+  // The window frame adds to the content size on Windows; keep the minimum about content.
+  const frame = {
+    width: win.getBounds().width - bounds.width,
+    height: win.getBounds().height - bounds.height,
+  };
+  win.setMinimumSize(
+    Math.min(Math.ceil(width), workArea.width) + frame.width,
+    Math.min(Math.ceil(height), workArea.height) + frame.height,
+  );
+  if (grown.width !== bounds.width || grown.height !== bounds.height) win.setContentBounds(grown);
+});
 
 handle('editor:set-title', ({ title, dirty }, { win }) => {
   const state = editors.get(win.webContents.id);
