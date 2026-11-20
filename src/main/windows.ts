@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import {
   BrowserWindow,
   type BrowserWindowConstructorOptions,
@@ -58,6 +59,8 @@ export function createWindow(kind: WindowKind, options: WindowOptions = {}): Bro
     show: false,
     backgroundColor: '#00000000',
     autoHideMenuBar: true,
+    // Windows and Linux show it in the taskbar and Alt+Tab; macOS uses the bundle's icon.
+    ...(process.platform === 'darwin' ? {} : { icon: join(paths.resources, 'icon-256.png') }),
     ...rest,
     webPreferences: {
       preload: paths.preload,

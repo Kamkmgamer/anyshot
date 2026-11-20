@@ -16,6 +16,7 @@ import {
 import { Icon, type IconName } from '../common/icons';
 import { applyTheme } from '../common/theme';
 import { TOOL_LABELS } from '../common/tools';
+import logo from '../../../resources/icon-256.png';
 
 const api = window.anyshot;
 type Tab =
@@ -857,6 +858,7 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
     case 'about':
       return (
         <div class="about">
+          <img class="logo" src={logo} alt="" width={72} height={72} />
           <h2>anyshot</h2>
           <p>A lean screenshot, annotation and screen-recording app for Windows and Linux.</p>
           <p>

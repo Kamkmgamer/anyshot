@@ -1,3 +1,5 @@
+<img src="resources/icon-256.png" width="96" height="96" alt="anyshot logo">
+
 # anyshot
 
 > **Credit:** All inspiration and feature ideas for anyshot are taken from [macshot](https://github.com/sw33tLie/macshot) by sw33tLie.

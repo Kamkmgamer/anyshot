@@ -12,7 +12,9 @@ Feedback from testing on Windows.
 
 - **Capture at once, instant preview opt-in.** New `capture.instantPreview` (default off). Off: choosing an area (drag, click, F, R), full-screen capture and "capture last area" run the quick action at once and show the floating thumbnail; its new **Edit** button (with Copy and Save) opens the editor. On: the old flow, with the edit tools on the selection. Full-screen capture without preview takes only the display under the pointer. `quick` mode and OCR are unchanged. The overlay's full-screen size now comes from the display bounds, not `innerWidth` (a capture at load ran before the window had its final size: 1279 instead of 1280). e2e harness: specs start with `instantPreview: true` (they drive the edit tools); `capture-flow.spec.ts` covers the default flow.
 
-**Next:** scroll capture on Windows, then the new logo.
+- **New logo.** The user's purple logo replaces the generated teal one: `resources/icon.png` (1024 px, installers; electron-builder makes the Windows .ico from it) and `icon-256.png` (their 256 px file). Tray icons (16/32 px, and the recording variant with a red dot) are derived from it by `scripts/make-icons.mjs`, now run with Electron for its image scaler (`bun run icons`). Windows and Linux windows get the icon for the taskbar and Alt+Tab; Settings ▸ About and the README show it. Screenshots: `settings-about.png`, `settings-instant-preview.png`, `floating-thumbnail.png`. Not changed: the default accent stays teal (`#14b8a6`); a purple accent would match the logo but changes every user's UI, so that's the user's call.
+
+**Next:** scroll capture on Windows.
 
 ## 2026-11-19 - PR #2 CodeRabbit fixes
 
