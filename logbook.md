@@ -4,7 +4,7 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). PRs #7 (scroll) and #8 (popovers) are merged. Open: `feat/text-styles` (PR #9), `feat/auto-update` (PR #10). To resume: read this logbook first, then continue from the "Next:" line below.
+- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). PRs #7 (scroll), #8 (popovers) and #10 (auto-update) are merged. Open: `feat/text-styles` (PR #9). To resume: read this logbook first, then continue from the "Next:" line below.
 
 ## 2026-11-20 - text tool styles (branch `feat/text-styles`)
 
@@ -13,8 +13,9 @@
 - **Style popover:** the text tool's options row shows a "Text style" button that previews the style ("Aa", font · size) and opens a popover with font, B / I / U / Outline, size (−/+, steps 2/4/8 that retrace each other, presets 16–72) and colour. Its buttons don't take focus, so a text box being typed keeps focus and restyles live; typing continues and Enter places it in the new style. With the select tool, the button also shows for selected text and restyles it, one undo step per change. Choices persist as tool settings (`textFont`, `textBold`, `textItalic`, `textUnderline`, `textOutline`). It closes on a press outside and on Esc, like the other popovers.
 - The overlay's floating toolbar measured only itself, so popovers hanging below it could run off the screen. Popovers now open above the bar when there is no room below (`popoverSide`).
 - Tests: unit (font string, italic box, old docs, malformed style, `restyle` with unit, size steps, settings defaults, outline and underline drawing calls); e2e (live restyle while typing, saved style, remembered settings, canvas = export pixels, restyling selected text with undo, popovers upwards near the bottom). Screenshot `text-style.png`.
+- CodeRabbit round 1 on PR #9 (2 findings, fixed): the edit box previews the outline the canvas draws (`textOutline`, shared, as `-webkit-text-stroke` under the letters) and drops it when Outline is off. With the select tool, the popover and its button show the selected text's own style (the first selected text; size in tool units) and toggle from it, so the first click on Italic for italic text turns it off; for the text tool they show the remembered style. Unit and e2e tests for both.
 
-**Next:** CodeRabbit on PR #9 (it skipped the PR while it targeted `fix/popover-dismiss`; now on `main`), then merge.
+**Next:** CodeRabbit round 2, merge.
 
 ## 2026-11-20 - popovers close on a press outside them (branch `fix/popover-dismiss`)
 

@@ -286,11 +286,20 @@ export function contrastColor(hex: string): string {
   return 0.299 * r + 0.587 * g + 0.114 * b > 160 ? '#111111' : '#ffffff';
 }
 
+/** The outline around a text's letters, or null without one; the edit box shows the same. */
+export function textOutline(a: TextAnnotation): { width: number; color: string } | null {
+  if (a.background || !a.style.outline) return null;
+  return {
+    width: Math.max(2, a.size * 0.12),
+    color: contrastColor(a.color) === '#ffffff' ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.6)',
+  };
+}
+
 function drawText(ctx: Ctx, a: TextAnnotation): void {
   const lines = a.text.split('\n');
   ctx.font = textFont(a.size, a.style);
   ctx.textBaseline = 'top';
-  const outline = !a.background && a.style.outline;
+  const outline = textOutline(a);
   if (a.background) {
     ctx.fillStyle = a.color;
     roundRectPath(ctx, textBox(a), a.size * 0.25);
@@ -302,9 +311,8 @@ function drawText(ctx: Ctx, a: TextAnnotation): void {
   if (outline) {
     // A soft outline keeps text readable on busy backgrounds.
     ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(2, a.size * 0.12);
-    ctx.strokeStyle =
-      contrastColor(a.color) === '#ffffff' ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = outline.width;
+    ctx.strokeStyle = outline.color;
   }
   const thickness = Math.max(1, a.size * UNDERLINE.thickness);
   lines.forEach((text, i) => {

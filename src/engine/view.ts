@@ -29,6 +29,7 @@ import {
   drawAnnotation,
   drawAnnotations,
   type RenderEnv,
+  textOutline,
 } from './render';
 import {
   bounds,
@@ -668,6 +669,13 @@ export class CanvasView {
       lineHeight: String(TEXT_LINE_HEIGHT),
       textDecoration: draft.style.underline ? 'underline' : 'none',
     });
+    // The canvas strokes the outline under the letters (centred on their edge, so half shows).
+    const outline = textOutline(draft);
+    editor.style.setProperty(
+      '-webkit-text-stroke',
+      outline ? `${outline.width * scale}px ${outline.color}` : '0',
+    );
+    editor.style.setProperty('paint-order', 'stroke fill');
     target.fit();
   }
 

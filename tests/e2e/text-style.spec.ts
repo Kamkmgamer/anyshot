@@ -120,7 +120,11 @@ test('the text style popover restyles text live, and the canvas matches the expo
   await popover.getByTestId('text-font-serif').click();
   await popover.getByTestId('text-italic').click();
   await popover.getByTestId('text-underline').click();
+  // The box previews the outline the canvas draws, until it is turned off.
+  const strokeWidth = () => box.evaluate((el) => getComputedStyle(el).webkitTextStrokeWidth);
+  expect(Number.parseFloat(await strokeWidth())).toBeGreaterThan(0);
   await popover.getByTestId('text-outline').click();
+  await expect.poll(strokeWidth).toBe('0px');
   await popover.getByTestId('text-size-up').click();
   await popover.getByTestId('text-size-up').click();
   await expect(popover.getByTestId('text-size')).toHaveText('36');
@@ -213,9 +217,9 @@ test('the style popover restyles selected text', async () => {
 
   const [text] = await savedTexts(editor);
   expect(text).toMatchObject({ text: 'Plain', style: { font: 'mono', bold: false } });
+  await editor.keyboard.press('Control+z');
+  await editor.keyboard.press('Control+z');
   // Each change was one undo step.
-  await editor.keyboard.press('Control+z');
-  await editor.keyboard.press('Control+z');
   const [undone] = await savedTexts(editor);
   expect(undone?.style).toMatchObject({ font: 'sans', bold: true });
 });
@@ -252,4 +256,34 @@ test('overlay popovers open upwards when there is no room below the toolbar', as
     await overlay.keyboard.press('Escape');
   }
   await pressClosing(overlay, 'Escape');
+});
+
+test('with the select tool the popover shows and toggles the style of the selected text', async () => {
+  const editor = await openEditor();
+  const clip = await editor.locator('#clip').boundingBox();
+  if (!clip) throw new Error('no canvas');
+  await editor.getByTestId('tool-text').click();
+  const popover = editor.getByTestId('text-popover');
+  // Italic text, then italic turned off for the next text.
+  await editor.getByTestId('text-style').click();
+  await popover.getByTestId('text-italic').click();
+  await editor.keyboard.press('Escape');
+  await editor.mouse.click(clip.x + 16, clip.y + 60);
+  await editor.keyboard.type('Leaning');
+  await editor.keyboard.press('Enter');
+  await editor.getByTestId('text-style').click();
+  await popover.getByTestId('text-italic').click();
+  await expect(popover.getByTestId('text-italic')).toHaveAttribute('aria-pressed', 'false');
+  await editor.keyboard.press('Escape');
+
+  await editor.getByTestId('tool-select').click();
+  await editor.mouse.click(clip.x + 30, clip.y + 50);
+  await editor.getByTestId('text-style').click();
+  // It shows the selection's italic, not the remembered upright style; one click turns it off.
+  await expect(popover.getByTestId('text-italic')).toHaveAttribute('aria-pressed', 'true');
+  await popover.getByTestId('text-italic').click();
+  await expect(popover.getByTestId('text-italic')).toHaveAttribute('aria-pressed', 'false');
+  await editor.keyboard.press('Escape');
+  const [text] = await savedTexts(editor);
+  expect(text).toMatchObject({ text: 'Leaning', style: { italic: false } });
 });

@@ -3,6 +3,7 @@ import { TEXT_FAMILIES } from '../../engine/shapes';
 import { TEXT_FONTS, type TextFont } from '../../shared/settings';
 import { useStore } from './store';
 import type { Controller } from './toolbar';
+import type { SelectedTextStyle, ToolUiState } from './tools';
 
 const FONT_LABELS: Record<TextFont, string> = {
   sans: 'Sans',
@@ -22,6 +23,25 @@ export function stepTextSize(size: number, direction: 1 | -1): number {
 }
 
 /**
+ * The style the popover shows and toggles: the selected text's with the select
+ * tool (the first one, when several are selected), else the text tool's own.
+ */
+export function shownTextStyle(s: ToolUiState): SelectedTextStyle {
+  const selected = s.tool === 'select' ? s.selectedTextStyle : null;
+  return (
+    selected ?? {
+      font: s.textFont,
+      bold: s.textBold,
+      italic: s.textItalic,
+      underline: s.textUnderline,
+      outline: s.textOutline,
+      size: s.textSize,
+      color: s.color,
+    }
+  );
+}
+
+/**
  * Buttons that don't take focus when pressed: an open text box keeps it, so
  * style changes apply to it live instead of committing it.
  */
@@ -32,15 +52,7 @@ function keepTextFocus(e: PointerEvent): void {
 
 /** The options-row button that opens the text style popover; it previews the style. */
 export function TextStyleButton({ c }: { c: Controller }) {
-  const s = useStore(c.store, (s) => ({
-    open: s.popover === 'text',
-    font: s.textFont,
-    bold: s.textBold,
-    italic: s.textItalic,
-    underline: s.textUnderline,
-    size: s.textSize,
-    color: s.color,
-  }));
+  const s = useStore(c.store, (s) => ({ open: s.popover === 'text', ...shownTextStyle(s) }));
   return (
     <button
       type="button"
@@ -98,13 +110,7 @@ function Toggle(props: {
 export function TextPopover({ c }: { c: Controller }) {
   const s = useStore(c.store, (s) => ({
     open: s.popover === 'text',
-    font: s.textFont,
-    bold: s.textBold,
-    italic: s.textItalic,
-    underline: s.textUnderline,
-    outline: s.textOutline,
-    size: s.textSize,
-    color: s.color,
+    ...shownTextStyle(s),
     presets: s.presetColors,
   }));
   if (!s.open) return null;

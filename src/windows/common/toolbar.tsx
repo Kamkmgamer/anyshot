@@ -301,7 +301,7 @@ export function OptionsRow({ c }: { c: Controller }) {
       />,
     );
   }
-  if (s.tool === 'text' || (s.tool === 'select' && s.selectedText))
+  if (s.tool === 'text' || (s.tool === 'select' && s.selectedTextStyle !== null))
     parts.push(<TextStyleButton key="ts" c={c} />);
   if (s.tool === 'text')
     parts.push(

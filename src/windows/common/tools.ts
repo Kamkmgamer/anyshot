@@ -1,4 +1,4 @@
-import { DEFAULT_EFFECTS, type Effects } from '../../engine/model';
+import { DEFAULT_EFFECTS, type Effects, type TextStyle } from '../../engine/model';
 import type { ToolOptions } from '../../engine/view';
 import type { Settings, ToolChoices, ToolId } from '../../shared/settings';
 import { createStore, type Store } from './store';
@@ -9,8 +9,8 @@ export interface ToolUiState extends ToolOptions {
   canUndo: boolean;
   canRedo: boolean;
   selectedCount: number;
-  /** A text annotation is among the selected ones. */
-  selectedText: boolean;
+  /** The style of the first selected text annotation (size in tool units), if any is selected. */
+  selectedTextStyle: SelectedTextStyle | null;
   /** The document's committed image effects. */
   effects: Effects;
   /** Effects shown while a slider is being dragged, not yet committed. */
@@ -19,6 +19,11 @@ export interface ToolUiState extends ToolOptions {
   framePreview: boolean;
   /** Which popover is open, if any. */
   popover: 'color' | 'adjust' | 'beautify' | 'text' | null;
+}
+
+export interface SelectedTextStyle extends TextStyle {
+  size: number;
+  color: string;
 }
 
 export const TOOL_LABELS: Record<ToolId, string> = {
@@ -100,7 +105,7 @@ export function createToolStore(settings: Settings): Store<ToolUiState> {
     canUndo: false,
     canRedo: false,
     selectedCount: 0,
-    selectedText: false,
+    selectedTextStyle: null,
     popover: null,
     effects: DEFAULT_EFFECTS,
     previewEffects: null,

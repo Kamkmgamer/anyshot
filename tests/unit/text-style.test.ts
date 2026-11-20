@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { parseAnnotation } from '../../src/engine/document';
 import { DEFAULT_TEXT_STYLE, type TextAnnotation } from '../../src/engine/model';
-import { drawAnnotation, type RenderEnv } from '../../src/engine/render';
+import { drawAnnotation, type RenderEnv, textOutline } from '../../src/engine/render';
 import { estimateTextWidth, setTextMeasurer, textBox, textFont } from '../../src/engine/shapes';
 import { restyle } from '../../src/engine/view';
 import { DEFAULT_SETTINGS, parseSettings } from '../../src/shared/settings';
-import { stepTextSize } from '../../src/windows/common/text-style-ui';
+import { selectedTextStyle } from '../../src/windows/common/annotator';
+import { shownTextStyle, stepTextSize } from '../../src/windows/common/text-style-ui';
+import { createToolStore } from '../../src/windows/common/tools';
 
 const text: TextAnnotation = {
   id: 't',
@@ -141,5 +143,30 @@ describe('text rendering', () => {
   it('sets the styled font', () => {
     const calls = recordText({ ...text, style: { ...text.style, font: 'serif', italic: true } });
     expect(calls).toContain(`font=${textFont(20, { ...text.style, font: 'serif', italic: true })}`);
+  });
+});
+
+describe('text style shown for the selection', () => {
+  it('reads the first selected text, its size in tool units', () => {
+    const other: TextAnnotation = { ...text, id: 'u', style: { ...text.style, italic: true } };
+    const style = selectedTextStyle([text, other], new Set(['u', 't']), 2);
+    expect(style).toEqual({ ...text.style, size: 10, color: '#ff0000' });
+    expect(selectedTextStyle([text], new Set(), 1)).toBeNull();
+  });
+
+  it('shows the selection with the select tool, the remembered style otherwise', () => {
+    const store = createToolStore(DEFAULT_SETTINGS);
+    const selected = { ...DEFAULT_TEXT_STYLE, italic: true, size: 50, color: '#00ff00' };
+    store.set({ tool: 'select', selectedTextStyle: selected, textItalic: false });
+    expect(shownTextStyle(store.get())).toEqual(selected);
+    store.set({ tool: 'text' });
+    expect(shownTextStyle(store.get())).toMatchObject({ italic: false, size: 28 });
+  });
+
+  it('describes the outline the canvas and the edit box draw', () => {
+    expect(textOutline(text)).toEqual({ width: 2.4, color: 'rgba(255,255,255,0.85)' });
+    expect(textOutline({ ...text, color: '#ffffff' })?.color).toBe('rgba(0,0,0,0.6)');
+    expect(textOutline({ ...text, style: { ...text.style, outline: false } })).toBeNull();
+    expect(textOutline({ ...text, background: true })).toBeNull();
   });
 });
