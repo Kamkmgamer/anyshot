@@ -65,9 +65,13 @@ export function createAnnotator(
     effects: {
       set: (effects) => {
         view.preview(null);
+        store.set({ previewEffects: null });
         if (effects !== docs.doc.effects) docs.setEffects(effects);
       },
-      preview: (effects) => view.preview(effects),
+      preview: (effects) => {
+        view.preview(effects);
+        store.set({ previewEffects: effects });
+      },
     },
     undo: () => docs.undo(),
     redo: () => docs.redo(),

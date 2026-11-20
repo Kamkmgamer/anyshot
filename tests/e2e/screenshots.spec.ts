@@ -73,6 +73,17 @@ test('overlay and editor screenshots', async () => {
     await editor.mouse.up();
     await editor.waitForTimeout(300);
     await editor.screenshot({ path: out('editor.png') });
+
+    // Beautify: the frame shows live around the image while a background is picked.
+    await editor.getByTestId('fx-beautify').click();
+    await editor
+      .getByTestId('beautify-popover')
+      .getByRole('button', { name: 'Background 1' })
+      .click();
+    await expect(editor.locator('#frame')).toHaveClass(/beautified/);
+    await editor.keyboard.press('Control+0');
+    await editor.waitForTimeout(400);
+    await editor.screenshot({ path: out('editor-beautify.png') });
   } finally {
     await verifyAndClose(ctx);
   }

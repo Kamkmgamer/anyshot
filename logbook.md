@@ -4,7 +4,13 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Branch `feat/capture-flow-icons` (from `main` at `a5dba9e`, PR #2 merged). To resume: read this logbook first, then continue from the "Next:" line below.
+- Branch `feat/beautify-preview-audio` (from `main` at `ddf6b8e`, PR #3 merged). Session box `98774d41-e95f-40e0-bf34-7b9c66510d54`. To resume: read this logbook first, then continue from the "Next:" line below.
+
+## 2026-11-20 - beautify preview, quick capture menu, recording audio (branch `feat/beautify-preview-audio`)
+
+- **Beautify shows live in the editor.** Before, Beautify only existed in the export, so picking a background changed nothing on screen. The editor now draws the frame around the image with CSS (`#frame` around `#clip`, `paintFrame`): the same gradient, padding, corner radius and shadow as `drawBeautified`, scaled by zoom, so the canvas and its coordinates are untouched. The CSS gradient angle is `atan2(w, -h)`, which makes the gradient line run corner to corner like the canvas one (`beautifyBackgroundCss`, unit-tested). Slider drags preview too (`previewEffects` in the tool store); fit-to-window includes the padding; the frame is hidden while cropping. The overlay (instant preview) still shows Beautify only in the result: its selection sits on the frozen screen, and its hint says so. e2e: picking a background shows the gradient at the frame's corners on screen, and the copy has the same corner colours and the 396 × 296 size.
+
+**Next:** remove Quick capture from the tray menu; recording audio toggles.
 
 ## 2026-11-20 - capture flow, scroll capture, logo (branch `feat/capture-flow-icons`)
 
