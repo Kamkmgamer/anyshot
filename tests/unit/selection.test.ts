@@ -3,6 +3,7 @@ import {
   flippedHandle,
   moveSelection,
   placeToolbar,
+  popoverSide,
   resizeSelection,
   toImageRegion,
 } from '../../src/shared/selection';
@@ -86,5 +87,15 @@ describe('selection math', () => {
       x: 308,
       y: 100,
     });
+  });
+});
+
+describe('popover placement', () => {
+  it('opens below the bar when it fits, above when only that fits', () => {
+    const bar = { top: 500, bottom: 580 };
+    expect(popoverSide(bar, 200, 800)).toBe('below');
+    expect(popoverSide(bar, 260, 800)).toBe('above');
+    // Fits neither way: below, as before.
+    expect(popoverSide({ top: 100, bottom: 180 }, 700, 800)).toBe('below');
   });
 });
