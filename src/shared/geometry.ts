@@ -157,3 +157,44 @@ export function pointerInCrop(
   const y = physical ? physical.point.y - physical.origin.y : (dip.y - bounds.y) * init.scaleFactor;
   return { x: x - init.crop.x, y: y - init.crop.y };
 }
+
+/**
+ * Where a panel of `size` goes beside `area` (both absolute DIP), `gap` away from it:
+ * below, above, right or left, the first that fits in `bounds` (a display's work area).
+ * Centred on the area along the other axis and kept inside `bounds`. Null when none fit.
+ */
+export function placeBeside(area: Rect, size: Size, gap: number, bounds: Rect): Point | null {
+  const maxX = bounds.x + bounds.width - size.width;
+  const maxY = bounds.y + bounds.height - size.height;
+  const x = Math.min(maxX, Math.max(bounds.x, area.x + (area.width - size.width) / 2));
+  const y = Math.min(maxY, Math.max(bounds.y, area.y + (area.height - size.height) / 2));
+  const positions = [
+    { x, y: area.y + area.height + gap },
+    { x, y: area.y - size.height - gap },
+    { x: area.x + area.width + gap, y },
+    { x: area.x - size.width - gap, y },
+  ];
+  const fits = positions.find(
+    (p) => p.x >= bounds.x && p.x <= maxX && p.y >= bounds.y && p.y <= maxY,
+  );
+  return fits ? { x: Math.round(fits.x), y: Math.round(fits.y) } : null;
+}
+
+/**
+ * The rect of a frame drawn `thickness` wide just outside `area`: the area grown by that
+ * much on every side. Null when the area covers `display`, so no side of it would show.
+ */
+export function outsideFrame(area: Rect, thickness: number, display: Rect): Rect | null {
+  const covers =
+    area.x <= display.x &&
+    area.y <= display.y &&
+    area.x + area.width >= display.x + display.width &&
+    area.y + area.height >= display.y + display.height;
+  if (covers) return null;
+  return {
+    x: area.x - thickness,
+    y: area.y - thickness,
+    width: area.width + 2 * thickness,
+    height: area.height + 2 * thickness,
+  };
+}

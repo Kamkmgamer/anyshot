@@ -41,7 +41,7 @@ anyshot sits quietly in your tray until you need it. Press a shortcut, drag over
 - **Hide what matters.** Pixelate, blur or black out passwords, emails and anything else you don't want to share.
 - **Make it look good.** Beautify wraps a capture in a gradient background with padding, rounded corners and a soft shadow. Colour adjustments and presets are built in.
 - **Share it your way.** Copy, save as PNG, JPEG or WebP, pin it on screen, drag it into another app, or upload to your own server or S3-compatible storage.
-- **Record your screen.** Save an area as MP4 or GIF, with your microphone (and system audio on Windows).
+- **Record your screen.** Save an area as MP4 or GIF, with your microphone (and system audio on Windows). Controls beside the area show the time and pause, resume or stop the recording.
 - **Scrolling capture.** Scroll through a long page and get one stitched image.
 - **Read text from images.** Offline OCR copies the text out of any capture.
 - **Pick up where you left off.** A history of everything you've captured, and an editor for captures, image files and your clipboard. Annotations stay editable.

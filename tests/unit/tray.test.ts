@@ -24,3 +24,23 @@ describe('tray menu', () => {
     );
   });
 });
+
+describe('tray menu while recording', () => {
+  const labels = () =>
+    trayTemplate(
+      DEFAULT_SETTINGS,
+      () => {},
+      () => {},
+    ).map((i) => i.label);
+
+  it('offers Stop and Pause, then Resume once paused', async () => {
+    const { setAppState } = await import('../../src/main/app-state');
+    expect(labels()).not.toContain('Stop recording');
+    setAppState({ recording: true });
+    expect(labels().slice(0, 2)).toEqual(['Stop recording', 'Pause recording']);
+    setAppState({ recordingPaused: true });
+    expect(labels().slice(0, 2)).toEqual(['Stop recording', 'Resume recording']);
+    setAppState({ recording: false, recordingPaused: false });
+    expect(labels()).not.toContain('Resume recording');
+  });
+});

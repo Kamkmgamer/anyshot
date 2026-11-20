@@ -174,6 +174,7 @@ const ICONS = {
     </>
   ),
   pause: <path d="M7 4.5v11M13 4.5v11" />,
+  play: <path d="M7 4.5v11l8.5-5.5z" fill="currentColor" />,
   stop: <rect x="5" y="5" width="10" height="10" rx="1.5" fill="currentColor" />,
   mic: (
     <>

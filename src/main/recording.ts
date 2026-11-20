@@ -1,18 +1,11 @@
 import { type FileHandle, open, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  app,
-  type BrowserWindow,
-  type Display,
-  Notification,
-  type Rectangle,
-  shell,
-} from 'electron';
+import { app, BrowserWindow, type Display, Notification, shell } from 'electron';
 import { expandTemplate } from '../shared/filename';
-import { evenRect, type Rect, scaleRect } from '../shared/geometry';
+import { evenRect, outsideFrame, placeBeside, type Rect, scaleRect } from '../shared/geometry';
 import type { RecorderInit, RecorderStatus } from '../shared/ipc';
 import { recordingAudio } from '../shared/recording-audio';
-import { setAppState } from './app-state';
+import { appState, setAppState } from './app-state';
 import { createUniqueFile } from './atomic-file';
 import { nudgeCapture } from './capture-nudge';
 import { copyText } from './clipboard';
@@ -25,10 +18,17 @@ import { SYSTEM_AUDIO_AVAILABLE } from './system-audio';
 import { recordTiming } from './test-hooks';
 import { createWindow, send } from './windows';
 
+/** The recording controls: the recorder window itself, shown beside the area. */
+const HUD = { width: 216, height: 44, gap: 10 };
+const BORDER = { thickness: 2, color: '#ef4444' };
+
 interface Recording {
   win: BrowserWindow;
-  /** The recorded display's bounds (DIP). */
-  displayBounds: Rectangle;
+  display: Display;
+  /** The recorded area, absolute DIP. */
+  area: Rect;
+  /** Frames the area while it records (none when the controls are hidden). */
+  border: BrowserWindow | null;
   init: RecorderInit;
   files: Map<string, FileHandle>;
   finalPath: string | null;
@@ -67,18 +67,39 @@ export async function startRecording(
     systemAudio: audio.systemAudio,
     gif,
   };
-  // Only the recorder keeps running while hidden; every other window throttles.
+  const area = {
+    x: display.bounds.x + rect.x,
+    y: display.bounds.y + rect.y,
+    width: rect.width,
+    height: rect.height,
+  };
+  const position = placeBeside(area, HUD, HUD.gap, display.workArea) ?? insideBottom(area, display);
+  // The recorder window owns the stream and the encoder, and doubles as the controls.
+  // It keeps running while hidden or unfocused; every other window throttles.
   const win = createWindow('recorder', {
+    ...position,
+    width: HUD.width,
+    height: HUD.height,
     show: false,
-    width: 360,
-    height: 120,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    // Clicking the controls must not take focus from the app being recorded.
+    focusable: false,
     skipTaskbar: true,
+    alwaysOnTop: true,
+    hasShadow: false,
     webPreferences: { backgroundThrottling: false },
   });
+  // Kept out of screen captures (Windows 10 2004+ and macOS), in case it overlaps the area.
+  win.setContentProtection(true);
+  win.setAlwaysOnTop(true, 'screen-saver');
   setCaptureDisplay(win.webContents, display.id);
   active = {
     win,
-    displayBounds: display.bounds,
+    display,
+    area,
+    border: null,
     init,
     files: new Map(),
     finalPath: null,
@@ -94,10 +115,71 @@ export async function stopRecording(): Promise<void> {
   if (active) send(active.win, 'recorder:command', 'stop');
 }
 
+/** Pauses a running recording, or resumes a paused one. */
+export async function togglePauseRecording(): Promise<void> {
+  if (!active) return;
+  const { state } = active.status;
+  if (state === 'paused') send(active.win, 'recorder:command', 'resume');
+  else if (state === 'recording') send(active.win, 'recorder:command', 'pause');
+}
+
+/** When no side of the area has room for the controls, they go inside it, at the bottom. */
+function insideBottom(area: Rect, display: Display): { x: number; y: number } {
+  const { workArea } = display;
+  const x = area.x + (area.width - HUD.width) / 2;
+  const y = area.y + area.height - HUD.height - 24;
+  return {
+    x: Math.round(Math.min(workArea.x + workArea.width - HUD.width, Math.max(workArea.x, x))),
+    y: Math.round(Math.min(workArea.y + workArea.height - HUD.height, Math.max(workArea.y, y))),
+  };
+}
+
+/** A red line along the window's edge: just outside the area, never over it. */
+const BORDER_PAGE = `data:text/html;charset=utf-8,${encodeURIComponent(
+  '<!doctype html><style>html,body{margin:0;height:100%;background:transparent}' +
+    `body{box-sizing:border-box;border:${BORDER.thickness}px solid ${BORDER.color}}</style>`,
+)}`;
+
+/**
+ * Frames the area with one transparent, click-through window a little larger than it.
+ * (Windows won't make windows a few pixels thin, so separate strips can't do it.) The
+ * inside is fully transparent, so clicks, the wheel and the capture all see what's under
+ * it. It gets no content protection: on Windows before 10 2004 that would record as a
+ * black rectangle over the whole area.
+ */
+function showBorder(area: Rect, display: Display): BrowserWindow | null {
+  const frame = outsideFrame(area, BORDER.thickness, display.bounds);
+  if (!frame) return null;
+  const border = new BrowserWindow({
+    ...frame,
+    title: 'anyshot recording border',
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    focusable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    alwaysOnTop: true,
+    webPreferences: { sandbox: true, javascript: false, contextIsolation: true },
+  });
+  border.setIgnoreMouseEvents(true);
+  border.setAlwaysOnTop(true, 'screen-saver');
+  border.webContents.on('will-navigate', (event) => event.preventDefault());
+  border.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  border.once('ready-to-show', () => {
+    if (!border.isDestroyed()) border.showInactive();
+  });
+  void border.loadURL(BORDER_PAGE);
+  return border;
+}
+
 async function cleanup(recording: Recording, error?: string): Promise<void> {
   if (active !== recording) return;
   active = null;
-  setAppState({ recording: false });
+  setAppState({ recording: false, recordingPaused: false });
+  if (recording.border && !recording.border.isDestroyed()) recording.border.destroy();
   for (const handle of recording.files.values()) await handle.close().catch(() => {});
   if (recording.intermediatePath) {
     await rm(recording.intermediatePath, { force: true }).catch((failure) =>
@@ -169,9 +251,15 @@ handle('recorder:status', (status, { win }) => {
   if (recording.status.state === 'starting' && status.state === 'recording') {
     recordTiming('recordingStarted', status.elapsedMs);
     // Capture has started: make sure Windows sends a first frame of a still screen.
-    nudgeCapture(recording.displayBounds);
+    nudgeCapture(recording.display.bounds);
+    if (getSettings().recording.showControls) {
+      recording.win.showInactive();
+      recording.border = showBorder(recording.area, recording.display);
+    }
   }
   recording.status = status;
+  const paused = status.state === 'paused';
+  if (paused !== appState.recordingPaused) setAppState({ recordingPaused: paused });
 });
 
 handle('recorder:finish', async ({ ok, error }, { win }) => {

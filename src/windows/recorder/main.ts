@@ -17,20 +17,34 @@ import {
 } from 'mediabunny';
 import type { RecorderInit, RecorderStatus } from '../../shared/ipc';
 import type { GifMessage } from '../../workers/gif.worker';
+import { createClock } from './clock';
+import { type HudView, mountHud } from './hud';
 
-// Hidden window that owns the screen stream and the encoder while recording.
+// The window that owns the screen stream and the encoder while recording, and shows
+// the recording controls beside the area (main shows it once capture has started).
 // Encoded chunks go to main as they are produced and are written to disk there.
 
 const api = window.anyshot;
 const GIF_MAX_WIDTH = 800;
+/** How often the controls' clock updates. */
+const HUD_TICK_MS = 250;
 
 let stopRequested: (() => void) | null = null;
 const stopped = new Promise<void>((resolve) => {
   stopRequested = resolve;
 });
 
+const clock = createClock();
+/** Pauses or resumes the running recording; set while one runs. */
+let pauseControl: ((pause: boolean) => void) | null = null;
+let showHud: (view: HudView) => void = () => {};
+
 function report(status: RecorderStatus): void {
   void api.invoke('recorder:status', status);
+}
+
+function hudView(): HudView {
+  return { phase: clock.paused ? 'paused' : 'recording', elapsedMs: clock.elapsed() };
 }
 
 /** Writes into a file opened by main, keeping only the current chunk in memory. */
@@ -139,20 +153,37 @@ async function record(init: RecorderInit): Promise<string> {
     if (audioSource) output.addAudioTrack(audioSource);
 
     await output.start();
-    const t0 = performance.now();
-    report({ state: 'recording', elapsedMs: t0 - started, bytes: 0 });
-    // A renderer-side timer is fine: this window only exists while recording.
+    clock.start();
+    report({ state: 'recording', elapsedMs: performance.now() - started, bytes: 0 });
+    const state = () => (clock.paused ? 'paused' : 'recording');
+    pauseControl = (pause) => {
+      // Paused sources drop what the stream sends, and the next timestamps continue
+      // from where they stopped, so the file has no gap.
+      if (pause ? !clock.pause() : !clock.resume()) return;
+      for (const media of [source, audioSource]) {
+        if (pause) media?.pause();
+        else media?.resume();
+      }
+      report({ state: state(), elapsedMs: clock.elapsed(), bytes });
+      showHud(hudView());
+    };
+    // Renderer-side timers are fine: this window only exists while recording.
     const ticker = setInterval(
-      () => report({ state: 'recording', elapsedMs: performance.now() - t0, bytes }),
+      () => report({ state: state(), elapsedMs: clock.elapsed(), bytes }),
       1000,
     );
+    const hudTicker = setInterval(() => showHud(hudView()), HUD_TICK_MS);
+    showHud(hudView());
     const failure = source.errorPromise.then(() => undefined);
     try {
       await Promise.race([stopped, failure]);
     } finally {
       clearInterval(ticker);
+      clearInterval(hudTicker);
+      pauseControl = null;
     }
-    report({ state: 'finishing', elapsedMs: performance.now() - t0, bytes });
+    report({ state: 'finishing', elapsedMs: clock.elapsed(), bytes });
+    showHud({ phase: 'finishing', elapsedMs: clock.elapsed() });
     await output.finalize();
     await api.invoke('recorder:close-file', { path });
     return path;
@@ -234,8 +265,16 @@ async function toGif(videoPath: string, init: RecorderInit): Promise<void> {
 async function main(): Promise<void> {
   api.on('recorder:command', (command) => {
     if (command === 'stop') stopRequested?.();
+    else pauseControl?.(command === 'pause');
   });
   const init = await api.invoke('recorder:init');
+  showHud = mountHud(
+    {
+      togglePause: () => pauseControl?.(!clock.paused),
+      stop: () => stopRequested?.(),
+    },
+    init.gif,
+  );
   try {
     const path = await record(init);
     if (init.gif) {

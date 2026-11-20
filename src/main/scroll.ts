@@ -1,5 +1,5 @@
 import { type BrowserWindow, type Display, Notification, screen } from 'electron';
-import { evenRect, pointerInCrop, type Rect, scaleRect } from '../shared/geometry';
+import { evenRect, placeBeside, pointerInCrop, type Rect, scaleRect } from '../shared/geometry';
 import type { ScrollInit } from '../shared/ipc';
 import { setCaptureDisplay } from './display-media';
 import { handle } from './ipc';
@@ -27,23 +27,13 @@ export async function startScrollCapture(display: Display, rect: Rect): Promise<
     scaleFactor,
     maxHeight: getSettings().scroll.maxHeight,
   };
-  const left = bounds.x + rect.x;
-  const top = bounds.y + rect.y;
-  const right = left + rect.width;
-  const bottom = top + rect.height;
-  const maxX = workArea.x + workArea.width - HUD.width;
-  const maxY = workArea.y + workArea.height - HUD.height;
-  const x = Math.min(maxX, Math.max(workArea.x, left + (rect.width - HUD.width) / 2));
-  const y = Math.min(maxY, Math.max(workArea.y, top + (rect.height - HUD.height) / 2));
-  const positions = [
-    { x, y: bottom + HUD.gap },
-    { x, y: top - HUD.height - HUD.gap },
-    { x: right + HUD.gap, y },
-    { x: left - HUD.width - HUD.gap, y },
-  ];
-  const position = positions.find(
-    (p) => p.x >= workArea.x && p.x <= maxX && p.y >= workArea.y && p.y <= maxY,
-  );
+  const area = {
+    x: bounds.x + rect.x,
+    y: bounds.y + rect.y,
+    width: rect.width,
+    height: rect.height,
+  };
+  const position = placeBeside(area, HUD, HUD.gap, workArea);
   if (!position) {
     new Notification({
       title: 'Could not start scroll capture',
@@ -52,8 +42,8 @@ export async function startScrollCapture(display: Display, rect: Rect): Promise<
     return;
   }
   const win = createWindow('scroll', {
-    x: Math.round(position.x),
-    y: Math.round(position.y),
+    x: position.x,
+    y: position.y,
     width: HUD.width,
     height: HUD.height,
     frame: false,

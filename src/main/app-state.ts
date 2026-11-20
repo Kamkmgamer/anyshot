@@ -3,6 +3,7 @@ type Listener = () => void;
 
 export const appState = {
   recording: false as boolean,
+  recordingPaused: false as boolean,
   delaySeconds: 0,
 };
 const listeners = new Set<Listener>();

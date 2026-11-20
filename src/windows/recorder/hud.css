@@ -1,0 +1,56 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* The window is exactly the bar's size, so a shadow would be cut off at its edge. */
+.rec-hud {
+  height: 100%;
+  gap: 6px;
+  padding: 0 6px 0 12px;
+  box-shadow: none;
+  font:
+    600 13px system-ui,
+    sans-serif;
+}
+
+.rec-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.rec-dot.paused {
+  background: var(--bar-fg);
+  opacity: 0.45;
+}
+
+.rec-time {
+  min-width: 38px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rec-state {
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+/* Push the buttons to the right edge, whether or not "Paused" shows. */
+.rec-hud > .tb-btn:first-of-type {
+  margin-left: auto;
+}
+
+.rec-stop {
+  color: #ef4444;
+}
+
+.rec-stop:hover:not(:disabled) {
+  background: #dc2626;
+  color: #fff;
+}

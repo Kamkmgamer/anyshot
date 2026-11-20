@@ -891,6 +891,16 @@ function Page({
               onChange={(filenameTemplate) => patch({ recording: { filenameTemplate } })}
             />
           </Row>
+          <Row
+            label="Show recording controls"
+            hint="Time, Pause and Stop beside the area, and a red border around it. When off, use the tray menu"
+          >
+            <Toggle
+              value={s.recording.showControls}
+              onChange={(v) => patch({ recording: { showControls: v } })}
+              testId="recording-show-controls"
+            />
+          </Row>
           <Row label="When done">
             <Select
               value={s.recording.whenDone}
