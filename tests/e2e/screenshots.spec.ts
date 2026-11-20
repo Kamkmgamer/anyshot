@@ -359,3 +359,82 @@ test('update window screenshot', async () => {
     await verifyAndClose(ctx);
   }
 });
+
+test('beautify, colour picker toast and narrow editor screenshots', async () => {
+  const ctx = await launch();
+  try {
+    await ctx.app.evaluate(
+      async (_e, dir) => {
+        await globalThis.__anyshot?.patch({
+          capture: { showThumbnail: false },
+          output: { saveDir: dir },
+        });
+      },
+      join(ctx.userData, 'shots'),
+    );
+    await showFixture(ctx.app);
+    await dispatch(ctx.app, 'captureArea');
+    const overlay = await pageOf(ctx.app, 'overlay');
+    await expect
+      .poll(() =>
+        ctx.app.evaluate(() =>
+          globalThis.__anyshot?.windows().some((w) => w.kind === 'overlay' && w.visible),
+        ),
+      )
+      .toBe(true);
+    await overlay.mouse.move(520, 120);
+    await overlay.mouse.down();
+    await overlay.mouse.move(1080, 500, { steps: 6 });
+    await overlay.mouse.up();
+    await pressClosing(overlay, 'Control+s');
+    await expect.poll(() => windowKinds(ctx.app)).toEqual([]);
+
+    // Edited from history, so the header has Replace and Done too: its widest form.
+    await dispatch(ctx.app, 'history');
+    const history = await pageOf(ctx.app, 'history');
+    const card = history.getByTestId('history-card').first();
+    await card.hover();
+    await card.getByRole('button', { name: 'Open in editor' }).click();
+    const editor = await pageOf(ctx.app, 'editor');
+    await pressClosing(history, 'Escape');
+    const resize = (width: number, height: number) =>
+      ctx.app.evaluate(
+        ({ BrowserWindow }, [width, height]) => {
+          for (const w of BrowserWindow.getAllWindows())
+            if (w.webContents.getURL().includes('/editor/')) w.setSize(width, height);
+        },
+        [width, height] as const,
+      );
+    await resize(1100, 720);
+    await editor.waitForTimeout(400);
+    await editor.keyboard.press('Control+1');
+
+    // Beautify while off: "No background" is chosen and the sliders wait for a background.
+    await editor.getByTestId('fx-beautify').click();
+    const popover = editor.getByTestId('beautify-popover');
+    await editor.waitForTimeout(200);
+    await editor.screenshot({ path: out('beautify-off.png') });
+    await popover.getByRole('button', { name: 'Background 4' }).click();
+    await expect(editor.locator('#frame')).toHaveClass(/beautified/);
+    await editor.waitForTimeout(300);
+    await editor.screenshot({ path: out('beautify-on.png') });
+    await popover.getByTestId('beautify-none').click();
+    await editor.keyboard.press('Escape');
+
+    // The colour picker says what it did.
+    await editor.getByTestId('tool-picker').click();
+    const chip = await editor.locator('#clip').boundingBox();
+    if (!chip) throw new Error('no canvas');
+    await editor.mouse.click(chip.x + chip.width * 0.12, chip.y + chip.height * 0.88);
+    await expect(editor.getByTestId('editor-status')).toContainText('Colour set to');
+    await editor.waitForTimeout(150);
+    await editor.screenshot({ path: out('picker-toast.png') });
+
+    // Asked to be far narrower, the window stops where the whole toolbar still fits.
+    await resize(420, 640);
+    await editor.waitForTimeout(500);
+    await editor.screenshot({ path: out('editor-narrow.png') });
+  } finally {
+    await verifyAndClose(ctx);
+  }
+});
