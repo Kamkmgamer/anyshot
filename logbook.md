@@ -9,6 +9,7 @@
 ## 2026-11-20 - releases from main (branch `ci/release-on-main`)
 
 - Every push to `main` now builds and publishes a release (docs-only pushes are skipped). A `version` job picks the version: package.json's if it is newer than every published release and not released yet, else the next patch after the latest release (drafts don't count). The build jobs stamp it into package.json before packaging, so the installers carry it. A `vX.Y.Z` tag still publishes exactly that version (must match package.json); manual runs still make drafts. The first push publishes the existing `v0.1.0` draft, refreshed from main. Why releases didn't show: `v0.1.0` was a draft, which GitHub doesn't list in the sidebar.
+- CodeRabbit on PR #5: fixed: list every published release (`gh api --paginate`, not `--limit 100`), and accept only `X.Y.Z` versions (package.json and tags must be X.Y.Z; other tags such as `v0.2.0-rc.1` are ignored when picking the next version, so bash arithmetic never sees a suffix). Rejected: keeping every pending run in the queue. If a newer push replaces a waiting one, the newer release is built from later main and its generated notes cover the skipped commits; and the suggested `queue:` setting isn't one I could confirm, while an unknown key would invalidate the workflow.
 - PR #4 was merged by the user after CodeRabbit round 1 (CI green, CodeRabbit check passing), so rounds 2-3 didn't happen.
 
 **Next:** check computer audio + microphone recording on Windows; bump `version` in package.json for minor/major releases.

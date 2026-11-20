@@ -33,6 +33,12 @@ jobs:
         run: |
           set -euo pipefail
           pkg=$(jq -r .version package.json)
+          # Releases are plain X.Y.Z (no prereleases), so versions can be compared and bumped.
+          plain='^[0-9]+\.[0-9]+\.[0-9]+$'
+          if ! grep -qE "$plain" <<< "$pkg"; then
+            echo "::error::package.json version $pkg is not X.Y.Z"
+            exit 1
+          fi
           if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = tag ]; then
             version="${GITHUB_REF_NAME#v}"
             if [ "$version" != "$pkg" ]; then
@@ -40,9 +46,9 @@ jobs:
               exit 1
             fi
           else
-            # Published releases only: a draft doesn't use up its version.
-            released=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 100 \
-              --json tagName --jq '.[].tagName | ltrimstr("v")')
+            # Every published release (all pages), X.Y.Z only; a draft doesn't use up its version.
+            released=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+              --jq '.[] | select(.draft | not) | .tag_name | ltrimstr("v")' | grep -E "$plain" || true)
             latest=$(printf '%s\n%s\n' "$released" "$pkg" | grep . | sort -V | tail -1)
             if [ "$latest" = "$pkg" ] && ! grep -qx "$pkg" <<< "$released"; then
               # package.json was bumped (or nothing is released yet): use it as is.
