@@ -41,17 +41,24 @@ function withDot(image) {
   return nativeImage.createFromBitmap(bgra, { width: size, height: size });
 }
 
-app.whenReady().then(() => {
-  const logo = nativeImage.createFromPath(join(dir, 'icon-256.png'));
-  if (logo.isEmpty()) throw new Error('resources/icon-256.png is missing');
-  for (const [name, size] of [
-    ['tray.png', 16],
-    ['tray@2x.png', 32],
-  ]) {
-    const small = logo.resize({ width: size, height: size, quality: 'best' });
-    writeFileSync(join(dir, name), small.toPNG());
-    writeFileSync(join(dir, name.replace('tray', 'tray-recording')), withDot(small).toPNG());
-  }
-  console.log('tray icons written to', dir);
-  app.quit();
-});
+app
+  .whenReady()
+  .then(() => {
+    const logo = nativeImage.createFromPath(join(dir, 'icon-256.png'));
+    if (logo.isEmpty()) throw new Error('resources/icon-256.png is missing');
+    for (const [name, size] of [
+      ['tray.png', 16],
+      ['tray@2x.png', 32],
+    ]) {
+      const small = logo.resize({ width: size, height: size, quality: 'best' });
+      writeFileSync(join(dir, name), small.toPNG());
+      writeFileSync(join(dir, name.replace('tray', 'tray-recording')), withDot(small).toPNG());
+    }
+    console.log('tray icons written to', dir);
+    app.quit();
+  })
+  .catch((error) => {
+    // Electron keeps running after an uncaught error, so exit with a failure status.
+    console.error(error);
+    app.exit(1);
+  });
