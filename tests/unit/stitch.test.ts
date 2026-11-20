@@ -192,4 +192,20 @@ describe('scroll stitching', () => {
     // Outside the frame.
     expect(pointerArea([{ x: -100, y: 50 }], 1, 100, 100)).toBeNull();
   });
+
+  it('still repaints the pointer once the height limit is reached', () => {
+    const src = page(400);
+    const stitcher = new Stitcher(W, 200, 200);
+    // The first frame fills the limit and has the pointer in it.
+    expect(stitcher.push(withPointer(view(src, 0, 200)), pointerArea([SPOT], 1, W, 200))).toBe(200);
+    expect(stitcher.pointerAreas).not.toEqual([]);
+    // The pointer moved away: a clean frame at the same scroll position repairs it, adding nothing.
+    expect(stitcher.push(view(src, 0, 200), null)).toBe(0);
+    expect(stitcher.pointerAreas).toEqual([]);
+    expect(stitcher.result().data).toEqual(src.subarray(0, 200 * W * 4));
+    // Scrolling further, even past any overlap, adds nothing and isn't reported as lost.
+    expect(stitcher.push(view(src, 40, 200))).toBe(0);
+    expect(stitcher.push(view(src, 200, 200))).toBe(0);
+    expect(stitcher.height).toBe(200);
+  });
 });

@@ -235,7 +235,6 @@ export class Stitcher {
   push(frame: RgbaFrame, pointer?: Area | null): number | null {
     if (frame.width !== this.width || frame.height !== this.frameHeight)
       throw new Error('Frame size changed');
-    if (this.height >= this.maxHeight) return 0;
     const profile = profileOf(frame, pointer);
     if (!this.last) {
       const rows = Math.min(frame.height, this.maxHeight);
@@ -245,7 +244,8 @@ export class Stitcher {
       return rows;
     }
     const found = findShift(this.last.profile, profile, frame.height);
-    if (!found) return null;
+    // At the height limit nothing more is added, so a lost overlap no longer matters.
+    if (!found) return this.height >= this.maxHeight ? 0 : null;
     let take = 0;
     if (found.shift > 0) {
       if (this.footer === 0 && found.fixedBottom > 0) {
@@ -254,12 +254,14 @@ export class Stitcher {
         this.footer = found.fixedBottom;
       }
       const end = frame.height - this.footer;
-      this.offset = this.rows + found.shift - end;
+      // The content moved up by `shift`, wherever appending stopped.
+      this.offset += found.shift;
       const room = this.maxHeight - this.height;
       take = Math.max(0, Math.min(found.shift, room));
       this.append(frame, end - found.shift, take);
       this.markDirty(pointer, end - found.shift, end - found.shift + take);
     }
+    // Also at the height limit: frames still clear the pointer from rows already kept.
     this.repair(frame, pointer, found.fixedTop, frame.height - this.footer);
     this.last = { frame, profile };
     return take;
