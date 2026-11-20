@@ -127,6 +127,8 @@ export const settingsSchema = obj({
   recording: obj({
     fps: int(30, 5, 60),
     microphone: bool(false),
+    /** Computer (system) audio. Windows only: Electron provides it as loopback there. */
+    systemAudio: bool(false),
     saveDir: str(''),
     filenameTemplate: str('anyshot recording {date} at {time}', 200),
     whenDone: oneOf(['reveal', 'open', 'copyPath'], 'reveal'),

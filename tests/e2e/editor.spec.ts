@@ -208,3 +208,74 @@ test('edits made while a project save waits stay dirty', async () => {
     )
     .toBe('• snapshot.anyshot — anyshot');
 });
+
+/** One pixel of the editor window as it is on screen. */
+async function screenPixel(page: Page, x: number, y: number): Promise<number[]> {
+  const png = await page.screenshot({
+    clip: { x: Math.round(x), y: Math.round(y), width: 1, height: 1 },
+  });
+  return ctx.app.evaluate(({ nativeImage }, b64) => {
+    const bgra = nativeImage.createFromBuffer(Buffer.from(b64, 'base64')).toBitmap();
+    return [bgra[2] ?? -1, bgra[1] ?? -1, bgra[0] ?? -1];
+  }, png.toString('base64'));
+}
+
+const close = (a: number[] | undefined, b: readonly number[], tolerance = 12) =>
+  !!a && a.every((v, i) => Math.abs(v - (b[i] ?? 0)) <= tolerance);
+
+test('beautify shows its frame live around the image, as it will be copied', async () => {
+  const editor = await editorWithAnnotation();
+  const frame = editor.locator('#frame');
+  await expect(frame).not.toHaveClass(/beautified/);
+  await editor.getByTestId('fx-beautify').click();
+  const popover = editor.getByTestId('beautify-popover');
+  await expect(popover).toContainText('Shown around the image');
+  // Picking a background turns Beautify on and shows it at once.
+  await popover.getByRole('button', { name: 'Background 3' }).click();
+  await expect(frame).toHaveClass(/beautified/);
+  await expect(frame).toHaveAttribute('data-background', '2');
+  // Close the popover so it doesn't cover the frame, then read the frame's corners.
+  await editor.getByTestId('fx-beautify').click();
+  await expect(popover).toHaveCount(0);
+  const box = await frame.boundingBox();
+  if (!box) throw new Error('no frame');
+  const from = [0xa5, 0xb4, 0xfc];
+  const to = [0xec, 0x48, 0x99];
+  expect(close(await screenPixel(editor, box.x + 2, box.y + 2), from)).toBe(true);
+  expect(close(await screenPixel(editor, box.x + box.width - 3, box.y + box.height - 3), to)).toBe(
+    true,
+  );
+  // The image keeps its size inside the padding; the frame adds 48 px a side at zoom 1.
+  const clip = await editor.locator('#clip').boundingBox();
+  expect(Math.round((clip?.x ?? 0) - box.x)).toBe(Math.round(((clip?.width ?? 0) / 300) * 48));
+
+  // The copy is what the preview showed.
+  await editor.getByTestId('editor-copy').click();
+  await expect(editor.getByTestId('editor-status')).toHaveText('Copied to the clipboard');
+  const corner = await clipboardPixel(2, 2);
+  expect(corner?.size).toEqual({ width: 396, height: 296 });
+  expect(close(corner?.rgb, from)).toBe(true);
+  expect(close((await clipboardPixel(393, 293))?.rgb, to)).toBe(true);
+
+  // The frame clips the shadow where the export ends.
+  expect(await frame.evaluate((el) => getComputedStyle(el).overflow)).toBe('hidden');
+
+  // A slider drag previews; closing the popover before release drops the preview.
+  await editor.getByTestId('fx-beautify').click();
+  const padding = popover.locator('input[type="range"]').first();
+  const shown = () => frame.evaluate((el) => Number.parseFloat(getComputedStyle(el).paddingLeft));
+  const committed = await shown();
+  await padding.evaluate((input: HTMLInputElement) => {
+    input.value = '96';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect.poll(shown).toBeCloseTo(committed * 2, 0);
+  await editor.keyboard.press('Escape');
+  await expect(popover).toHaveCount(0);
+  await expect.poll(shown).toBeCloseTo(committed, 0);
+
+  // Turning it off removes the frame.
+  await editor.getByTestId('fx-beautify').click();
+  await popover.getByRole('checkbox').uncheck();
+  await expect(frame).not.toHaveClass(/beautified/);
+});

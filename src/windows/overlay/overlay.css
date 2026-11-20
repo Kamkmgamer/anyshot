@@ -77,3 +77,8 @@
 .floating-bar .options {
   margin-top: 6px;
 }
+
+/* Lays the audio toggles out as part of the record bar. */
+.audio-toggles {
+  display: contents;
+}

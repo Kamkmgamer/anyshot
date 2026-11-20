@@ -1,8 +1,9 @@
 import '../common/ui.css';
 import './editor.css';
 import { render } from 'preact';
+import { beautifiedSize, beautifyBackgroundCss } from '../../engine/beautify';
 import { isBlankDoc, parseDoc, translateDoc } from '../../engine/document';
-import { type Doc, emptyDoc } from '../../engine/model';
+import { type Beautify, type Doc, emptyDoc } from '../../engine/model';
 import { type Rect, rectFromPoints } from '../../shared/geometry';
 import type { DeliverAction, EditableSource, EditorInit, EncodedImage } from '../../shared/ipc';
 import { packProject } from '../../shared/project';
@@ -41,6 +42,7 @@ const ui = createStore<EditorUi>({
 });
 
 const viewport = el('viewport');
+const frame = el('frame');
 const clip = el('clip');
 const stage = el('stage');
 const cropLayer = el('crop');
@@ -80,12 +82,57 @@ function layout(): void {
     transform: `translate(${-region.x * s}px, ${-region.y * s}px)`,
   });
   paintCropBox();
+  paintFrame();
+}
+
+/** Beautify as it will be exported: committed, or being dragged in the popover. */
+function shownBeautify(): Beautify | null {
+  if (ui.get().cropping) return null;
+  const tools = annotator.controller.store.get();
+  const b = (tools.previewEffects ?? annotator.docs.doc.effects).beautify;
+  return b.enabled ? b : null;
+}
+
+/**
+ * Shows the Beautify frame live around the image with CSS: the same gradient,
+ * padding, corner radius and shadow drawBeautified adds on export, at the
+ * current zoom. The canvas and its coordinates stay as they are.
+ */
+function paintFrame(): void {
+  const b = shownBeautify();
+  frame.classList.toggle('beautified', b !== null);
+  frame.dataset.background = b ? String(b.background) : '';
+  if (!b) {
+    frame.style.padding = '';
+    frame.style.background = '';
+    clip.style.borderRadius = '';
+    clip.style.boxShadow = '';
+    return;
+  }
+  const s = scale();
+  const region = visibleRegion();
+  const pad = beautifiedSize(region.width, region.height, b, unit()).pad * s;
+  const width = region.width * s + pad * 2;
+  const height = region.height * s + pad * 2;
+  const shadow = b.shadow * unit() * s;
+  frame.style.padding = `${pad}px`;
+  frame.style.background = beautifyBackgroundCss(b, width, height);
+  clip.style.borderRadius = `${b.radius * unit() * s}px`;
+  clip.style.boxShadow =
+    shadow > 0 ? `0 ${shadow * 0.25}px ${shadow}px rgba(0, 0, 0, 0.45)` : 'none';
 }
 
 function fitZoom(): number {
   const region = visibleRegion();
+  const b = shownBeautify();
+  // Image pixels the frame adds on each side; zoom scales them with the image.
+  const pad = b ? beautifiedSize(region.width, region.height, b, unit()).pad : 0;
   const available = { width: viewport.clientWidth - 48, height: viewport.clientHeight - 48 };
-  const fit = Math.min(available.width / region.width, available.height / region.height) * unit();
+  const fit =
+    Math.min(
+      available.width / (region.width + pad * 2),
+      available.height / (region.height + pad * 2),
+    ) * unit();
   return Math.max(0.1, Math.min(1, fit));
 }
 
@@ -561,6 +608,14 @@ async function boot(): Promise<void> {
   annotator = createAnnotator(stage, size, doc, init.settings);
   annotator.view.setSource(bitmap);
   savedDoc = annotator.docs.doc;
+  const tools = annotator.controller.store;
+  tools.set({ framePreview: true });
+  let shown = { effects: tools.get().effects, preview: tools.get().previewEffects };
+  tools.subscribe((t) => {
+    if (t.effects === shown.effects && t.previewEffects === shown.preview) return;
+    shown = { effects: t.effects, preview: t.previewEffects };
+    paintFrame();
+  });
   annotator.docs.subscribe((next) => {
     const dirty = next !== savedDoc;
     if (dirty !== ui.get().dirty) {

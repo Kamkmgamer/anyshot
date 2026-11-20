@@ -6,7 +6,7 @@ import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { isBlankDoc, translateDoc } from '../../engine/document';
 import { emptyDoc } from '../../engine/model';
 import type { Point, Rect } from '../../shared/geometry';
-import type { DeliverAction, OverlayInit, RawImage } from '../../shared/ipc';
+import type { DeliverAction, OverlayInit, RawImage, RecordAudio } from '../../shared/ipc';
 import {
   flippedHandle,
   moveSelection,
@@ -33,6 +33,8 @@ interface OverlayUi {
   selection: Rect | null;
   busy: boolean;
   toast: string | null;
+  /** Audio for the recording, toggled on the record bar. */
+  audio: RecordAudio;
 }
 
 type Drag =
@@ -47,6 +49,7 @@ const ui = createStore<OverlayUi>({
   selection: null,
   busy: false,
   toast: null,
+  audio: { microphone: false, systemAudio: false },
 });
 
 const stage = byId('stage');
@@ -225,6 +228,19 @@ function afterSelected(): void {
   else if (capturesAtOnce()) void finish('quick');
 }
 
+/** Video recordings take audio; GIFs and scroll captures don't. */
+function recordsAudio(): boolean {
+  return init.mode === 'record';
+}
+
+function toggleAudio(key: keyof RecordAudio): void {
+  if (!recordsAudio() || (key === 'systemAudio' && !init.systemAudio)) return;
+  const audio = { ...ui.get().audio, [key]: !ui.get().audio[key] };
+  ui.set({ audio });
+  // Also the default for the next recording.
+  void api.invoke('settings:patch', { recording: { [key]: audio[key] } });
+}
+
 function isRecordingSetup(): boolean {
   return init.mode === 'record' || init.mode === 'gif' || init.mode === 'scroll';
 }
@@ -248,6 +264,13 @@ function onKeyDown(e: KeyboardEvent): void {
   if (ui.get().busy) return;
   const mod = e.ctrlKey || e.metaKey;
   if (!mod && e.key !== 'Escape' && nativeInputOwnsKey(e)) return;
+  // A record-bar button reached with Tab keeps its own Enter and Space.
+  if (
+    (e.key === 'Enter' || e.key === ' ') &&
+    e.target instanceof HTMLButtonElement &&
+    e.target.closest('[data-testid="record-actions"]')
+  )
+    return;
   const key = e.key.toLowerCase();
   if (e.key === ' ') {
     spaceHeld = true;
@@ -270,6 +293,8 @@ function onKeyDown(e: KeyboardEvent): void {
   if (phase !== 'selected') return;
   if (isRecordingSetup()) {
     if (e.key === 'Enter') startRecordingOrScroll();
+    else if (!mod && key === 'm') toggleAudio('microphone');
+    else if (!mod && key === 'a') toggleAudio('systemAudio');
     return;
   }
   if (e.key === 'Enter') void finish('quick');
@@ -362,7 +387,12 @@ function startRecordingOrScroll(): void {
   if (!selection || ui.get().busy) return;
   ui.set({ busy: true });
   if (init.mode === 'scroll') void api.invoke('capture:scroll', { rect: selection, gif: false });
-  else void api.invoke('capture:record', { rect: selection, gif: init.mode === 'gif' });
+  else
+    void api.invoke('capture:record', {
+      rect: selection,
+      gif: init.mode === 'gif',
+      ...(recordsAudio() ? { audio: ui.get().audio } : {}),
+    });
 }
 
 // ---------------------------------------------------------------- chrome UI
@@ -408,6 +438,36 @@ function Floating(props: {
   );
 }
 
+/** Two toggles on the record bar: computer audio and the microphone. */
+function AudioToggles() {
+  const { microphone, systemAudio } = useStore(ui, (s) => s.audio);
+  const onOff = (on: boolean) => (on ? 'on' : 'off');
+  // A click doesn't move focus here, so Enter afterwards still starts the recording.
+  return (
+    <div class="audio-toggles" onMouseDown={(e) => e.preventDefault()}>
+      <Button
+        icon={systemAudio ? 'speaker' : 'speakerOff'}
+        label={
+          init.systemAudio
+            ? `Computer audio: ${onOff(systemAudio)} (A)`
+            : 'Computer audio can only be recorded on Windows'
+        }
+        active={systemAudio}
+        disabled={!init.systemAudio}
+        onClick={() => toggleAudio('systemAudio')}
+        testId="audio-system"
+      />
+      <Button
+        icon={microphone ? 'mic' : 'micOff'}
+        label={`Microphone: ${onOff(microphone)} (M)`}
+        active={microphone}
+        onClick={() => toggleAudio('microphone')}
+        testId="audio-mic"
+      />
+    </div>
+  );
+}
+
 function Actions() {
   const act = (a: DeliverAction) => () => void finish(a);
   if (isRecordingSetup()) {
@@ -420,6 +480,7 @@ function Actions() {
           onClick={startRecordingOrScroll}
           testId="start"
         />
+        {recordsAudio() && <AudioToggles />}
         <Button
           icon="close"
           label="Cancel (Esc)"
@@ -524,6 +585,12 @@ async function loadFrame(frameId: string, width: number, height: number): Promis
 async function boot(): Promise<void> {
   init = await api.invoke('overlay:init');
   followTheme(init.settings);
+  ui.set({
+    audio: {
+      microphone: init.settings.recording.microphone,
+      systemAudio: init.systemAudio && init.settings.recording.systemAudio,
+    },
+  });
   bitmap = await loadFrame(init.frameId, init.frame.width, init.frame.height);
   annotator = createAnnotator(stage, init.frame, emptyDoc(init.scaleFactor), init.settings);
   annotator.view.setSource(bitmap);

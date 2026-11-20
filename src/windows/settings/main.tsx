@@ -820,7 +820,16 @@ function Page({ tab, s }: { tab: Tab; s: Settings }) {
               onChange={(v) => patch({ recording: { fps: Number(v) } })}
             />
           </Row>
-          <Row label="Record microphone">
+          <Row
+            label="Record computer audio"
+            hint="Windows only. Also toggled on the record bar (A)"
+          >
+            <Toggle
+              value={s.recording.systemAudio}
+              onChange={(v) => patch({ recording: { systemAudio: v } })}
+            />
+          </Row>
+          <Row label="Record microphone" hint="Also toggled on the record bar (M)">
             <Toggle
               value={s.recording.microphone}
               onChange={(v) => patch({ recording: { microphone: v } })}

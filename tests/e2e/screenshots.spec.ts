@@ -73,6 +73,17 @@ test('overlay and editor screenshots', async () => {
     await editor.mouse.up();
     await editor.waitForTimeout(300);
     await editor.screenshot({ path: out('editor.png') });
+
+    // Beautify: the frame shows live around the image while a background is picked.
+    await editor.getByTestId('fx-beautify').click();
+    await editor
+      .getByTestId('beautify-popover')
+      .getByRole('button', { name: 'Background 1' })
+      .click();
+    await expect(editor.locator('#frame')).toHaveClass(/beautified/);
+    await editor.keyboard.press('Control+0');
+    await editor.waitForTimeout(400);
+    await editor.screenshot({ path: out('editor-beautify.png') });
   } finally {
     await verifyAndClose(ctx);
   }
@@ -246,6 +257,36 @@ test('history preview, split save and measure screenshots', async () => {
     await editor.waitForTimeout(200);
     await editor.screenshot({ path: out('editor-save-menu.png') });
     await editor.keyboard.press('Escape');
+  } finally {
+    await verifyAndClose(ctx);
+  }
+});
+
+test('record bar audio toggles screenshot', async () => {
+  const ctx = await launch();
+  try {
+    await showFixture(ctx.app);
+    await dispatch(ctx.app, 'recordArea');
+    const overlay = await pageOf(ctx.app, 'overlay');
+    await expect
+      .poll(() =>
+        ctx.app.evaluate(() =>
+          globalThis.__anyshot?.windows().some((w) => w.kind === 'overlay' && w.visible),
+        ),
+      )
+      .toBe(true);
+    await overlay.mouse.move(300, 150);
+    await overlay.mouse.down();
+    await overlay.mouse.move(900, 550, { steps: 4 });
+    await overlay.mouse.up();
+    await overlay.getByTestId('audio-mic').click();
+    await overlay.mouse.move(1000, 700);
+    await overlay.waitForTimeout(300);
+    await overlay.screenshot({
+      path: out('record-audio.png'),
+      clip: { x: 250, y: 100, width: 760, height: 520 },
+    });
+    await pressClosing(overlay, 'Escape');
   } finally {
     await verifyAndClose(ctx);
   }

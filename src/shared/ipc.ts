@@ -42,6 +42,8 @@ export interface OverlayInit {
   /** Full-screen modes select the whole display immediately. */
   selectAll: boolean;
   settings: Settings;
+  /** Computer audio can be recorded on this platform (Windows loopback). */
+  systemAudio: boolean;
   /** Non-empty when the overlay is a warm instance that will be reused. */
   warm: boolean;
 }
@@ -161,10 +163,17 @@ export interface PinInit {
   historyId: string;
 }
 
+/** The audio a recording takes, as chosen on the record bar. */
+export interface RecordAudio {
+  microphone: boolean;
+  systemAudio: boolean;
+}
+
 export interface RecordRequest {
   /** Region in CSS px relative to the sender overlay's display. */
   rect: Rect;
   gif: boolean;
+  audio?: RecordAudio;
 }
 
 export interface RecorderInit {
@@ -176,6 +185,8 @@ export interface RecorderInit {
   scaleFactor: number;
   fps: number;
   microphone: boolean;
+  /** Computer audio, from the display stream (Windows loopback). */
+  systemAudio: boolean;
   gif: boolean;
 }
 

@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { ALL_FORMATS, BufferSource, EncodedPacketSink, Input } from 'mediabunny';
 import { closeFixture, showFixture } from './fixture';
 import {
@@ -8,6 +8,7 @@ import {
   type Launched,
   launch,
   pageOf,
+  pressClosing,
   processTypes,
   rendererCount,
   windowKinds,
@@ -19,7 +20,11 @@ let dir: string;
 let temp: string;
 
 test.beforeEach(async () => {
-  ctx = await launch();
+  await start();
+});
+
+async function start(args: string[] = []): Promise<void> {
+  ctx = await launch(args);
   dir = join(ctx.userData, 'videos');
   temp = join(ctx.userData, 'tmp');
   await mkdir(temp);
@@ -33,14 +38,14 @@ test.beforeEach(async () => {
     [dir, temp] as const,
   );
   await showFixture(ctx.app);
-});
+}
 
 test.afterEach(async () => {
   await verifyAndClose(ctx);
 });
 
-async function recordFor(action: 'recordArea' | 'recordGif', ms: number): Promise<string> {
-  const before = await readdir(dir).catch((): string[] => []);
+/** Opens the record bar on a 400 × 200 area; returns the overlay. */
+async function recordBar(action: 'recordArea' | 'recordGif'): Promise<Page> {
   await dispatch(ctx.app, action);
   const overlay = await pageOf(ctx.app, 'overlay');
   await expect
@@ -54,11 +59,28 @@ async function recordFor(action: 'recordArea' | 'recordGif', ms: number): Promis
   await overlay.mouse.down();
   await overlay.mouse.move(501, 301, { steps: 4 });
   await overlay.mouse.up();
+  await expect(overlay.getByTestId('start')).toBeVisible();
+  return overlay;
+}
+
+async function recordFor(
+  action: 'recordArea' | 'recordGif',
+  ms: number,
+  setup?: (overlay: Page) => Promise<void>,
+): Promise<string> {
+  const before = await readdir(dir).catch((): string[] => []);
+  const started = () =>
+    ctx.app.evaluate(() => globalThis.__anyshot?.timings.recordingStarted?.length ?? 0);
+  const startsBefore = await started();
+  const overlay = await recordBar(action);
+  await setup?.(overlay);
   await overlay
     .getByTestId('start')
     .click()
     .catch(() => {});
   await expect.poll(() => windowKinds(ctx.app)).toEqual(['recorder']);
+  // The window exists before capture starts; time the clip from the recorder's own start.
+  await expect.poll(started, { timeout: 15_000 }).toBeGreaterThan(startsBefore);
   const tray = await ctx.app.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items[0]?.label);
   expect(tray).toBe('Stop recording');
   await new Promise((r) => setTimeout(r, ms));
@@ -130,4 +152,62 @@ test('records a GIF via an intermediate video that is removed afterwards', async
   }, bytes.toString('base64'));
   expect(gif.count).toBeGreaterThan(10);
   expect(gif.delays).toEqual([70_000, 60_000, 70_000]);
+});
+
+const recordingSettings = () =>
+  ctx.app.evaluate(
+    () =>
+      (globalThis.__anyshot?.settings() as { recording: Record<string, unknown> } | undefined)
+        ?.recording ?? {},
+  );
+
+test('the record bar toggles the microphone and computer audio, and remembers them', async () => {
+  const overlay = await recordBar('recordArea');
+  const mic = overlay.getByTestId('audio-mic');
+  const system = overlay.getByTestId('audio-system');
+  await expect(mic).toHaveAttribute('aria-pressed', 'false');
+  await mic.click();
+  await expect(mic).toHaveAttribute('aria-pressed', 'true');
+  await expect(mic).toHaveAttribute('title', 'Microphone: on (M)');
+  await expect.poll(async () => (await recordingSettings()).microphone).toBe(true);
+  await overlay.keyboard.press('m');
+  await expect(mic).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(async () => (await recordingSettings()).microphone).toBe(false);
+  // A click leaves focus alone, so Enter would still start the recording...
+  expect(await mic.evaluate((el) => el === document.activeElement)).toBe(false);
+  // ...but a toggle reached with the keyboard takes its own Enter and Space.
+  await mic.focus();
+  await overlay.keyboard.press('Enter');
+  await expect(mic).toHaveAttribute('aria-pressed', 'true');
+  await overlay.keyboard.press(' ');
+  await expect(mic).toHaveAttribute('aria-pressed', 'false');
+  expect(await windowKinds(ctx.app)).not.toContain('recorder');
+  // Linux has no loopback capture: computer audio is off and explains why.
+  await expect(system).toBeDisabled();
+  await expect(system).toHaveAttribute('title', /only be recorded on Windows/);
+  await overlay.keyboard.press('a');
+  expect((await recordingSettings()).systemAudio).toBe(false);
+  await pressClosing(overlay, 'Escape');
+  await expect.poll(() => windowKinds(ctx.app)).toEqual([]);
+
+  // GIFs have no audio, so no toggles.
+  const gif = await recordBar('recordGif');
+  await expect(gif.getByTestId('audio-mic')).toHaveCount(0);
+  await expect(gif.getByTestId('audio-system')).toHaveCount(0);
+  await pressClosing(gif, 'Escape');
+});
+
+test('records microphone audio when its toggle is on', async () => {
+  // Chromium's fake capture devices give the recorder a microphone under Xvfb.
+  await verifyAndClose(ctx);
+  await start(['--use-fake-device-for-media-stream']);
+  const file = await recordFor('recordArea', 2500, async (overlay) => {
+    await overlay.getByTestId('audio-mic').click();
+    await expect(overlay.getByTestId('audio-mic')).toHaveAttribute('aria-pressed', 'true');
+  });
+  const input = new Input({ source: new BufferSource(await readFile(file)), formats: ALL_FORMATS });
+  const audio = await input.getPrimaryAudioTrack();
+  expect(audio).not.toBeNull();
+  expect(await audio?.computeDuration()).toBeGreaterThan(1);
+  expect(await input.getPrimaryVideoTrack()).not.toBeNull();
 });

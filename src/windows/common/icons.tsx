@@ -200,6 +200,25 @@ const ICONS = {
       <path d="M10 2.5v1.6M10 15.9v1.6M2.5 10h1.6M15.9 10h1.6M4.7 4.7l1.1 1.1M14.2 14.2l1.1 1.1M4.7 15.3l1.1-1.1M14.2 5.8l1.1-1.1" />
     </>
   ),
+  micOff: (
+    <>
+      <rect x="7.5" y="3" width="5" height="9" rx="2.5" />
+      <path d="M5 10a5 5 0 0010 0M10 15v2.5" />
+      <path d="M3.5 3.5l13 13" />
+    </>
+  ),
+  speaker: (
+    <>
+      <path d="M3 8h3l4-3.5v11L6 12H3z" />
+      <path d="M13 7.5a3.5 3.5 0 010 5M15.2 5a7 7 0 010 10" />
+    </>
+  ),
+  speakerOff: (
+    <>
+      <path d="M3 8h3l4-3.5v11L6 12H3z" />
+      <path d="M13.5 8l4 4M17.5 8l-4 4" />
+    </>
+  ),
   chevronDown: <path d="M6 8l4 4 4-4" />,
   check: <path d="M4.5 10.5l3.5 3.5 7.5-8" />,
 } satisfies Record<string, JSX.Element>;

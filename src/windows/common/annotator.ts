@@ -46,6 +46,17 @@ export function createAnnotator(
   });
   store.set({ effects: doc.effects });
   const stopPersisting = persistToolChoices(store);
+  // A slider preview is committed on release. If its popover closes first (Esc, another
+  // tool, another popover), drop the preview so the screen matches what will be exported.
+  let popover = store.get().popover;
+  const stopWatchingPopover = store.subscribe((s) => {
+    if (s.popover === popover) return;
+    popover = s.popover;
+    if (s.previewEffects) {
+      view.preview(null);
+      store.set({ previewEffects: null });
+    }
+  });
 
   const controller: Controller = {
     store,
@@ -65,9 +76,13 @@ export function createAnnotator(
     effects: {
       set: (effects) => {
         view.preview(null);
+        store.set({ previewEffects: null });
         if (effects !== docs.doc.effects) docs.setEffects(effects);
       },
-      preview: (effects) => view.preview(effects),
+      preview: (effects) => {
+        view.preview(effects);
+        store.set({ previewEffects: effects });
+      },
     },
     undo: () => docs.undo(),
     redo: () => docs.redo(),
@@ -104,6 +119,7 @@ export function createAnnotator(
     handleKey,
     dispose() {
       stopPersisting();
+      stopWatchingPopover();
       view.dispose();
     },
   };

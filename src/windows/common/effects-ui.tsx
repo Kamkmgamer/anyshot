@@ -75,7 +75,11 @@ function Range(props: {
 
 /** Popover for colour adjustments; sliders preview live and commit once on release. */
 export function EffectPopovers({ c }: { c: Controller }) {
-  const s = useStore(c.store, (s) => ({ effects: s.effects, popover: s.popover }));
+  const s = useStore(c.store, (s) => ({
+    effects: s.effects,
+    popover: s.popover,
+    framePreview: s.framePreview,
+  }));
   if (s.popover === 'adjust') {
     const fx = s.effects;
     const with_ = (patch: Partial<Adjust>): Effects => ({
@@ -130,7 +134,7 @@ export function EffectPopovers({ c }: { c: Controller }) {
         max={max}
         step={1}
         value={b[key]}
-        onPreview={() => {}}
+        onPreview={(v) => c.effects.preview({ ...fx, beautify: { ...b, [key]: v } })}
         onCommit={(v) => set({ [key]: v })}
       />
     );
@@ -159,7 +163,11 @@ export function EffectPopovers({ c }: { c: Controller }) {
             />
           ))}
         </div>
-        <span class="opt hint">Applied when you copy, save or pin.</span>
+        <span class="opt hint">
+          {s.framePreview
+            ? 'Shown around the image; applied when you copy, save or pin.'
+            : 'Applied when you copy, save or pin.'}
+        </span>
       </div>
     );
   }

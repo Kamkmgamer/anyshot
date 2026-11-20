@@ -13,6 +13,21 @@ export const BACKGROUNDS: readonly [string, string][] = [
   ['#c4b5fd', '#22d3ee'],
 ];
 
+function colors(b: Beautify): [string, string] {
+  return BACKGROUNDS[b.background % BACKGROUNDS.length] ?? ['#ffffff', '#ffffff'];
+}
+
+/**
+ * The background as a CSS gradient for a width × height frame. Matches
+ * drawBeautified's corner-to-corner canvas gradient: at this angle the CSS
+ * gradient line also runs from corner to corner.
+ */
+export function beautifyBackgroundCss(b: Beautify, width: number, height: number): string {
+  const [from, to] = colors(b);
+  const angle = (Math.atan2(width, -height) * 180) / Math.PI;
+  return `linear-gradient(${Number(angle.toFixed(3))}deg, ${from}, ${to})`;
+}
+
 export function beautifiedSize(width: number, height: number, b: Beautify, unit: number) {
   const pad = Math.round(b.padding * unit);
   return { width: width + pad * 2, height: height + pad * 2, pad };
@@ -28,7 +43,7 @@ export function drawBeautified(
   unit: number,
 ): void {
   const out = beautifiedSize(width, height, b, unit);
-  const [from, to] = BACKGROUNDS[b.background % BACKGROUNDS.length] ?? ['#ffffff', '#ffffff'];
+  const [from, to] = colors(b);
   const gradient = ctx.createLinearGradient(0, 0, out.width, out.height);
   gradient.addColorStop(0, from);
   gradient.addColorStop(1, to);
