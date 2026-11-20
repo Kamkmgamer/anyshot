@@ -8,13 +8,13 @@ export type StitchMessage =
       width: number;
       height: number;
       maxHeight: number;
-      /** Where the mouse pointer is drawn in this frame, if it is inside. */
-      pointer: Area | null;
+      /** Where the mouse pointer may be drawn in this frame (none when it is outside). */
+      pointer: Area[];
     }
   | { type: 'finish' };
 
 export type StitchReply =
-  | { type: 'progress'; width: number; height: number }
+  | { type: 'progress'; width: number; height: number; full: boolean }
   | { type: 'done'; png: ArrayBuffer; thumb: ArrayBuffer; width: number; height: number }
   | { type: 'empty' }
   | { type: 'lost-overlap' };
@@ -33,7 +33,12 @@ scope.onmessage = async (event: MessageEvent<StitchMessage>) => {
     const reply: StitchReply =
       rows === null
         ? { type: 'lost-overlap' }
-        : { type: 'progress', width: stitcher.width, height: stitcher.height };
+        : {
+            type: 'progress',
+            width: stitcher.width,
+            height: stitcher.height,
+            full: stitcher.full,
+          };
     scope.postMessage(reply);
     return;
   }
