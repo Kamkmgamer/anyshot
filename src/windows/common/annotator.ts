@@ -1,6 +1,6 @@
 import { DocStore } from '../../engine/document';
 import type { Doc } from '../../engine/model';
-import { CanvasView, type ToolOptions } from '../../engine/view';
+import { CanvasView, STYLE_KEYS, type StylePatch, type ToolOptions } from '../../engine/view';
 import type { Settings, ToolId } from '../../shared/settings';
 import { dismissPopovers } from './popover';
 import type { Controller } from './toolbar';
@@ -42,6 +42,9 @@ export function createAnnotator(
         canUndo: docs.canUndo,
         canRedo: docs.canRedo,
         selectedCount: docs.selected.size,
+        selectedText: docs.doc.annotations.some(
+          (a) => a.kind === 'text' && docs.selected.has(a.id),
+        ),
         effects: docs.doc.effects,
       }),
   });
@@ -70,11 +73,12 @@ export function createAnnotator(
     },
     setOptions(patch: Partial<ToolOptions>) {
       store.set(patch);
-      const { color, strokeWidth, lineStyle, fill } = patch;
-      const style = Object.fromEntries(
-        Object.entries({ color, strokeWidth, lineStyle, fill }).filter(([, v]) => v !== undefined),
-      );
-      if (docs.selected.size > 0 && Object.keys(style).length > 0) view.applyStyle(style);
+      const style: StylePatch = {};
+      for (const key of STYLE_KEYS)
+        if (patch[key] !== undefined) Object.assign(style, { [key]: patch[key] });
+      if (Object.keys(style).length === 0) return;
+      view.restyleTextEditor(style);
+      if (docs.selected.size > 0) view.applyStyle(style);
     },
     effects: {
       set: (effects) => {

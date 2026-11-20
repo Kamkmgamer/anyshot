@@ -10,6 +10,7 @@ import { packProject } from '../../shared/project';
 import { isRecord } from '../../shared/schema';
 import { type Annotator, createAnnotator, nativeInputOwnsKey } from '../common/annotator';
 import { EffectButtons, EffectPopovers } from '../common/effects-ui';
+import { TextPopover } from '../common/text-style-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
 import { followTheme } from '../common/theme';
@@ -487,6 +488,7 @@ function Tools() {
       <OptionsRow c={annotator.controller} />
       <ColorPopover c={annotator.controller} />
       <EffectPopovers c={annotator.controller} />
+      <TextPopover c={annotator.controller} />
       {status && (
         <button
           type="button"

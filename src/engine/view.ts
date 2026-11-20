@@ -8,7 +8,7 @@ import {
   snap45,
   squareFrom,
 } from '../shared/geometry';
-import type { ToolId } from '../shared/settings';
+import type { TextFont, ToolId } from '../shared/settings';
 import type { DocStore } from './document';
 import { adjustFilter, GlEffects } from './gl';
 import {
@@ -21,6 +21,7 @@ import {
   newId,
   type Stroke,
   type TextAnnotation,
+  type TextStyle,
 } from './model';
 import {
   type Ctx,
@@ -39,6 +40,7 @@ import {
   textFont,
   topmostAt,
   translate,
+  TEXT_LINE_HEIGHT,
 } from './shapes';
 
 export interface ToolOptions {
@@ -48,12 +50,60 @@ export interface ToolOptions {
   fill: FillMode;
   lineStyle: LineStyle;
   textSize: number;
+  textFont: TextFont;
+  textBold: boolean;
+  textItalic: boolean;
+  textUnderline: boolean;
+  textOutline: boolean;
   censorMode: CensorMode;
   /** 10–95 percent. */
   spotlightDim: number;
   magnifyZoom: number;
   stampSize: number;
   stamp: string;
+}
+
+/** Tool options that restyle existing annotations (the selection, an open text box). */
+export type StylePatch = Partial<
+  Pick<
+    ToolOptions,
+    | 'color'
+    | 'strokeWidth'
+    | 'lineStyle'
+    | 'fill'
+    | 'textSize'
+    | 'textFont'
+    | 'textBold'
+    | 'textItalic'
+    | 'textUnderline'
+    | 'textOutline'
+  >
+>;
+
+export const STYLE_KEYS: readonly (keyof StylePatch)[] = [
+  'color',
+  'strokeWidth',
+  'lineStyle',
+  'fill',
+  'textSize',
+  'textFont',
+  'textBold',
+  'textItalic',
+  'textUnderline',
+  'textOutline',
+];
+
+/** The text style the tool options describe. */
+export function textStyleOf(
+  o: Pick<ToolOptions, 'textFont' | 'textBold' | 'textItalic' | 'textUnderline' | 'textOutline'>,
+): TextStyle {
+  return {
+    font: o.textFont,
+    bold: o.textBold,
+    italic: o.textItalic,
+    underline: o.textUnderline,
+    outline: o.textOutline,
+  };
 }
 
 export interface ViewEvents {
@@ -530,9 +580,7 @@ export class CanvasView {
   }
 
   /** Applies style changes from the toolbar to selected annotations. */
-  applyStyle(
-    patch: Partial<Pick<ToolOptions, 'color' | 'strokeWidth' | 'lineStyle' | 'fill'>>,
-  ): void {
+  applyStyle(patch: StylePatch): void {
     this.store.updateSelected((a) => restyle(a, patch, this.unit));
   }
 
@@ -558,20 +606,20 @@ export class CanvasView {
   private openTextEditor(existing: TextAnnotation | null, p: Point): void {
     const o = this.options();
     const size = existing?.size ?? o.textSize * this.unit;
-    const at = existing?.at ?? { x: p.x, y: p.y - size * 0.6 };
-    const color = existing?.color ?? o.color;
-    const scale = 1 / this.displayScale;
+    const draft: TextAnnotation = existing ?? {
+      id: newId(),
+      kind: 'text',
+      at: { x: p.x, y: p.y - size * 0.6 },
+      text: '',
+      size,
+      color: o.color,
+      background: false,
+      style: textStyleOf(o),
+    };
     const editor = document.createElement('textarea');
     editor.className = 'text-editor';
     editor.value = existing?.text ?? '';
     editor.spellcheck = false;
-    Object.assign(editor.style, {
-      left: `${this.base.offsetLeft + at.x * scale}px`,
-      top: `${this.base.offsetTop + at.y * scale}px`,
-      font: textFont(size * scale),
-      color,
-      lineHeight: '1.25',
-    });
     const fitToContent = () => {
       editor.style.height = 'auto';
       editor.style.height = `${editor.scrollHeight}px`;
@@ -591,19 +639,46 @@ export class CanvasView {
     editor.addEventListener('blur', () => this.closeTextEditor(true));
     this.container.appendChild(editor);
     this.textEditor = editor;
-    this.textTarget = { existing, at, size, color };
+    this.textTarget = { existing, draft, fit: fitToContent };
     if (existing) this.skipIds([existing.id]);
-    fitToContent();
+    this.styleTextEditor();
     // Focus now, not on the next frame: keys typed right after the click must reach the box.
     editor.focus();
   }
 
   private textTarget: {
     existing: TextAnnotation | null;
-    at: Point;
-    size: number;
-    color: string;
+    /** The annotation as it will be committed, apart from its text. */
+    draft: TextAnnotation;
+    fit: () => void;
   } | null = null;
+
+  /** Shows the open text box in its draft's font, size and colour. */
+  private styleTextEditor(): void {
+    const editor = this.textEditor;
+    const target = this.textTarget;
+    if (!editor || !target) return;
+    const { draft } = target;
+    const scale = 1 / this.displayScale;
+    Object.assign(editor.style, {
+      left: `${this.base.offsetLeft + draft.at.x * scale}px`,
+      top: `${this.base.offsetTop + draft.at.y * scale}px`,
+      font: textFont(draft.size * scale, draft.style),
+      color: draft.color,
+      lineHeight: String(TEXT_LINE_HEIGHT),
+      textDecoration: draft.style.underline ? 'underline' : 'none',
+    });
+    target.fit();
+  }
+
+  /** Applies style changes to the open text box, if any; the text style popover keeps it open. */
+  restyleTextEditor(patch: StylePatch): void {
+    const target = this.textTarget;
+    if (!target) return;
+    const next = restyle(target.draft, patch, this.unit);
+    if (next.kind === 'text') target.draft = next;
+    this.styleTextEditor();
+  }
 
   /** Commits any open text box (e.g. before exporting). */
   commitText(): void {
@@ -620,7 +695,7 @@ export class CanvasView {
     editor.remove();
     this.unskip();
     if (!commit) return;
-    const { existing } = target;
+    const { existing, draft } = target;
     if (existing) {
       if (!text)
         this.store.commit({
@@ -628,17 +703,10 @@ export class CanvasView {
           annotation: existing,
           index: this.store.doc.annotations.indexOf(existing),
         });
-      else if (text !== existing.text) this.store.update(existing, { ...existing, text });
+      else if (text !== existing.text || draft !== existing)
+        this.store.update(existing, { ...draft, text });
     } else if (text) {
-      this.store.add({
-        id: newId(),
-        kind: 'text',
-        at: target.at,
-        text,
-        size: target.size,
-        color: target.color,
-        background: false,
-      });
+      this.store.add({ ...draft, text });
     }
   }
 
@@ -714,11 +782,7 @@ export function isMeaningful(a: Annotation, min: number): boolean {
   }
 }
 
-export function restyle(
-  a: Annotation,
-  patch: Partial<Pick<ToolOptions, 'color' | 'strokeWidth' | 'lineStyle' | 'fill'>>,
-  unit: number,
-): Annotation {
+export function restyle(a: Annotation, patch: StylePatch, unit: number): Annotation {
   if ('stroke' in a) {
     const stroke: Stroke = {
       color: patch.color ?? a.stroke.color,
@@ -729,7 +793,22 @@ export function restyle(
       return { ...a, stroke, fill: patch.fill ?? a.fill };
     return { ...a, stroke };
   }
-  if ((a.kind === 'text' || a.kind === 'number' || a.kind === 'magnify') && patch.color) {
+  if (a.kind === 'text') {
+    const s = a.style;
+    return {
+      ...a,
+      color: patch.color ?? a.color,
+      size: patch.textSize !== undefined ? patch.textSize * unit : a.size,
+      style: {
+        font: patch.textFont ?? s.font,
+        bold: patch.textBold ?? s.bold,
+        italic: patch.textItalic ?? s.italic,
+        underline: patch.textUnderline ?? s.underline,
+        outline: patch.textOutline ?? s.outline,
+      },
+    };
+  }
+  if ((a.kind === 'number' || a.kind === 'magnify') && patch.color) {
     return { ...a, color: patch.color };
   }
   return a;

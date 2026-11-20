@@ -6,6 +6,7 @@ import { Icon, type IconName } from './icons';
 import { usePressRepeat } from './repeat';
 import type { Store } from './store';
 import { useStore } from './store';
+import { TextStyleButton } from './text-style-ui';
 import { QUICK_STAMPS, TOOL_KEYS, TOOL_LABELS, type ToolUiState } from './tools';
 
 /** What the toolbars can ask the host window to do. */
@@ -294,16 +295,13 @@ export function OptionsRow({ c }: { c: Controller }) {
       />,
     );
   }
+  if (s.tool === 'text' || (s.tool === 'select' && s.selectedText))
+    parts.push(<TextStyleButton key="ts" c={c} />);
   if (s.tool === 'text')
     parts.push(
-      <Slider
-        key="ts"
-        label="Size"
-        min={8}
-        max={120}
-        value={s.textSize}
-        onInput={(v) => set({ textSize: v })}
-      />,
+      <span key="text-hint" class="opt hint">
+        Click to type · Enter places it · Shift+Enter for a new line
+      </span>,
     );
   if (s.tool === 'censor') {
     parts.push(
