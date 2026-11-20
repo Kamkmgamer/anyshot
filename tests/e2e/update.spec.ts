@@ -39,7 +39,11 @@ const offer = (patch: Partial<UpdateOffer> = {}): UpdateOffer => ({
   ...patch,
 });
 
-async function showOffer(app: ElectronApplication, o: UpdateOffer, plan: { fail?: string } = {}) {
+async function showOffer(
+  app: ElectronApplication,
+  o: UpdateOffer,
+  plan: { fail?: string; installFail?: string } = {},
+) {
   await app.evaluate((_e, [o, plan]) => globalThis.__anyshot?.offerUpdate(o, plan), [
     o,
     plan,
@@ -87,6 +91,15 @@ test('a failed download says why and can be tried again; Later closes the window
   expect(await ctx.app.evaluate(() => globalThis.__anyshot?.updateInstalls)).toBe(0);
   await clickClosing(page.getByTestId('update-later'));
   await expect.poll(() => windowKinds(ctx.app)).toEqual([]);
+});
+
+test('an install that fails after the download says why, and the app keeps running', async () => {
+  const page = await showOffer(ctx.app, offer(), { installFail: 'EACCES: permission denied' });
+  await page.getByTestId('update-install').click();
+  await expect(page.getByTestId('update-error')).toContainText('EACCES: permission denied');
+  await expect(page.getByTestId('update-install')).toHaveText('Try again');
+  await expect(page.getByTestId('update-later')).toBeEnabled();
+  expect(await ctx.app.evaluate(() => globalThis.__anyshot?.updateInstalls)).toBe(1);
 });
 
 test('a .deb install links to the release instead of updating itself', async () => {

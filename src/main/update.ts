@@ -15,8 +15,11 @@ export interface Updater {
   /** The newer release, or null when this is the latest. Rejects when offline. */
   check(): Promise<{ version: string; releaseNotes: string | null } | null>;
   download(onProgress: (percent: number) => void): Promise<void>;
-  /** Quits, installs and restarts. */
-  install(): void;
+  /**
+   * Quits, installs and restarts. Rejects if installing fails instead (an
+   * AppImage in a folder the user can't write to): the app then keeps running.
+   */
+  install(): Promise<void>;
 }
 
 /**
@@ -52,8 +55,12 @@ export async function electronUpdater(): Promise<Updater> {
       }
     },
     install() {
-      // Silent: the installer already ran once with the user's choices; then restart.
-      autoUpdater.quitAndInstall(true, true);
+      return new Promise<void>((_resolve, reject) => {
+        // Install failures are emitted, not thrown; on success the app quits.
+        autoUpdater.once('error', reject);
+        // Silent: the installer already ran once with the user's choices; then restart.
+        autoUpdater.quitAndInstall(true, true);
+      });
     },
   };
 }
@@ -140,7 +147,7 @@ handle('update:install', async () => {
       setStatus({ state: 'downloading', percent: Math.max(0, Math.min(100, percent)) }),
     );
     setStatus({ state: 'installing' });
-    current.install();
+    await current.install();
   } catch (error) {
     setStatus({
       state: 'error',

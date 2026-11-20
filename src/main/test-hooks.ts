@@ -14,7 +14,7 @@ export interface TestHooks {
   patch(patch: unknown): Promise<unknown>;
   timings: Record<string, number[]>;
   /** Shows the update window with a fake updater: its download reports progress, then fails or "installs". */
-  offerUpdate(offer: UpdateOffer, plan?: { fail?: string }): Promise<void>;
+  offerUpdate(offer: UpdateOffer, plan?: { fail?: string; installFail?: string }): Promise<void>;
   /** Runs the startup check against a fake updater and returns how often it was asked. */
   startupCheck(): Promise<number>;
   updateInstalls: number;
@@ -50,9 +50,10 @@ export function installTestHooks(dispatch: (action: AppAction, file?: string) =>
           if (plan.fail) throw new Error(plan.fail);
           onProgress(100);
         },
-        install: () => {
+        install: async () => {
           const hooks = globalThis.__anyshot;
           if (hooks) hooks.updateInstalls++;
+          if (plan.installFail) throw new Error(plan.installFail);
         },
       });
       update.showUpdate(offer);
@@ -71,7 +72,7 @@ export function installTestHooks(dispatch: (action: AppAction, file?: string) =>
           return { version: '99.0.0', releaseNotes: null };
         },
         download: async () => {},
-        install: () => {},
+        install: async () => {},
       });
       await update.checkAtStartup();
       return checks;
