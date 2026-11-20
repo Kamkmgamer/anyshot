@@ -1,8 +1,16 @@
 /// <reference lib="webworker" />
-import { Stitcher } from '../shared/stitch';
+import { type Area, Stitcher } from '../shared/stitch';
 
 export type StitchMessage =
-  | { type: 'frame'; rgba: ArrayBuffer; width: number; height: number; maxHeight: number }
+  | {
+      type: 'frame';
+      rgba: ArrayBuffer;
+      width: number;
+      height: number;
+      maxHeight: number;
+      /** Where the mouse pointer is drawn in this frame, if it is inside. */
+      pointer: Area | null;
+    }
   | { type: 'finish' };
 
 export type StitchReply =
@@ -18,11 +26,10 @@ scope.onmessage = async (event: MessageEvent<StitchMessage>) => {
   const message = event.data;
   if (message.type === 'frame') {
     stitcher ??= new Stitcher(message.width, message.height, message.maxHeight);
-    const rows = stitcher.push({
-      data: new Uint8ClampedArray(message.rgba),
-      width: message.width,
-      height: message.height,
-    });
+    const rows = stitcher.push(
+      { data: new Uint8ClampedArray(message.rgba), width: message.width, height: message.height },
+      message.pointer,
+    );
     const reply: StitchReply =
       rows === null
         ? { type: 'lost-overlap' }

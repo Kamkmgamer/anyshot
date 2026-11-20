@@ -67,7 +67,7 @@ bun run lint           # Biome lint
 bun run format:check   # Biome formatting (bun run format to fix)
 bun run typecheck      # tsc for main, windows and tests
 bun run test           # Vitest unit tests
-xvfb-run -a bun run test:e2e   # Playwright + Electron end-to-end tests (Linux)
+xvfb-run -a bun run test:e2e   # Playwright + Electron end-to-end tests (Linux; needs xdotool)
 
 bun run dist:dir       # unpacked build in dist/ (quick packaging check)
 bun run dist           # installers: NSIS on Windows; AppImage, deb, rpm on Linux

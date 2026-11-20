@@ -3,7 +3,7 @@
  * declared once with its request and response types, and with the window kinds
  * allowed to call it. Main rejects calls from any other sender.
  */
-import type { Rect, Size } from './geometry';
+import type { Point, Rect, Size } from './geometry';
 import type { DeepPartial, Settings, ToolChoices, ToolId } from './settings';
 
 export const APP_ORIGIN = 'app://local';
@@ -257,6 +257,8 @@ export interface InvokeContract {
 
   'scroll:init': Channel<void, ScrollInit>;
   'scroll:finish': Channel<{ image: EncodedImage | null; thumb?: ArrayBuffer }, void>;
+  /** The mouse pointer in physical pixels relative to the crop (screen captures draw it in). */
+  'scroll:pointer': Channel<void, Point | null>;
 
   'ocr:init': Channel<void, OcrResult>;
 
@@ -336,6 +338,7 @@ export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind
 
   'scroll:init': ['scroll'],
   'scroll:finish': ['scroll'],
+  'scroll:pointer': ['scroll'],
 
   'ocr:init': ['ocr'],
 

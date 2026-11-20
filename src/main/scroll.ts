@@ -1,4 +1,4 @@
-import { type BrowserWindow, type Display, Notification } from 'electron';
+import { type BrowserWindow, type Display, Notification, screen } from 'electron';
 import { evenRect, type Rect, scaleRect } from '../shared/geometry';
 import type { ScrollInit } from '../shared/ipc';
 import { setCaptureDisplay } from './display-media';
@@ -8,7 +8,7 @@ import { createWindow } from './windows';
 
 const HUD = { width: 360, height: 56, gap: 10 };
 
-let active: { win: BrowserWindow; init: ScrollInit } | null = null;
+let active: { win: BrowserWindow; init: ScrollInit; display: Display } | null = null;
 
 /**
  * Scroll capture: a small control window sits just outside the region (so it
@@ -68,7 +68,7 @@ export async function startScrollCapture(display: Display, rect: Rect): Promise<
   win.setAlwaysOnTop(true, 'screen-saver');
   // Show without focus so the page being scrolled keeps keyboard and wheel focus.
   win.once('ready-to-show', () => win.showInactive());
-  active = { win, init };
+  active = { win, init, display };
   win.once('closed', () => {
     if (active?.win === win) active = null;
   });
@@ -77,6 +77,16 @@ export async function startScrollCapture(display: Display, rect: Rect): Promise<
 handle('scroll:init', (_req, { win }) => {
   if (!active || active.win !== win) throw new Error('No scroll capture');
   return active.init;
+});
+
+handle('scroll:pointer', (_req, { win }) => {
+  if (!active || active.win !== win) return null;
+  const { display, init } = active;
+  const p = screen.getCursorScreenPoint();
+  return {
+    x: (p.x - display.bounds.x) * init.scaleFactor - init.crop.x,
+    y: (p.y - display.bounds.y) * init.scaleFactor - init.crop.y,
+  };
 });
 
 handle('scroll:finish', async ({ image, thumb }, { win }) => {
