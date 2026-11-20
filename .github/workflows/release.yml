@@ -47,8 +47,10 @@ jobs:
             fi
           else
             # Every published release (all pages), X.Y.Z only; a draft doesn't use up its version.
-            released=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
-              --jq '.[] | select(.draft | not) | .tag_name | ltrimstr("v")' | grep -E "$plain" || true)
+            # A failed request stops the job (set -e); no X.Y.Z release yet is a valid empty list.
+            tags=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+              --jq '.[] | select(.draft | not) | .tag_name | ltrimstr("v")')
+            released=$(grep -E "$plain" <<< "$tags" || true)
             latest=$(printf '%s\n%s\n' "$released" "$pkg" | grep . | sort -V | tail -1)
             if [ "$latest" = "$pkg" ] && ! grep -qx "$pkg" <<< "$released"; then
               # package.json was bumped (or nothing is released yet): use it as is.
