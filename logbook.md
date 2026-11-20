@@ -4,9 +4,9 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). Open branches: `fix/scroll-hud` (PR #7), `fix/popover-dismiss` (PR #8), `feat/text-styles` (on #8). To resume: read this logbook first, then continue from the "Next:" line below.
+- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). PRs #7 (scroll) and #8 (popovers) are merged. Open: `feat/text-styles` (PR #9), `feat/auto-update` (PR #10). To resume: read this logbook first, then continue from the "Next:" line below.
 
-## 2026-11-20 - text tool styles (branch `feat/text-styles`, on top of `fix/popover-dismiss`)
+## 2026-11-20 - text tool styles (branch `feat/text-styles`)
 
 - Text had one style (semibold sans with an outline). Text annotations now carry a `style` (`font`, `bold`, `italic`, `underline`, `outline`). Older documents and projects without one read as the old look (`DEFAULT_TEXT_STYLE`), and malformed fields fall back field by field. Fonts are system-safe families, each listing the Windows font first, then Linux ones, then the generic family: Sans (Segoe UI), Serif (Georgia), Mono (Consolas), Hand (Segoe Print / Comic Sans MS, `cursive` on Linux).
 - One renderer: `drawText` (used by the canvas and the export) builds the font with `textFont(size, style)`, draws the outline only when asked, and draws the underline as a rect under each non-empty line at its measured width. Italic boxes are 0.2 em wider for the lean. e2e: the on-screen layers (image + annotations) and the copied image are compared pixel by pixel: 0 pixels differ by more than 8.
@@ -14,7 +14,7 @@
 - The overlay's floating toolbar measured only itself, so popovers hanging below it could run off the screen. Popovers now open above the bar when there is no room below (`popoverSide`).
 - Tests: unit (font string, italic box, old docs, malformed style, `restyle` with unit, size steps, settings defaults, outline and underline drawing calls); e2e (live restyle while typing, saved style, remembered settings, canvas = export pixels, restyling selected text with undo, popovers upwards near the bottom). Screenshot `text-style.png`.
 
-**Next:** CodeRabbit on the PR; merge after PR #8.
+**Next:** CodeRabbit on PR #9 (it skipped the PR while it targeted `fix/popover-dismiss`; now on `main`), then merge.
 
 ## 2026-11-20 - popovers close on a press outside them (branch `fix/popover-dismiss`)
 
@@ -26,7 +26,24 @@
 - CodeRabbit round 2 on PR #8 (1 finding, fixed): popovers handle focus like dialogs. Opened from the keyboard, focus moves to the first control; when one closes with focus inside, focus returns to its button. Opened with the mouse, focus stays where it was, so a text box being typed keeps it (text styles, PR #9). e2e: Enter on Adjust focuses its first preset, Esc returns focus to Adjust.
 - CodeRabbit round 3 on PR #8 (1 finding, fixed; the last round): the pending move of focus into a keyboard-opened popover is cancelled by a pointer press, another popover change, or cleanup, so it can't pull focus back after the user clicked elsewhere. CI once failed `instant.spec.ts` with an aborted overlay load (`net::ERR_UNEXPECTED`); it passed 8/8 on the box and on a re-run, so it is a flake unrelated to popovers.
 
-**Next:** merge; PR #9 (text styles) builds on it.
+Merged as PR #8. **Next:** PR #9 (text styles) builds on it.
+
+## 2026-11-20 - scroll capture keeps track while scrolling (branch `fix/scroll-hud`)
+
+User report: the output is mostly fine, but even when scrolling very slowly the HUD keeps saying "Lost track · scroll back up a little", scrolling back up doesn't clear it, and only sometimes the pixel count rises.
+
+- **Reproduced under Xvfb** with real wheel scrolling (`xdotool click 5`, one notch every 350–400 ms, pointer over the page): the HUD went to "Lost track" a dozen times in 25 notches. Dumped the sampled frames and replayed them through `Stitcher` offline: about a third of frames returned `null`.
+- **Cause 1: sub-pixel scroll offsets.** Wheel scrolling is smooth, so frames land mid-animation at fractional offsets, and anti-aliased edges are drawn differently every ~35 rows. The true shift had a mean row difference of ~0.45 (every other shift ≥ 7), but only 92–93 % of rows matched exactly, under the hard 95 % threshold. Display scaling (125 %, 150 %) puts content at sub-pixel offsets on every scroll, so this is worse on Windows. Now a match needs 85 % of comparable rows, and among the candidates the one with the lowest mean difference wins. Every shift is ranked on a sample of 64 rows first, then the best four are checked on all rows (~10 ms per 600 × 400 frame).
+- **Cause 2: the pointer mask.** It was one box around the pointer's last two spots; when the pointer moved, that box covered most of the frame, and rows hidden by it counted as *mismatches*. Now there is one area per spot (`pointerAreas`), and a row the pointer hides is "unknown", which counts neither way.
+- **Why it stuck:** shifts were only searched downwards (d ≥ 1). A frame that didn't scroll but changed a little (a hover highlight, a caret) was "lost", and so was any frame after scrolling back up past the last matched frame. Since a lost frame isn't placed, each later frame was compared with an ever older one. Now shifts are signed (0 and upwards too): the stitch tracks where the view is, adds only rows past its end, and scrolling back up re-anchors it.
+- **HUD:** state moved to `windows/scroll/status.ts` (`onFrameReply`, `hudLabel`, unit-tested). One missed frame is ignored; "Lost track · scroll back a little" shows after two in a row and clears on the next match. At the height limit it says "Height limit · W × H" instead of a count that silently stops (the worker's progress carries `full`).
+- **DPI:** on Windows the pointer is mapped through physical pixels (`screen.dipToScreenPoint` / `dipToScreenRect`), since displays with different scaling don't share one DIP grid; elsewhere DIPs scale from the display's origin (`pointerInCrop`, unit-tested).
+- Tests: 6 new unit tests (sub-pixel edges, moving pointer, back up then down, repaint without scrolling, recovery above the last matched frame, `full`), all failing on the old stitcher; HUD and `pointerInCrop` tests. e2e: slow wheel scrolling with a hover-highlighting page and the pointer over it, at 100 % and at `--force-device-scale-factor=1.5`: no "Lost track" ever shown, and the image height is the first view plus the distance scrolled (±2 px). Both fail on main.
+
+- CodeRabbit round 1 on PR #7 (1 finding, fixed): the e2e's HUD polling loop stops in a `finally`, and a closed page ends it, so a failing step can't leave it running into the next test.
+- CI on that commit hit a race in `settings.spec.ts` (unrelated to this change): the Tools reset test read `settings.json` before `tools` was written and threw. Missing `tools` now reads as the defaults, so the poll waits.
+
+Merged as PR #7. **Next:** the user checks scroll capture on Windows at 100 % and 150 %, in a browser and another app.
 
 ## 2026-11-20 - releases from main (branch `ci/release-on-main`)
 

@@ -171,8 +171,9 @@ test('Tools > Reset to defaults asks inline, then restores and saves every tool'
   const arrow = page.getByRole('checkbox', { name: 'Arrow', exact: true });
   await arrow.uncheck();
   const file = join(ctx.userData, 'settings.json');
+  // Until the first tool change is written, the file has no tools: that means all enabled.
   const enabled = async (): Promise<string[]> =>
-    JSON.parse(await readFile(file, 'utf8')).tools.enabledTools;
+    JSON.parse(await readFile(file, 'utf8')).tools?.enabledTools ?? [...TOOL_IDS];
   await expect.poll(enabled).not.toContain('arrow');
 
   // Esc backs out without changing anything.

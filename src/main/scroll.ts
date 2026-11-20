@@ -1,5 +1,5 @@
 import { type BrowserWindow, type Display, Notification, screen } from 'electron';
-import { evenRect, type Rect, scaleRect } from '../shared/geometry';
+import { evenRect, pointerInCrop, type Rect, scaleRect } from '../shared/geometry';
 import type { ScrollInit } from '../shared/ipc';
 import { setCaptureDisplay } from './display-media';
 import { handle } from './ipc';
@@ -82,11 +82,17 @@ handle('scroll:init', (_req, { win }) => {
 handle('scroll:pointer', (_req, { win }) => {
   if (!active || active.win !== win) return null;
   const { display, init } = active;
-  const p = screen.getCursorScreenPoint();
-  return {
-    x: (p.x - display.bounds.x) * init.scaleFactor - init.crop.x,
-    y: (p.y - display.bounds.y) * init.scaleFactor - init.crop.y,
-  };
+  const dip = screen.getCursorScreenPoint();
+  // Windows: displays with different scaling don't share one DIP grid, so go through
+  // physical screen pixels. Elsewhere DIPs scale linearly from the display's origin.
+  const physical =
+    process.platform === 'win32'
+      ? {
+          point: screen.dipToScreenPoint(dip),
+          origin: screen.dipToScreenRect(null, display.bounds),
+        }
+      : null;
+  return pointerInCrop(dip, display.bounds, init, physical);
 });
 
 handle('scroll:finish', async ({ image, thumb }, { win }) => {
