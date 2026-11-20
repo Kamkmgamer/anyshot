@@ -11,6 +11,7 @@ import {
   flippedHandle,
   moveSelection,
   placeToolbar,
+  popoverSide,
   resizeSelection,
   SELECTION_HANDLES,
   type SelectionHandle,
@@ -18,6 +19,7 @@ import {
 } from '../../shared/selection';
 import { type Annotator, createAnnotator, nativeInputOwnsKey } from '../common/annotator';
 import { EffectButtons, EffectPopovers } from '../common/effects-ui';
+import { TextPopover } from '../common/text-style-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
 import { followTheme } from '../common/theme';
@@ -405,6 +407,7 @@ function Floating(props: {
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<Point | null>(null);
+  const [popoverUp, setPopoverUp] = useState(false);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -422,10 +425,26 @@ function Floating(props: {
     observer.observe(el);
     return () => observer.disconnect();
   }, [props.anchor, props.side]);
+  // Popovers hang off the bar (outside its measured size): open them upwards when
+  // there is no room below, so they never run off the screen.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !pos) return;
+    const place = () => {
+      const popover = el.querySelector<HTMLElement>('.popover');
+      if (!popover) return;
+      const bar = el.getBoundingClientRect();
+      setPopoverUp(popoverSide(bar, popover.offsetHeight, screenSize().height) === 'above');
+    };
+    place();
+    const observer = new MutationObserver(place);
+    observer.observe(el, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [pos]);
   return (
     <div
       ref={ref}
-      class="floating-bar"
+      class={`floating-bar${popoverUp ? ' popover-up' : ''}`}
       data-testid={props.testId}
       style={{
         left: `${pos?.x ?? 0}px`,
@@ -560,6 +579,7 @@ function Chrome() {
               <OptionsRow c={annotator.controller} />
               <ColorPopover c={annotator.controller} />
               <EffectPopovers c={annotator.controller} />
+              <TextPopover c={annotator.controller} />
             </Floating>
           )}
           <Floating anchor={s.selection} side="right" testId="right">

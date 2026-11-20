@@ -55,6 +55,20 @@ export function toImageRegion(r: Rect, scale: number, frame: Size): Rect {
  * Places a toolbar of size `bar` next to `sel` inside `screen`: preferred side
  * first, then the opposite side, then inside the selection.
  */
+/**
+ * Where a popover opens from a floating toolbar: below it unless that runs off
+ * the screen and there is room above. `bar` is the toolbar's vertical extent.
+ */
+export function popoverSide(
+  bar: { top: number; bottom: number },
+  popoverHeight: number,
+  screenHeight: number,
+  gap = 8,
+): 'below' | 'above' {
+  if (bar.bottom + popoverHeight + gap <= screenHeight) return 'below';
+  return bar.top - popoverHeight - gap >= 0 ? 'above' : 'below';
+}
+
 export function placeToolbar(
   sel: Rect,
   bar: Size,

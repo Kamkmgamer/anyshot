@@ -6,7 +6,8 @@ import {
   type Rect,
   rectFromPoints,
 } from '../shared/geometry';
-import type { Annotation, TextAnnotation } from './model';
+import type { TextFont } from '../shared/settings';
+import { type Annotation, DEFAULT_TEXT_STYLE, type TextAnnotation, type TextStyle } from './model';
 
 /** Measures a line of text in CSS-font terms; injected so tests can run without a canvas. */
 export type TextMeasurer = (text: string, font: string) => number;
@@ -34,15 +35,29 @@ export function canvasTextMeasurer(
 }
 
 export const TEXT_LINE_HEIGHT = 1.25;
-export const textFont = (size: number) =>
-  `600 ${size}px "Segoe UI", system-ui, -apple-system, "Noto Sans", sans-serif`;
+/** Each family lists the Windows font first, then Linux ones, then the generic family. */
+export const TEXT_FAMILIES: Record<TextFont, string> = {
+  sans: '"Segoe UI", system-ui, -apple-system, "Noto Sans", sans-serif',
+  serif: 'Georgia, Cambria, "Times New Roman", "Noto Serif", "DejaVu Serif", serif',
+  mono: 'Consolas, "Cascadia Mono", "DejaVu Sans Mono", "Noto Sans Mono", monospace',
+  hand: '"Segoe Print", "Comic Sans MS", "Comic Neue", cursive',
+};
+
+/** The CSS font of a text annotation; the canvas, the export and the edit box all use it. */
+export const textFont = (size: number, style: TextStyle = DEFAULT_TEXT_STYLE) =>
+  `${style.italic ? 'italic ' : ''}${style.bold ? 600 : 400} ${size}px ${TEXT_FAMILIES[style.font]}`;
+
+/** Underline offset from a line's top and its thickness, in font-size units. */
+export const UNDERLINE = { offset: 0.95, thickness: 0.07 };
 export const textPadding = (size: number) => Math.round(size * 0.3);
 
 /** The box a text annotation occupies, including its background padding. */
 export function textBox(t: TextAnnotation): Rect {
   const lines = t.text.split('\n');
-  const font = textFont(t.size);
-  const width = Math.max(t.size * 0.5, ...lines.map((line) => measurer(line, font)));
+  const font = textFont(t.size, t.style);
+  // Italic letters lean past their advance width.
+  const lean = t.style.italic ? t.size * 0.2 : 0;
+  const width = Math.max(t.size * 0.5, ...lines.map((line) => measurer(line, font))) + lean;
   const pad = textPadding(t.size);
   return {
     x: t.at.x - pad,

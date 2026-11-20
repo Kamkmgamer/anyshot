@@ -22,6 +22,10 @@ export const HOTKEY_ACTIONS = [
 ] as const;
 export type HotkeyAction = (typeof HOTKEY_ACTIONS)[number];
 
+/** Font families for the text tool, each mapped to fonts Windows and Linux ship. */
+export const TEXT_FONTS = ['sans', 'serif', 'mono', 'hand'] as const;
+export type TextFont = (typeof TEXT_FONTS)[number];
+
 export const TOOL_IDS = [
   'select',
   'pencil',
@@ -114,6 +118,12 @@ export const settingsSchema = obj({
     fill: oneOf(['stroke', 'fill', 'both'], 'stroke'),
     lineStyle: oneOf(['solid', 'dashed', 'dotted'], 'solid'),
     textSize: int(28, 8, 200),
+    textFont: oneOf(TEXT_FONTS, 'sans'),
+    textBold: bool(true),
+    textItalic: bool(false),
+    textUnderline: bool(false),
+    /** An outline around the letters keeps text readable on busy backgrounds. */
+    textOutline: bool(true),
     censorMode: oneOf(['pixelate', 'blur', 'solid'], 'pixelate'),
     spotlightDim: int(55, 10, 95),
     magnifyZoom: num(2, 1.1, 6),

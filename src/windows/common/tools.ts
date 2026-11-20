@@ -1,4 +1,4 @@
-import { DEFAULT_EFFECTS, type Effects } from '../../engine/model';
+import { DEFAULT_EFFECTS, type Effects, type TextStyle } from '../../engine/model';
 import type { ToolOptions } from '../../engine/view';
 import type { Settings, ToolChoices, ToolId } from '../../shared/settings';
 import { createStore, type Store } from './store';
@@ -9,6 +9,8 @@ export interface ToolUiState extends ToolOptions {
   canUndo: boolean;
   canRedo: boolean;
   selectedCount: number;
+  /** The style of the first selected text annotation (size in tool units), if any is selected. */
+  selectedTextStyle: SelectedTextStyle | null;
   /** The document's committed image effects. */
   effects: Effects;
   /** Effects shown while a slider is being dragged, not yet committed. */
@@ -16,7 +18,12 @@ export interface ToolUiState extends ToolOptions {
   /** The window draws the Beautify frame live around the image (the editor). */
   framePreview: boolean;
   /** Which popover is open, if any. */
-  popover: 'color' | 'adjust' | 'beautify' | null;
+  popover: 'color' | 'adjust' | 'beautify' | 'text' | null;
+}
+
+export interface SelectedTextStyle extends TextStyle {
+  size: number;
+  color: string;
 }
 
 export const TOOL_LABELS: Record<ToolId, string> = {
@@ -83,6 +90,11 @@ export function createToolStore(settings: Settings): Store<ToolUiState> {
     fill: t.fill,
     lineStyle: t.lineStyle,
     textSize: t.textSize,
+    textFont: t.textFont,
+    textBold: t.textBold,
+    textItalic: t.textItalic,
+    textUnderline: t.textUnderline,
+    textOutline: t.textOutline,
     censorMode: t.censorMode,
     spotlightDim: t.spotlightDim,
     magnifyZoom: t.magnifyZoom,
@@ -93,6 +105,7 @@ export function createToolStore(settings: Settings): Store<ToolUiState> {
     canUndo: false,
     canRedo: false,
     selectedCount: 0,
+    selectedTextStyle: null,
     popover: null,
     effects: DEFAULT_EFFECTS,
     previewEffects: null,
@@ -109,6 +122,11 @@ export function persistToolChoices(store: Store<ToolUiState>): () => void {
     fill: s.fill,
     lineStyle: s.lineStyle,
     textSize: s.textSize,
+    textFont: s.textFont,
+    textBold: s.textBold,
+    textItalic: s.textItalic,
+    textUnderline: s.textUnderline,
+    textOutline: s.textOutline,
     censorMode: s.censorMode,
     spotlightDim: s.spotlightDim,
     magnifyZoom: s.magnifyZoom,

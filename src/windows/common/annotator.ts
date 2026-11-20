@@ -1,10 +1,10 @@
 import { DocStore } from '../../engine/document';
-import type { Doc } from '../../engine/model';
-import { CanvasView, type ToolOptions } from '../../engine/view';
+import type { Annotation, Doc, TextAnnotation } from '../../engine/model';
+import { CanvasView, STYLE_KEYS, type StylePatch, type ToolOptions } from '../../engine/view';
 import type { Settings, ToolId } from '../../shared/settings';
 import { dismissPopovers } from './popover';
 import type { Controller } from './toolbar';
-import { createToolStore, persistToolChoices, TOOL_KEYS } from './tools';
+import { createToolStore, persistToolChoices, type SelectedTextStyle, TOOL_KEYS } from './tools';
 
 export interface Annotator {
   docs: DocStore;
@@ -21,6 +21,19 @@ export function nativeInputOwnsKey(event: KeyboardEvent): boolean {
     target instanceof HTMLElement &&
     (target.isContentEditable || target.matches('input, textarea, select'))
   );
+}
+
+/** What the text style popover shows with the select tool: the first selected text's style. */
+export function selectedTextStyle(
+  annotations: readonly Annotation[],
+  selected: ReadonlySet<string>,
+  unit: number,
+): SelectedTextStyle | null {
+  const text = annotations.find(
+    (a): a is TextAnnotation => a.kind === 'text' && selected.has(a.id),
+  );
+  if (!text) return null;
+  return { ...text.style, size: Math.round(text.size / unit), color: text.color };
 }
 
 /** Wires the engine, the tool store and the keyboard together for a window. */
@@ -42,6 +55,7 @@ export function createAnnotator(
         canUndo: docs.canUndo,
         canRedo: docs.canRedo,
         selectedCount: docs.selected.size,
+        selectedTextStyle: selectedTextStyle(docs.doc.annotations, docs.selected, docs.doc.unit),
         effects: docs.doc.effects,
       }),
   });
@@ -70,11 +84,12 @@ export function createAnnotator(
     },
     setOptions(patch: Partial<ToolOptions>) {
       store.set(patch);
-      const { color, strokeWidth, lineStyle, fill } = patch;
-      const style = Object.fromEntries(
-        Object.entries({ color, strokeWidth, lineStyle, fill }).filter(([, v]) => v !== undefined),
-      );
-      if (docs.selected.size > 0 && Object.keys(style).length > 0) view.applyStyle(style);
+      const style: StylePatch = {};
+      for (const key of STYLE_KEYS)
+        if (patch[key] !== undefined) Object.assign(style, { [key]: patch[key] });
+      if (Object.keys(style).length === 0) return;
+      view.restyleTextEditor(style);
+      if (docs.selected.size > 0) view.applyStyle(style);
     },
     effects: {
       set: (effects) => {

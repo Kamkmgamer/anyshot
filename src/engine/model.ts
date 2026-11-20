@@ -1,4 +1,5 @@
 import type { Point, Rect } from '../shared/geometry';
+import type { TextFont } from '../shared/settings';
 
 export type LineStyle = 'solid' | 'dashed' | 'dotted';
 export type FillMode = 'stroke' | 'fill' | 'both';
@@ -36,6 +37,24 @@ export interface BoxAnnotation extends Base {
   radius: number;
 }
 
+export interface TextStyle {
+  font: TextFont;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  /** A contrasting outline around the letters (not drawn on a background box). */
+  outline: boolean;
+}
+
+/** How text looked before it had styles; also what older documents get. */
+export const DEFAULT_TEXT_STYLE: TextStyle = {
+  font: 'sans',
+  bold: true,
+  italic: false,
+  underline: false,
+  outline: true,
+};
+
 export interface TextAnnotation extends Base {
   kind: 'text';
   at: Point;
@@ -43,6 +62,7 @@ export interface TextAnnotation extends Base {
   size: number;
   color: string;
   background: boolean;
+  style: TextStyle;
 }
 
 export interface NumberAnnotation extends Base {

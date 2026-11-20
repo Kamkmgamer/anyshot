@@ -77,6 +77,11 @@
 .floating-bar .options {
   margin-top: 6px;
 }
+/* No room below the bar: popovers open above it instead. */
+.floating-bar.popover-up .popover {
+  bottom: 100%;
+  margin-bottom: 6px;
+}
 
 /* Lays the audio toggles out as part of the record bar. */
 .audio-toggles {

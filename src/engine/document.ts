@@ -1,4 +1,5 @@
 import { type Point, type Rect, rectFromPoints } from '../shared/geometry';
+import { TEXT_FONTS } from '../shared/settings';
 import { apply, type Change, History } from './history';
 import {
   type Annotation,
@@ -11,6 +12,8 @@ import {
   isAdjustNeutral,
   type LineStyle,
   type Stroke,
+  DEFAULT_TEXT_STYLE,
+  type TextStyle,
 } from './model';
 import { translate } from './shapes';
 
@@ -190,6 +193,21 @@ function stroke(v: unknown): Stroke | null {
   return c && isNum(v.width) && v.width > 0 && style ? { color: c, width: v.width, style } : null;
 }
 
+/** A text style, field by field; anything missing or malformed keeps the default. */
+function textStyle(v: unknown): TextStyle {
+  const o = isObj(v) ? v : {};
+  const flag = (value: unknown, fallback: boolean) =>
+    typeof value === 'boolean' ? value : fallback;
+  const d = DEFAULT_TEXT_STYLE;
+  return {
+    font: TEXT_FONTS.find((f) => f === o.font) ?? d.font,
+    bold: flag(o.bold, d.bold),
+    italic: flag(o.italic, d.italic),
+    underline: flag(o.underline, d.underline),
+    outline: flag(o.outline, d.outline),
+  };
+}
+
 export function parseAnnotation(v: unknown): Annotation | null {
   if (!isObj(v) || !isStr(v.id) || !isStr(v.kind)) return null;
   const id = v.id;
@@ -230,6 +248,7 @@ export function parseAnnotation(v: unknown): Annotation | null {
         size: v.size,
         color: c,
         background: v.background === true,
+        style: textStyle(v.style),
       };
     }
     case 'number': {

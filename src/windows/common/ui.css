@@ -284,3 +284,82 @@
 :root.app-window body {
   background: var(--window-bg);
 }
+.text-style-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--bar-hover);
+  color: var(--bar-fg);
+  font: inherit;
+  cursor: pointer;
+}
+.text-style-btn[aria-expanded="true"] {
+  outline: 1px solid var(--accent);
+}
+.text-style-btn .sample {
+  font-size: 18px;
+  line-height: 1;
+}
+.popover.text-style {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 300px;
+}
+.popover.text-style fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+}
+.popover.text-style .opt {
+  padding: 0;
+}
+.popover.text-style .seg button {
+  flex: 1;
+  font-size: 15px;
+}
+.outlined {
+  color: transparent;
+  -webkit-text-stroke: 1px var(--bar-fg);
+}
+.active .outlined {
+  -webkit-text-stroke-color: #fff;
+}
+.popover.text-style .sizes button {
+  min-width: 28px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--bar-hover);
+  color: var(--bar-fg);
+  font: inherit;
+  cursor: pointer;
+}
+.popover.text-style .sizes button.active {
+  background: var(--accent);
+  color: #fff;
+}
+.popover.text-style .sizes button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.popover.text-style .sizes .val {
+  min-width: 28px;
+  text-align: center;
+}
+.popover.text-style .swatches {
+  display: grid;
+  grid-template-columns: repeat(12, 20px);
+  gap: 6px;
+  padding: 2px;
+}
+.popover.text-style .swatch.big {
+  width: 20px;
+  height: 20px;
+}

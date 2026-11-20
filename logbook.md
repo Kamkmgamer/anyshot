@@ -4,7 +4,19 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). PRs #7 (scroll) and #8 (popovers) are merged. Open: `feat/auto-update` (PR #10), `feat/text-styles` (PR #9). To resume: read this logbook first, then continue from the "Next:" line below.
+- Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`). PRs #7 (scroll), #8 (popovers) and #10 (auto-update) are merged. Open: `feat/text-styles` (PR #9). To resume: read this logbook first, then continue from the "Next:" line below.
+
+## 2026-11-20 - text tool styles (branch `feat/text-styles`)
+
+- Text had one style (semibold sans with an outline). Text annotations now carry a `style` (`font`, `bold`, `italic`, `underline`, `outline`). Older documents and projects without one read as the old look (`DEFAULT_TEXT_STYLE`), and malformed fields fall back field by field. Fonts are system-safe families, each listing the Windows font first, then Linux ones, then the generic family: Sans (Segoe UI), Serif (Georgia), Mono (Consolas), Hand (Segoe Print / Comic Sans MS, `cursive` on Linux).
+- One renderer: `drawText` (used by the canvas and the export) builds the font with `textFont(size, style)`, draws the outline only when asked, and draws the underline as a rect under each non-empty line at its measured width. Italic boxes are 0.2 em wider for the lean. e2e: the on-screen layers (image + annotations) and the copied image are compared pixel by pixel: 0 pixels differ by more than 8.
+- **Style popover:** the text tool's options row shows a "Text style" button that previews the style ("Aa", font · size) and opens a popover with font, B / I / U / Outline, size (−/+, steps 2/4/8 that retrace each other, presets 16–72) and colour. Its buttons don't take focus, so a text box being typed keeps focus and restyles live; typing continues and Enter places it in the new style. With the select tool, the button also shows for selected text and restyles it, one undo step per change. Choices persist as tool settings (`textFont`, `textBold`, `textItalic`, `textUnderline`, `textOutline`). It closes on a press outside and on Esc, like the other popovers.
+- The overlay's floating toolbar measured only itself, so popovers hanging below it could run off the screen. Popovers now open above the bar when there is no room below (`popoverSide`).
+- Tests: unit (font string, italic box, old docs, malformed style, `restyle` with unit, size steps, settings defaults, outline and underline drawing calls); e2e (live restyle while typing, saved style, remembered settings, canvas = export pixels, restyling selected text with undo, popovers upwards near the bottom). Screenshot `text-style.png`.
+- CodeRabbit round 1 on PR #9 (2 findings, fixed): the edit box previews the outline the canvas draws (`textOutline`, shared; drawn as a ring of text shadows at half the stroke width, because `-webkit-text-stroke` hid the underline in the box) and drops it when Outline is off. With the select tool, the popover and its button show the selected text's own style (the first selected text; size in tool units) and toggle from it, so the first click on Italic for italic text turns it off; for the text tool they show the remembered style. Unit and e2e tests for both.
+- CodeRabbit round 2 on PR #9 (2 findings, fixed): Smaller now undoes Larger across band edges too (62 → 66 → 62; unit test over every size), and the canvas = export e2e checks the exported size and buffer length before comparing pixels. Also found while regenerating the screenshot: `-webkit-text-stroke` hid the underline in the edit box, so the outline preview is a ring of text shadows.
+
+**Next:** merge; the user tries the text styles on Windows (fonts: Segoe UI, Georgia, Consolas, Segoe Print).
 
 ## 2026-11-20 - auto-update (branch `feat/auto-update`)
 
@@ -17,7 +29,7 @@
 - **Real AppImage self-update on the box:** two AppImages (0.0.1, 0.0.2) built with a local generic feed. 0.0.1 ran packaged under Xvfb, found 0.0.2, showed the window; a click on Update (xdotool) downloaded it, replaced the AppImage file and relaunched it. This caught a bug the e2e couldn't: `import('electron-updater')` gave `autoUpdater` undefined (CommonJS getter, missed by ESM named imports), so packaged builds logged "updater unavailable" and never checked. Fixed by reading it through the module's `default`; e2e "electron-updater loads in the built main process" fails with the old import. (Differential download fell back to a full one only because the test server had no range requests.)
 - CodeRabbit round 1 on PR #10 (1 finding, fixed): install failures after the download (electron-updater emits them instead of throwing, e.g. an AppImage in a folder the user can't write to) now reach the window as an error with Try again; `install()` rejects on the updater's `error`. e2e covers it.
 
-**Next:** CodeRabbit round 2, merge; after merge the first release with the update files is the one that existing installs can update *to* from the next one (0.1.x installs have no updater yet). The user checks on Windows: install release N, publish N+1, start N: the window appears, and Update installs and restarts.
+Merged as PR #10 (release 0.1.4 is the first with the updater). **Next:** after merge the first release with the update files is the one that existing installs can update *to* from the next one (0.1.x installs have no updater yet). The user checks on Windows: install release N, publish N+1, start N: the window appears, and Update installs and restarts.
 
 ## 2026-11-20 - popovers close on a press outside them (branch `fix/popover-dismiss`)
 
@@ -29,7 +41,7 @@
 - CodeRabbit round 2 on PR #8 (1 finding, fixed): popovers handle focus like dialogs. Opened from the keyboard, focus moves to the first control; when one closes with focus inside, focus returns to its button. Opened with the mouse, focus stays where it was, so a text box being typed keeps it (text styles, PR #9). e2e: Enter on Adjust focuses its first preset, Esc returns focus to Adjust.
 - CodeRabbit round 3 on PR #8 (1 finding, fixed; the last round): the pending move of focus into a keyboard-opened popover is cancelled by a pointer press, another popover change, or cleanup, so it can't pull focus back after the user clicked elsewhere. CI once failed `instant.spec.ts` with an aborted overlay load (`net::ERR_UNEXPECTED`); it passed 8/8 on the box and on a re-run, so it is a flake unrelated to popovers.
 
-**Next:** merge; PR #9 (text styles) builds on it.
+Merged as PR #8. **Next:** PR #9 (text styles) builds on it.
 
 ## 2026-11-20 - scroll capture keeps track while scrolling (branch `fix/scroll-hud`)
 
