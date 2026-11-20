@@ -16,7 +16,9 @@
 - GIF conversion read the intermediate video with `UrlSource`, which reads ahead; disposing it aborted those requests, which the e2e harness reports as failed requests (it showed up as a flaky GIF test here). It now reads the local file in one request into a `BufferSource`.
 - Tests: unit `recordingAudio` (choice, defaults, malformed input, GIF, unavailable platform); e2e: toggles by click and key, persisted, computer audio disabled on Linux, no toggles for GIFs; a recording with the microphone toggle on has an audio track (Chromium's fake capture device). Screenshot `record-audio.png`. Not verified: computer audio on real Windows.
 
-**Next:** PR, CodeRabbit rounds, merge; then check computer audio + microphone on Windows.
+- CodeRabbit round 1 on PR #4 (4 findings, all fixed): an effects preview is dropped when its popover closes before the slider is released (Esc, another tool); the Beautify frame clips the shadow at its edge like the export; record-bar toggles reached with Tab keep Enter/Space (clicks don't move focus, so Enter still starts); the recording e2e times clips from the recorder's own start (`recordingStarted`).
+
+**Next:** CodeRabbit rounds 2-3, merge; then check computer audio + microphone on Windows.
 
 ## 2026-11-20 - capture flow, scroll capture, logo (branch `feat/capture-flow-icons`)
 
