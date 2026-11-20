@@ -1,10 +1,14 @@
 name: Release
 
-# Pushing a tag vX.Y.Z (matching package.json) builds the installers and publishes
-# a release. Running it by hand builds the same files into a draft release to check first.
+# Every push to main (except docs-only changes) builds the installers and publishes a
+# release. Its version is package.json's if that isn't released yet, else the next patch
+# after the latest release. A tag vX.Y.Z publishes exactly that version. Running it by
+# hand builds the same files into a draft release to check first.
 on:
   push:
+    branches: ['main']
     tags: ['v*']
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
   workflow_dispatch:
 
 permissions:
@@ -15,13 +19,56 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+      draft: ${{ steps.pick.outputs.draft }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pick the version
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pkg=$(jq -r .version package.json)
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = tag ]; then
+            version="${GITHUB_REF_NAME#v}"
+            if [ "$version" != "$pkg" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $pkg"
+              exit 1
+            fi
+          else
+            # Published releases only: a draft doesn't use up its version.
+            released=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 100 \
+              --json tagName --jq '.[].tagName | ltrimstr("v")')
+            latest=$(printf '%s\n%s\n' "$released" "$pkg" | grep . | sort -V | tail -1)
+            if [ "$latest" = "$pkg" ] && ! grep -qx "$pkg" <<< "$released"; then
+              # package.json was bumped (or nothing is released yet): use it as is.
+              version="$pkg"
+            else
+              IFS=. read -r major minor patch <<< "$latest"
+              version="$major.$minor.$((patch + 1))"
+            fi
+          fi
+          # Only pushes publish; a manual run stays a draft, even when started on a tag.
+          if [ "$GITHUB_EVENT_NAME" = push ]; then draft=false; else draft=true; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+          echo "Building $version (draft: $draft)"
+
   windows:
+    needs: version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
+      - name: Stamp the version
+        shell: bash
+        run: jq --arg v "${{ needs.version.outputs.version }}" '.version = $v' package.json > p.json && mv p.json package.json
       # Native modules ship prebuilt per CPU: install both the x64 and the ARM64 one.
       - run: bun install --frozen-lockfile --cpu="*"
       - run: bun run typecheck
@@ -46,12 +93,15 @@ jobs:
           if-no-files-found: error
 
   linux:
+    needs: version
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
+      - name: Stamp the version
+        run: jq --arg v "${{ needs.version.outputs.version }}" '.version = $v' package.json > p.json && mv p.json package.json
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test
@@ -71,7 +121,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [windows, linux]
+    needs: [version, windows, linux]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -84,20 +134,11 @@ jobs:
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
+          version: ${{ needs.version.outputs.version }}
+          draft: ${{ needs.version.outputs.draft }}
         run: |
           set -euo pipefail
-          version=$(jq -r .version package.json)
           tag="v$version"
-          # Only a tag push publishes; a manual run stays a draft, even when started on a tag.
-          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = tag ]; then
-            if [ "$GITHUB_REF_NAME" != "$tag" ]; then
-              echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
-              exit 1
-            fi
-            draft=false
-          else
-            draft=true
-          fi
           ls -l artifacts
           test "$(ls artifacts | wc -l)" -eq 4
           {
@@ -111,12 +152,12 @@ jobs:
             gh release create "$tag" artifacts/* --title "anyshot $version" \
               --notes-file notes.md --target "$GITHUB_SHA" --draft="$draft"
           elif [ "$existing" = true ]; then
-            # A draft from a manual run: refresh its files and notes, and publish on a tag.
+            # A draft (from a manual run): refresh its files and notes; a push publishes it.
             gh release upload "$tag" artifacts/* --clobber
             gh release edit "$tag" --title "anyshot $version" --notes-file notes.md \
               --target "$GITHUB_SHA" --draft="$draft"
           else
-            echo "::error::$tag is already published; bump the version in package.json"
+            echo "::error::$tag is already published"
             exit 1
           fi
           gh release view "$tag" --json url,isDraft,assets --jq '{url, isDraft, assets: [.assets[].name]}'

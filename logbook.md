@@ -4,7 +4,14 @@
 
 - Box: boxes.dev devbox `8ad08f92-796a-4dd0-88e1-f8dc32f9d8a2` (`default-box-fork-af8c92cf4263`), project `55820d6f-3b36-4755-a698-99a26f8ca460`, checkout `/home/boxes/repos/anyshot`.
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
-- Branch `feat/beautify-preview-audio` (from `main` at `ddf6b8e`, PR #3 merged). Session box `98774d41-e95f-40e0-bf34-7b9c66510d54`. To resume: read this logbook first, then continue from the "Next:" line below.
+- Branch `ci/release-on-main` (from `main` at `5c73f32`, PR #4 merged). Session box `98774d41-e95f-40e0-bf34-7b9c66510d54`. To resume: read this logbook first, then continue from the "Next:" line below.
+
+## 2026-11-20 - releases from main (branch `ci/release-on-main`)
+
+- Every push to `main` now builds and publishes a release (docs-only pushes are skipped). A `version` job picks the version: package.json's if it is newer than every published release and not released yet, else the next patch after the latest release (drafts don't count). The build jobs stamp it into package.json before packaging, so the installers carry it. A `vX.Y.Z` tag still publishes exactly that version (must match package.json); manual runs still make drafts. The first push publishes the existing `v0.1.0` draft, refreshed from main. Why releases didn't show: `v0.1.0` was a draft, which GitHub doesn't list in the sidebar.
+- PR #4 was merged by the user after CodeRabbit round 1 (CI green, CodeRabbit check passing), so rounds 2-3 didn't happen.
+
+**Next:** check computer audio + microphone recording on Windows; bump `version` in package.json for minor/major releases.
 
 ## 2026-11-20 - beautify preview, quick capture menu, recording audio (branch `feat/beautify-preview-audio`)
 
