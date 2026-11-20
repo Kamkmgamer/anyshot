@@ -16,7 +16,9 @@ Feedback from testing on Windows.
 
 - **Scroll capture stopped after the first frame.** Root cause: screen captures draw the mouse pointer into every frame (Chromium reports `cursor: "always"` and ignores `cursor: 'never'`; checked on the box), and while scrolling the pointer sits over the page at a fixed screen spot. Rows under it never matched the previous frame, so `findShift` found no overlap and the HUD failed with "Frames stopped overlapping" (reproduced under Xvfb by moving the real pointer into the region with xdotool). The old e2e never had the pointer inside the region. Fix: the HUD asks main for the pointer each sample (`scroll:pointer`), and the stitcher ignores a box around its last two positions when matching (`pointerArea`, masks per bucket and row). Rows stitched with the pointer in them are repainted row by row from later frames that show them away from the pointer, so the result has no pointer. Lost overlap is now recoverable: the HUD says "Lost track · scroll back up a little", keeps the stitch, and Done delivers it. Tests: unit (pointer in every frame: fails without the mask, rebuilds the page exactly with it; recovery after lost overlap; `pointerArea`), e2e with the pointer inside the region (fails without the fix). CI installs xdotool. Limitation: rows that were both newly revealed under the pointer and never seen again (a very fast scroll at the end) keep it.
 
-**Next:** fresh-clone verification, PR, then check on Windows: scroll capture in a browser and in another app, at 100 % and 150 % scaling.
+- Verified from a fresh clone of `3ca52fe`: install, format, lint, typecheck, 106 unit tests, build, and e2e twice (57 passed, 5 skipped = screenshot generator).
+
+**Next:** review the PR, then check on Windows: scroll capture in a browser and in another app, at 100 % and 150 % scaling.
 
 ## 2026-11-19 - PR #2 CodeRabbit fixes
 
