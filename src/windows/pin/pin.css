@@ -18,8 +18,11 @@
 .controls {
   position: absolute;
   top: 6px;
-  right: 6px;
+  /* Left, where the window's origin stays put while zoom resizes it: a held zoom button stays under the pointer. */
+  left: 6px;
   display: flex;
+  flex-wrap: wrap;
+  max-width: calc(100% - 12px);
   gap: 4px;
   opacity: 0;
   transition: opacity 120ms;

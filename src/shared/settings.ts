@@ -118,6 +118,10 @@ export const settingsSchema = obj({
     presetColors: list(color('#ff3b30'), DEFAULT_COLORS, 24),
     enabledTools: list(oneOf(TOOL_IDS, 'select'), [...TOOL_IDS], TOOL_IDS.length),
   }),
+  editor: obj({
+    /** What Save does for a capture that has a history entry (the last choice). */
+    saveMode: oneOf(['replace', 'copy'], 'replace'),
+  }),
   recording: obj({
     fps: int(30, 5, 60),
     microphone: bool(false),
@@ -155,6 +159,11 @@ export const DEFAULT_SETTINGS: Settings = settingsSchema.def;
 
 export function parseSettings(input: unknown): Settings {
   return settingsSchema.parse(input);
+}
+
+/** The patch behind Settings ▸ Tools ▸ Reset to defaults: everything that page shows. */
+export function toolsPageDefaults(): DeepPartial<Settings> {
+  return { tools: { enabledTools: [...DEFAULT_SETTINGS.tools.enabledTools] } };
 }
 
 /** A recursive partial used for settings patches sent from windows. */

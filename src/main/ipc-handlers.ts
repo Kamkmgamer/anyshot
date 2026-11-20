@@ -22,7 +22,9 @@ export function registerIpc(): void {
   handle('capture:deliver', async (request, { kind, win }) => {
     // The overlay has already encoded everything it needs; close it right away.
     if (kind === 'overlay') (await import('./capture/session')).endCapture(win);
-    return (await import('./deliver')).deliver(request);
+    // Editors hold the entry their edits go to, which changes on a first save or Save as copy.
+    const holdEntry = kind === 'editor' ? (await import('./editor')).holdEntry : undefined;
+    return (await import('./deliver')).deliver(request, holdEntry && ((id) => holdEntry(win, id)));
   });
   handle('shell:open-url', async (url) => {
     if (/^https?:\/\//i.test(url)) await shell.openExternal(url);

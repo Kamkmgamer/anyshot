@@ -50,6 +50,30 @@ export function pointInRect(p: Point, r: Rect, pad = 0): boolean {
   );
 }
 
+/** The point of r (edges included) nearest to p. */
+export function clampPoint(p: Point, r: Rect): Point {
+  return {
+    x: Math.max(r.x, Math.min(r.x + r.width, p.x)),
+    y: Math.max(r.y, Math.min(r.y + r.height, p.y)),
+  };
+}
+
+/**
+ * Shortens the segment a→b so b stays inside r while keeping its direction
+ * (a must be inside r). Used where an angle matters, such as 45° snapping.
+ */
+export function clampAlong(a: Point, b: Point, r: Rect): Point {
+  let t = 1;
+  const limit = (from: number, delta: number, min: number, max: number) => {
+    if (from + delta * t > max) t = (max - from) / delta;
+    if (from + delta * t < min) t = (min - from) / delta;
+  };
+  limit(a.x, b.x - a.x, r.x, r.x + r.width);
+  limit(a.y, b.y - a.y, r.y, r.y + r.height);
+  t = Math.max(0, t);
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
 export function unionRect(a: Rect, b: Rect): Rect {
   const x = Math.min(a.x, b.x);
   const y = Math.min(a.y, b.y);
@@ -81,7 +105,12 @@ export function snap45(a: Point, b: Point): Point {
   const step = Math.PI / 4;
   const snapped = Math.round(angle / step) * step;
   const len = distance(a, b);
-  return { x: a.x + Math.cos(snapped) * len, y: a.y + Math.sin(snapped) * len };
+  // cos(π/2) is ~6e-17, not 0: axial snaps must not drift off their axis.
+  const exact = (v: number) => (Math.abs(v) < 1e-9 ? 0 : v);
+  return {
+    x: a.x + exact(Math.cos(snapped)) * len,
+    y: a.y + exact(Math.sin(snapped)) * len,
+  };
 }
 
 /** Constrains the b corner so the rectangle from a is square. */

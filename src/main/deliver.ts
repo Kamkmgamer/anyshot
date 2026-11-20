@@ -7,7 +7,7 @@ import type { DeliverAction, DeliverRequest, DeliverResult, EncodedImage } from 
 import type { Settings } from '../shared/settings';
 import { createUniqueFile, writeFileAtomic } from './atomic-file';
 import { copyPng, copyText } from './clipboard';
-import { addEntry, release, replaceImage } from './history';
+import { addEntry, checkEditable, release, replaceImage } from './history';
 import { paths } from './paths';
 import { getSettings } from './settings-store';
 
@@ -99,8 +99,13 @@ export function quickSteps(settings: Settings): DeliverAction[] {
 /**
  * Finishes a capture: runs the requested action, records the image in
  * history and shows the follow-up UI (floating preview, pin, OCR, upload).
+ * `onEntry` gets the resulting entry id while this delivery still holds it,
+ * so a caller (an editor) can take its own hold first.
  */
-export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
+export async function deliver(
+  request: DeliverRequest,
+  onEntry?: (id: string) => void,
+): Promise<DeliverResult> {
   const settings = getSettings();
   const png = new Uint8Array(request.image.bytes);
   const steps = request.action === 'quick' ? quickSteps(settings) : [request.action];
@@ -115,11 +120,13 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
     }
   }
 
+  const edit = checkEditable(request.edit);
   const image = {
     png,
     width: request.image.width,
     height: request.image.height,
     ...(request.thumb ? { thumb: request.thumb } : {}),
+    ...(edit ? { edit } : {}),
   };
   const existing = request.historyId
     ? await replaceImage(request.historyId, {
@@ -129,6 +136,7 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
     : undefined;
   if (existing) {
     result.historyId = existing.id;
+    onEntry?.(existing.id);
     if (steps.includes('pin')) await (await import('./pins')).pinEntry(existing.id);
     return result;
   }
@@ -136,6 +144,7 @@ export async function deliver(request: DeliverRequest): Promise<DeliverResult> {
   result.historyId = entry.id;
 
   try {
+    onEntry?.(entry.id);
     const followUp = steps.includes('pin')
       ? (await import('./pins')).pinEntry(entry.id, request.screenRect as Rectangle | undefined)
       : steps.includes('ocr')

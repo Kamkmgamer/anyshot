@@ -187,6 +187,21 @@ const ICONS = {
       <path d="M9.5 8H7v4h2.5v-2M11.5 8v4M14 12V8h2" />
     </>
   ),
+  monitor: (
+    <>
+      <rect x="2.5" y="3.5" width="15" height="10" rx="1.5" />
+      <path d="M7 16.5h6M10 13.5v3" />
+    </>
+  ),
+  moon: <path d="M16.5 12.2A6.8 6.8 0 017.8 3.5a6.8 6.8 0 108.7 8.7z" />,
+  sun: (
+    <>
+      <circle cx="10" cy="10" r="3.3" />
+      <path d="M10 2.5v1.6M10 15.9v1.6M2.5 10h1.6M15.9 10h1.6M4.7 4.7l1.1 1.1M14.2 14.2l1.1 1.1M4.7 15.3l1.1-1.1M14.2 5.8l1.1-1.1" />
+    </>
+  ),
+  chevronDown: <path d="M6 8l4 4 4-4" />,
+  check: <path d="M4.5 10.5l3.5 3.5 7.5-8" />,
 } satisfies Record<string, JSX.Element>;
 
 export type IconName = keyof typeof ICONS;

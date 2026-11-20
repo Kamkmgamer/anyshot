@@ -1,18 +1,20 @@
 import '../common/ui.css';
 import './editor.css';
 import { render } from 'preact';
-import { parseDoc, translateDoc } from '../../engine/document';
+import { isBlankDoc, parseDoc, translateDoc } from '../../engine/document';
 import { type Doc, emptyDoc } from '../../engine/model';
 import { type Rect, rectFromPoints } from '../../shared/geometry';
-import type { DeliverAction, EditorInit } from '../../shared/ipc';
+import type { DeliverAction, EditableSource, EditorInit, EncodedImage } from '../../shared/ipc';
 import { packProject } from '../../shared/project';
 import { isRecord } from '../../shared/schema';
 import { type Annotator, createAnnotator, nativeInputOwnsKey } from '../common/annotator';
 import { EffectButtons, EffectPopovers } from '../common/effects-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
-import { applyTheme } from '../common/theme';
-import { Bar, Button, ColorPopover, OptionsRow, ToolStrip } from '../common/toolbar';
+import { followTheme } from '../common/theme';
+import { Bar, Button, ColorPopover, OptionsRow, RepeatButton, ToolStrip } from '../common/toolbar';
+import { SaveSplitButton } from './save-menu';
+import { modeForShortcut, type SaveMode } from './save-mode';
 
 const api = window.anyshot;
 
@@ -24,6 +26,7 @@ interface EditorUi {
   busy: boolean;
   status: string | null;
   crop: Rect | null;
+  saveMode: SaveMode;
 }
 
 const ui = createStore<EditorUi>({
@@ -34,6 +37,7 @@ const ui = createStore<EditorUi>({
   busy: false,
   status: null,
   crop: null,
+  saveMode: 'replace',
 });
 
 const viewport = el('viewport');
@@ -89,6 +93,10 @@ function setZoom(zoom: number): void {
   ui.set({ zoom: Math.min(8, Math.max(0.1, zoom)) });
   layout();
 }
+
+const ZOOM_STEP = 1.25;
+/** Reads the current zoom, so held buttons keep stepping from the latest value. */
+const zoomBy = (factor: number) => setZoom(ui.get().zoom * factor);
 
 // ---------------------------------------------------------------- crop
 
@@ -180,23 +188,58 @@ async function exportCurrent(withSaveFormat: boolean) {
   });
 }
 
-/** Exports and hands the image to main; true when the action succeeded. */
-async function deliver(action: DeliverAction, label: string): Promise<boolean> {
+/** The original pixels as PNG, encoded once: history and projects keep them with the document. */
+let sourcePng: Promise<EncodedImage> | null = null;
+function encodedSource(): Promise<EncodedImage> {
+  if (!sourcePng) {
+    const encoding = exportImage({ source: bitmap, region: { x: 0, y: 0, ...size }, thumbMax: 16 });
+    sourcePng = encoding.then((out) => out.png);
+    // A failed encode is tried again next time.
+    encoding.catch(() => {
+      sourcePng = null;
+    });
+  }
+  return sourcePng;
+}
+
+/** What history needs to reopen the result editable; nothing for an unedited image. */
+async function editableSource(doc: Doc): Promise<EditableSource | undefined> {
+  return isBlankDoc(doc) ? undefined : { doc, source: await encodedSource() };
+}
+
+/**
+ * Exports and hands the image to main; true when the action succeeded. The
+ * result updates this editor's history entry, or with `asCopy` becomes a new
+ * entry that the editor then works on.
+ */
+async function deliver(action: DeliverAction, label: string, asCopy = false): Promise<boolean> {
   if (ui.get().busy) return false;
   ui.set({ busy: true, status: null });
   try {
-    const out = await exportCurrent(action === 'save' || action === 'saveAs');
+    annotator.view.commitText();
+    const doc = annotator.docs.doc;
+    const [out, edit] = await Promise.all([
+      exportCurrent(action === 'save' || action === 'saveAs'),
+      editableSource(doc),
+    ]);
     const result = await api.invoke('capture:deliver', {
       action,
       image: out.png,
       thumb: out.thumb,
       quiet: true,
       ...(out.save ? { saveImage: out.save } : {}),
-      ...(historyId ? { historyId } : {}),
+      ...(edit ? { edit } : {}),
+      ...(historyId && !asCopy ? { historyId } : {}),
     });
-    if (result.historyId) historyId = result.historyId;
-    if (result.ok) ui.set({ status: result.path ? `Saved to ${result.path}` : label });
-    else if (result.error !== 'cancelled') ui.set({ status: result.error ?? 'Failed' });
+    if (result.historyId) {
+      historyId = result.historyId;
+      // History now holds these edits (editable), so closing loses nothing.
+      markSaved(doc);
+    }
+    if (result.ok) {
+      const saved = asCopy ? 'Saved a copy' : 'Saved';
+      ui.set({ status: result.path ? `${saved} to ${result.path}` : label });
+    } else if (result.error !== 'cancelled') ui.set({ status: result.error ?? 'Failed' });
     return result.ok;
   } catch (error) {
     ui.set({ status: `Failed: ${String(error)}` });
@@ -204,6 +247,20 @@ async function deliver(action: DeliverAction, label: string): Promise<boolean> {
   } finally {
     ui.set({ busy: false });
   }
+}
+
+/** Saves an edited history capture over its entry or as a new one, and remembers the choice. */
+function saveEdits(mode: SaveMode): void {
+  if (ui.get().busy) return;
+  if (ui.get().saveMode !== mode) {
+    ui.set({ saveMode: mode });
+    void api
+      .invoke('settings:patch', { editor: { saveMode: mode } })
+      .catch((error: unknown) =>
+        console.error('[editor] could not remember the save choice', error),
+      );
+  }
+  void deliver('save', 'Saved', mode === 'copy');
 }
 
 /** Records `doc` as written; edits made while it was being written stay unsaved. */
@@ -229,15 +286,11 @@ async function saveProject(saveAs: boolean): Promise<void> {
   const doc = annotator.docs.doc;
   ui.set({ busy: true, status: null });
   try {
-    const base = await exportImage({
-      source: bitmap,
-      region: { x: 0, y: 0, ...size },
-      thumbMax: 16,
-    });
+    const source = await encodedSource();
     const bytes = packProject({
       doc,
       image: { mime: 'image/png', width: size.width, height: size.height },
-      bytes: new Uint8Array(base.png.bytes),
+      bytes: new Uint8Array(source.bytes),
     });
     const path = await api.invoke('editor:save-project', {
       bytes: bytes.buffer as ArrayBuffer,
@@ -268,6 +321,7 @@ function TopBar() {
     cropping: s.cropping,
     busy: s.busy,
     crop: s.crop,
+    saveMode: s.saveMode,
   }));
   const region = s.crop ?? { width: size.width, height: size.height };
   return (
@@ -308,11 +362,27 @@ function TopBar() {
         </span>
       )}
       <span class="spacer" />
-      <Button icon="zoomOut" label="Zoom out (Ctrl+-)" onClick={() => setZoom(s.zoom / 1.25)} />
-      <button type="button" class="zoom" title="Actual size (Ctrl+0)" onClick={() => setZoom(1)}>
+      <RepeatButton
+        icon="zoomOut"
+        label="Zoom out (Ctrl+-)"
+        onStep={() => zoomBy(1 / ZOOM_STEP)}
+        testId="zoom-out"
+      />
+      <button
+        type="button"
+        class="zoom"
+        title="Actual size (Ctrl+0)"
+        data-testid="zoom-level"
+        onClick={() => setZoom(1)}
+      >
         {`${Math.round(s.zoom * 100)}%`}
       </button>
-      <Button icon="zoomIn" label="Zoom in (Ctrl+=)" onClick={() => setZoom(s.zoom * 1.25)} />
+      <RepeatButton
+        icon="zoomIn"
+        label="Zoom in (Ctrl+=)"
+        onStep={() => zoomBy(ZOOM_STEP)}
+        testId="zoom-in"
+      />
       <Button icon="fit" label="Fit (Ctrl+1)" onClick={() => setZoom(fitZoom())} />
       <span class="sep" />
       <Button
@@ -329,13 +399,17 @@ function TopBar() {
         onClick={() => void deliver('copy', 'Copied to the clipboard')}
         testId="editor-copy"
       />
-      <Button
-        icon="save"
-        label="Save image (Ctrl+S)"
-        disabled={s.busy}
-        onClick={() => void deliver('save', 'Saved')}
-        testId="editor-save"
-      />
+      {init.historyId ? (
+        <SaveSplitButton primary={s.saveMode} disabled={s.busy} onSave={saveEdits} />
+      ) : (
+        <Button
+          icon="save"
+          label="Save image (Ctrl+S)"
+          disabled={s.busy}
+          onClick={() => void deliver('save', 'Saved')}
+          testId="editor-save"
+        />
+      )}
       <Button
         icon="pin"
         label="Pin to screen"
@@ -391,15 +465,18 @@ function onKeyDown(e: KeyboardEvent): void {
     else if (e.key === 'Escape') endCrop(false);
     return;
   }
-  if (mod && key === 's') void (e.shiftKey ? saveProject(e.altKey) : deliver('save', 'Saved'));
-  else if (mod && key === 'c' && annotator.docs.selected.size === 0)
+  if (mod && key === 's') {
+    if (e.shiftKey) void saveProject(e.altKey);
+    else if (init.historyId) saveEdits(modeForShortcut(e.altKey, ui.get().saveMode));
+    else void deliver('save', 'Saved');
+  } else if (mod && key === 'c' && annotator.docs.selected.size === 0)
     void deliver('copy', 'Copied to the clipboard');
   else if (mod && key === 'o') void api.invoke('editor:open');
   else if (mod && key === 'w') void api.invoke('window:close');
   else if (mod && key === '0') setZoom(1);
   else if (mod && key === '1') setZoom(fitZoom());
-  else if (mod && (key === '=' || key === '+')) setZoom(ui.get().zoom * 1.25);
-  else if (mod && key === '-') setZoom(ui.get().zoom / 1.25);
+  else if (mod && (key === '=' || key === '+')) zoomBy(ZOOM_STEP);
+  else if (mod && key === '-') zoomBy(1 / ZOOM_STEP);
   else if (!mod && key === 'c') startCrop();
   else if (e.key === 'Escape' && annotator.controller.store.get().popover)
     annotator.controller.store.set({ popover: null });
@@ -409,13 +486,18 @@ function onKeyDown(e: KeyboardEvent): void {
 
 function wirePointer(): void {
   let active = false;
-  stage.addEventListener('pointerdown', (e) => {
-    if (ui.get().cropping || !annotator.view.pointerDown(e)) return;
+  viewport.addEventListener('pointerdown', (e) => {
+    if (ui.get().cropping) return;
+    // Measurements may start beside the image: they begin at its nearest edge.
+    const onImage = e.target instanceof Node && stage.contains(e.target);
+    const onScrollbar = e.offsetX >= viewport.clientWidth || e.offsetY >= viewport.clientHeight;
+    if (!onImage && (onScrollbar || annotator.controller.store.get().tool !== 'measure')) return;
+    if (!annotator.view.pointerDown(e)) return;
     active = true;
-    stage.setPointerCapture(e.pointerId);
+    viewport.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
-  stage.addEventListener('pointermove', (e) => {
+  viewport.addEventListener('pointermove', (e) => {
     if (active) annotator.view.pointerMove(e);
   });
   const up = (e: PointerEvent) => {
@@ -423,8 +505,8 @@ function wirePointer(): void {
     active = false;
     annotator.view.pointerUp(e);
   };
-  stage.addEventListener('pointerup', up);
-  stage.addEventListener('pointercancel', up);
+  viewport.addEventListener('pointerup', up);
+  viewport.addEventListener('pointercancel', up);
   viewport.addEventListener(
     'wheel',
     (e) => {
@@ -465,7 +547,7 @@ async function loadSource(source: EditorInit['source']): Promise<ImageBitmap> {
 
 async function boot(): Promise<void> {
   init = await api.invoke('editor:init');
-  applyTheme(init.settings);
+  followTheme(init.settings);
   historyId = init.historyId;
   bitmap = await loadSource(init.source);
   size = { width: bitmap.width, height: bitmap.height };
@@ -490,7 +572,7 @@ async function boot(): Promise<void> {
       layout();
     }
   });
-  ui.set({ title: init.title, crop: doc.crop });
+  ui.set({ title: init.title, crop: doc.crop, saveMode: init.settings.editor.saveMode });
   render(<TopBar />, el('top'));
   render(<Tools />, el('tools'));
   wirePointer();

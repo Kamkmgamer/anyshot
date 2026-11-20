@@ -1,4 +1,13 @@
-import { distance, type Point, rectFromPoints, snap45, squareFrom } from '../shared/geometry';
+import {
+  clampAlong,
+  clampPoint,
+  distance,
+  type Point,
+  type Rect,
+  rectFromPoints,
+  snap45,
+  squareFrom,
+} from '../shared/geometry';
 import type { ToolId } from '../shared/settings';
 import type { DocStore } from './document';
 import { adjustFilter, GlEffects } from './gl';
@@ -81,6 +90,7 @@ export class CanvasView {
   private skip = new Set<string>();
   private marksEnv: RenderEnv | null = null;
   private textEditor: HTMLTextAreaElement | null = null;
+  private area: Rect | null = null;
   private readonly gl = GlEffects.create();
   private readonly unsubscribe: () => void;
 
@@ -151,6 +161,20 @@ export class CanvasView {
       c.height = height;
     }
     this.invalidate('base', 'committed', 'interaction');
+  }
+
+  /**
+   * The part of the source that is the picture (the overlay's selection);
+   * null means the crop or the whole source. Measurements stay inside it.
+   */
+  setImageArea(area: Rect | null): void {
+    this.area = area;
+  }
+
+  private imageArea(): Rect {
+    return (
+      this.area ?? this.store.doc.crop ?? { x: 0, y: 0, width: this.width, height: this.height }
+    );
   }
 
   toImage(clientX: number, clientY: number): Point {
@@ -347,7 +371,10 @@ export class CanvasView {
         this.invalidate('interaction');
         return true;
       default: {
-        const draft = this.newDraft(o.tool, p);
+        const draft = this.newDraft(
+          o.tool,
+          o.tool === 'measure' ? clampPoint(p, this.imageArea()) : p,
+        );
         if (!draft) return false;
         this.state = { type: 'draw', start: p, draft };
         this.invalidate('interaction');
@@ -402,7 +429,9 @@ export class CanvasView {
           for (const c of samples.length > 0 ? samples : [e])
             d.points.push(this.toImage(c.clientX, c.clientY));
         }
-      } else if (d.kind === 'line' || d.kind === 'arrow' || d.kind === 'measure') {
+      } else if (d.kind === 'measure') {
+        d.b = measureEnd(d.a, p, this.imageArea(), e.shiftKey);
+      } else if (d.kind === 'line' || d.kind === 'arrow') {
         d.b = e.shiftKey ? snap45(s.start, p) : p;
       } else if (
         d.kind === 'rect' ||
@@ -415,9 +444,11 @@ export class CanvasView {
         d.radius = Math.max(70 * this.unit, distance(s.start, p));
       }
     } else if (s.type === 'move') {
-      s.delta = { x: p.x - s.start.x, y: p.y - s.start.y };
+      const delta = { x: p.x - s.start.x, y: p.y - s.start.y };
+      s.delta = clampMoveDelta(s.originals, delta, this.imageArea());
     } else if (s.type === 'handle') {
-      s.current = dragHandle(s.original, s.handle, p);
+      const target = s.original.kind === 'measure' ? clampPoint(p, this.imageArea()) : p;
+      s.current = dragHandle(s.original, s.handle, target);
     }
     this.invalidate('interaction');
   }
@@ -429,9 +460,12 @@ export class CanvasView {
       this.store.add(s.draft);
     } else if (s.type === 'move' && (s.delta.x !== 0 || s.delta.y !== 0)) {
       const ids = new Set(s.originals.map((a) => a.id));
-      const { delta } = s;
       this.unskip();
-      this.store.updateSelected((a) => (ids.has(a.id) ? translate(a, delta.x, delta.y) : a));
+      // Clamped again against the current endpoints: an arrow-key nudge during the drag moved them.
+      const current = this.store.doc.annotations.filter((a) => ids.has(a.id));
+      const delta = clampMoveDelta(current, s.delta, this.imageArea());
+      if (delta.x !== 0 || delta.y !== 0)
+        this.store.updateSelected((a) => (ids.has(a.id) ? translate(a, delta.x, delta.y) : a));
       return;
     } else if (s.type === 'handle') {
       this.unskip();
@@ -486,7 +520,10 @@ export class CanvasView {
     if (nudge && hasSelection) {
       const step = (e.shiftKey ? 10 : 1) * this.unit;
       const [dx = 0, dy = 0] = nudge;
-      this.store.updateSelected((a) => translate(a, dx * step, dy * step));
+      const selected = this.store.doc.annotations.filter((a) => this.store.selected.has(a.id));
+      // Selected measurements stay inside the image, as when dragging them.
+      const d = clampMoveDelta(selected, { x: dx * step, y: dy * step }, this.imageArea());
+      if (d.x !== 0 || d.y !== 0) this.store.updateSelected((a) => translate(a, d.x, d.y));
       return true;
     }
     return false;
@@ -622,6 +659,39 @@ function context(canvas: HTMLCanvasElement, options?: CanvasRenderingContext2DSe
   const ctx = canvas.getContext('2d', options);
   if (!ctx) throw new Error('2D canvas unavailable');
   return ctx;
+}
+
+/**
+ * Limits a move of the selection so every selected measurement stays inside
+ * `area`; the selection still moves as one. Other kinds move freely. Not
+ * moving is always allowed, so a measurement left outside (the overlay
+ * selection shrank) can still be moved back in.
+ */
+export function clampMoveDelta(selected: readonly Annotation[], delta: Point, area: Rect): Point {
+  const x = { lo: -Infinity, hi: Infinity };
+  const y = { lo: -Infinity, hi: Infinity };
+  for (const a of selected) {
+    if (a.kind !== 'measure') continue;
+    for (const p of [a.a, a.b]) {
+      x.lo = Math.max(x.lo, area.x - p.x);
+      x.hi = Math.min(x.hi, area.x + area.width - p.x);
+      y.lo = Math.max(y.lo, area.y - p.y);
+      y.hi = Math.min(y.hi, area.y + area.height - p.y);
+    }
+  }
+  const limit = (v: number, r: { lo: number; hi: number }) =>
+    Math.max(Math.min(r.lo, 0), Math.min(Math.max(r.hi, 0), v));
+  return { x: limit(delta.x, x), y: limit(delta.y, y) };
+}
+
+/**
+ * Where a measurement from `start` ends for pointer `p`: at the nearest point
+ * of the image when the pointer is outside it, along the snapped direction
+ * when snapping to 45°.
+ */
+export function measureEnd(start: Point, p: Point, area: Rect, snap: boolean): Point {
+  const a = clampPoint(start, area);
+  return snap ? clampAlong(a, snap45(a, p), area) : clampPoint(p, area);
 }
 
 /** Drafts too small to see are treated as accidental clicks. */

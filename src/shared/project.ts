@@ -7,6 +7,9 @@
  *   then         UTF-8 JSON: { doc, image: { mime, width, height } }
  *   then         the image bytes (PNG)
  */
+import type { Size } from './geometry';
+import { isRecord } from './schema';
+
 const MAGIC = 'ANYSHOT1';
 const HEADER = MAGIC.length + 4;
 
@@ -58,3 +61,28 @@ export function unpackProject(bytes: Uint8Array): Project {
 }
 
 export const PROJECT_EXTENSION = 'anyshot';
+
+const isInt = (v: unknown): v is number => Number.isInteger(v);
+
+/**
+ * Structural check of a stored annotation document before an editor gets it:
+ * version, annotation list, scale and a crop that lies inside the image. The
+ * editor still validates every annotation and drops malformed ones.
+ */
+export function isProjectDoc(doc: unknown, image: Size): boolean {
+  if (!isRecord(doc) || doc.version !== 1 || !Array.isArray(doc.annotations)) return false;
+  if (doc.unit !== undefined && !(typeof doc.unit === 'number' && doc.unit > 0)) return false;
+  const crop = doc.crop;
+  if (crop === null || crop === undefined) return true;
+  if (!isRecord(crop)) return false;
+  const { x, y, width, height } = crop;
+  if (!isInt(x) || !isInt(y) || !isInt(width) || !isInt(height)) return false;
+  return (
+    x >= 0 &&
+    y >= 0 &&
+    width >= 1 &&
+    height >= 1 &&
+    x + width <= image.width &&
+    y + height <= image.height
+  );
+}

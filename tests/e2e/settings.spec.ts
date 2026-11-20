@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { dispatch, type Launched, launch, pageOf, windowKinds, verifyAndClose } from './harness';
+import { TOOL_IDS } from '../../src/shared/settings';
+import { dispatch, type Launched, launch, pageOf, verifyAndClose, windowKinds } from './harness';
 
 let ctx: Launched;
 const linux = process.platform === 'linux';
@@ -119,4 +120,71 @@ test('rapid tool toggles each reach the saved settings', async () => {
       return { arrow: enabled?.includes('arrow') ?? true, rect: enabled?.includes('rect') ?? true };
     })
     .toEqual({ arrow: false, rect: false });
+});
+
+test('the appearance control switches every control and open window between themes', async () => {
+  await dispatch(ctx.app, 'settings');
+  const page = await pageOf(ctx.app, 'settings');
+  await dispatch(ctx.app, 'history');
+  const history = await pageOf(ctx.app, 'history');
+  const theme = page.getByRole('radiogroup', { name: 'Appearance' });
+  const radio = (name: string) => theme.getByRole('radio', { name });
+  await expect(radio('Dark')).toBeChecked();
+  const background = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+  const scheme = () => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
+  const historyBackground = () =>
+    history.evaluate(() => getComputedStyle(document.body).backgroundColor);
+
+  await radio('Light').click();
+  await expect(radio('Light')).toBeChecked();
+  await expect(radio('Dark')).not.toBeChecked();
+  await expect.poll(scheme).toBe('light');
+  await page.getByTestId('tab-capture').click();
+  await expect.poll(() => background('select')).toBe('rgb(255, 255, 255)');
+  await expect.poll(() => background('input[type="number"]')).toBe('rgb(255, 255, 255)');
+  await expect.poll(historyBackground).toBe('rgb(250, 250, 250)');
+  const file = join(ctx.userData, 'settings.json');
+  await expect
+    .poll(async () => JSON.parse(await readFile(file, 'utf8')).general.toolbarTheme)
+    .toBe('light');
+
+  // Keyboard: arrows move the choice within the group.
+  await page.getByTestId('tab-general').click();
+  await radio('Light').focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(radio('Dark')).toBeChecked();
+  await expect.poll(scheme).toBe('dark');
+  await page.getByTestId('tab-output').click();
+  await expect.poll(() => background('select')).toBe('rgb(15, 15, 17)');
+  await expect.poll(() => background('input[type="text"]')).toBe('rgb(15, 15, 17)');
+  await expect.poll(historyBackground).toBe('rgb(24, 24, 27)');
+});
+
+test('Tools > Reset to defaults asks inline, then restores and saves every tool', async () => {
+  await dispatch(ctx.app, 'settings');
+  const page = await pageOf(ctx.app, 'settings');
+  await page.getByTestId('tab-tools').click();
+  const arrow = page.getByRole('checkbox', { name: 'Arrow', exact: true });
+  await arrow.uncheck();
+  const file = join(ctx.userData, 'settings.json');
+  const enabled = async (): Promise<string[]> =>
+    JSON.parse(await readFile(file, 'utf8')).tools.enabledTools;
+  await expect.poll(enabled).not.toContain('arrow');
+
+  // Esc backs out without changing anything.
+  await page.getByTestId('reset-tools').click();
+  await expect(page.getByTestId('reset-tools-cancel')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('reset-tools-confirm')).toHaveCount(0);
+  await expect(arrow).not.toBeChecked();
+
+  await page.getByTestId('reset-tools').click();
+  await page.getByTestId('reset-tools-confirm').click();
+  await expect(arrow).toBeChecked();
+  await expect(page.getByTestId('reset-tools')).toBeVisible();
+  await expect.poll(enabled).toEqual([...TOOL_IDS]);
 });

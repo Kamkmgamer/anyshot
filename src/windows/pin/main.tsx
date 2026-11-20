@@ -4,7 +4,8 @@ import { render } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import type { PinInit } from '../../shared/ipc';
 import { Icon } from '../common/icons';
-import { applyTheme } from '../common/theme';
+import { usePressRepeat } from '../common/repeat';
+import { followTheme } from '../common/theme';
 
 const api = window.anyshot;
 let historyId: string | null = null;
@@ -18,13 +19,50 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+const ZOOM_STEP = 1.25;
+
+function ZoomButton(props: { icon: 'zoomIn' | 'zoomOut'; label: string; onStep: () => void }) {
+  const press = usePressRepeat(props.onStep);
+  return (
+    <button
+      type="button"
+      title={props.label}
+      aria-label={props.label}
+      data-testid={`pin-${props.icon === 'zoomIn' ? 'zoom-in' : 'zoom-out'}`}
+      {...press}
+    >
+      <Icon name={props.icon} size={15} />
+    </button>
+  );
+}
+
 function App({ init }: { init: PinInit }) {
   const base = useRef({ width: window.innerWidth, height: window.innerHeight });
   const [zoom, setZoom] = useState(1);
+  // Held zoom buttons step from the latest value, not the one of the last render.
+  const current = useRef(1);
   const drag = useRef<{ x: number; y: number } | null>(null);
+  const controls = useRef<HTMLDivElement>(null);
+
+  /**
+   * The smallest zoom at which the window still fits one row of controls.
+   * Never above 1: a pin smaller than the row keeps its size and the row wraps.
+   */
+  const minZoom = () => {
+    const row = controls.current;
+    if (!row) return 0.1;
+    const items = [...row.children].filter((el): el is HTMLElement => el instanceof HTMLElement);
+    const gap = Number.parseFloat(getComputedStyle(row).columnGap) || 0;
+    // 12 px for the row's inset, a little slack for the zoom label's changing width.
+    const width = items.reduce((sum, el) => sum + el.offsetWidth + gap, 0) + 12 + 6;
+    const height = Math.max(0, ...items.map((el) => el.offsetHeight)) + 12;
+    const { width: w, height: h } = base.current;
+    return Math.min(1, Math.max(0.1, width / w, height / h));
+  };
 
   const applyZoom = (next: number) => {
-    const z = Math.min(5, Math.max(0.1, next));
+    const z = Math.min(5, Math.max(minZoom(), next));
+    current.current = z;
     setZoom(z);
     void api.invoke('window:set-size', {
       width: base.current.width * z,
@@ -36,7 +74,7 @@ function App({ init }: { init: PinInit }) {
     <div
       class="pin"
       data-testid="pin"
-      onWheel={(e) => applyZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1))}
+      onWheel={(e) => applyZoom(current.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1))}
       onPointerDown={(e) => {
         if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
         drag.current = { x: e.screenX, y: e.screenY };
@@ -61,10 +99,36 @@ function App({ init }: { init: PinInit }) {
         onLoad={() => void api.invoke('pin:ready')}
         onError={() => void api.invoke('pin:ready')}
       />
-      <div class="controls">
-        <button type="button" class="zoom" title="Reset zoom" onClick={() => applyZoom(1)}>
+      {/* Close comes first: if a tiny pin cuts the wrapped row off, it stays visible. */}
+      <div class="controls" ref={controls}>
+        <button
+          type="button"
+          title="Close (Esc)"
+          aria-label="Close"
+          data-testid="pin-close"
+          onClick={() => void api.invoke('window:close')}
+        >
+          <Icon name="close" size={15} />
+        </button>
+        <ZoomButton
+          icon="zoomOut"
+          label="Zoom out"
+          onStep={() => applyZoom(current.current / ZOOM_STEP)}
+        />
+        <button
+          type="button"
+          class="zoom"
+          title="Reset zoom"
+          data-testid="pin-zoom"
+          onClick={() => applyZoom(1)}
+        >
           {Math.round(zoom * 100)}%
         </button>
+        <ZoomButton
+          icon="zoomIn"
+          label="Zoom in"
+          onStep={() => applyZoom(current.current * ZOOM_STEP)}
+        />
         <button
           type="button"
           title="Copy"
@@ -85,15 +149,6 @@ function App({ init }: { init: PinInit }) {
         >
           <Icon name="editor" size={15} />
         </button>
-        <button
-          type="button"
-          title="Close (Esc)"
-          aria-label="Close"
-          data-testid="pin-close"
-          onClick={() => void api.invoke('window:close')}
-        >
-          <Icon name="close" size={15} />
-        </button>
       </div>
     </div>
   );
@@ -101,6 +156,6 @@ function App({ init }: { init: PinInit }) {
 
 void api.invoke('pin:init').then((init) => {
   historyId = init.historyId;
-  void api.invoke('settings:get').then(applyTheme);
+  followTheme();
   render(<App init={init} />, document.getElementById('root') as HTMLElement);
 });

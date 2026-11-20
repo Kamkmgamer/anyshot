@@ -127,6 +127,10 @@ describe('upload providers', () => {
     await expect(s3('http://uploads.example').upload(file)).rejects.toThrow('require HTTPS');
     await expect(http(`${base}/post`).upload(file)).rejects.toThrow('307');
     await expect(s3(base).upload(file)).rejects.toThrow('307');
-    expect(seen.map(({ url }) => url)).toEqual(['/post', '/shots/captures/shot.png']);
+    // Only the uploads' own requests count: other local processes (such as a port
+    // scanner probing `/`) can reach this loopback port while the test runs.
+    const urls = seen.map(({ url }) => url);
+    expect(urls.filter((u) => u !== '/')).toEqual(['/post', '/shots/captures/shot.png']);
+    expect(urls).not.toContain('/redirect-target');
   });
 });

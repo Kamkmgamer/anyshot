@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { _electron, type ElectronApplication, expect, type Page } from '@playwright/test';
 import type { WindowKind } from '../../src/shared/ipc';
+import { FIXTURE } from './fixture';
 
 export interface Launched {
   app: ElectronApplication;
@@ -131,4 +132,24 @@ export async function pressClosing(page: Page, key: string): Promise<void> {
   await page.keyboard.press(key).catch((error: Error) => {
     if (!/closed/i.test(error.message)) throw error;
   });
+}
+
+/** Starts an area capture and selects the fixture card; returns the overlay. */
+export async function selectCard(app: ElectronApplication): Promise<Page> {
+  await dispatch(app, 'captureArea');
+  const overlay = await pageOf(app, 'overlay');
+  await expect
+    .poll(() =>
+      app.evaluate(() =>
+        globalThis.__anyshot?.windows().some((w) => w.kind === 'overlay' && w.visible),
+      ),
+    )
+    .toBe(true);
+  const { card } = FIXTURE;
+  await overlay.mouse.move(card.x, card.y);
+  await overlay.mouse.down();
+  await overlay.mouse.move(card.x + card.width, card.y + card.height, { steps: 5 });
+  await overlay.mouse.up();
+  await expect(overlay.getByTestId('actions')).toBeVisible();
+  return overlay;
 }

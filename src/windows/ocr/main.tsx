@@ -2,7 +2,7 @@ import '../common/ui.css';
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { OcrResult } from '../../shared/ipc';
-import { applyTheme } from '../common/theme';
+import { followTheme } from '../common/theme';
 
 const api = window.anyshot;
 
@@ -47,8 +47,8 @@ function App({ result }: { result: OcrResult }) {
           font: '14px/1.5 system-ui, sans-serif',
           padding: '10px',
           borderRadius: '8px',
-          border: '1px solid var(--bar-border)',
-          background: '#0f0f11',
+          border: '1px solid var(--field-border)',
+          background: 'var(--field-bg)',
           color: 'inherit',
         }}
       />
@@ -77,6 +77,6 @@ function App({ result }: { result: OcrResult }) {
 }
 
 void api.invoke('ocr:init').then((result) => {
-  void api.invoke('settings:get').then(applyTheme);
+  followTheme();
   render(<App result={result} />, document.getElementById('root') as HTMLElement);
 });

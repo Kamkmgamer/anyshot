@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { mergeDeep } from '../../src/shared/schema';
-import { ACCELERATOR, DEFAULT_SETTINGS, parseSettings } from '../../src/shared/settings';
+import {
+  ACCELERATOR,
+  DEFAULT_SETTINGS,
+  parseSettings,
+  TOOL_IDS,
+  toolsPageDefaults,
+} from '../../src/shared/settings';
 
 describe('settings schema', () => {
   it('returns defaults for missing or garbage input', () => {
@@ -46,5 +52,22 @@ describe('settings schema', () => {
     expect(merged.capture.delaySeconds).toBe(3);
     expect(merged.capture.quickAction).toBe(DEFAULT_SETTINGS.capture.quickAction);
     expect(merged.hotkeys).toEqual(DEFAULT_SETTINGS.hotkeys);
+  });
+
+  it('resets the Tools page without touching other choices', () => {
+    const changed = parseSettings(
+      mergeDeep(DEFAULT_SETTINGS, {
+        tools: { enabledTools: ['select', 'arrow'], color: '#00ff00', strokeWidth: 9 },
+        capture: { delaySeconds: 5 },
+      }),
+    );
+    const reset = parseSettings(mergeDeep(changed, toolsPageDefaults()));
+    expect(reset.tools.enabledTools).toEqual([...TOOL_IDS]);
+    expect(reset.tools.enabledTools).toEqual(DEFAULT_SETTINGS.tools.enabledTools);
+    expect(reset.tools.color).toBe('#00ff00');
+    expect(reset.tools.strokeWidth).toBe(9);
+    expect(reset.capture.delaySeconds).toBe(5);
+    // A copy, so nothing that edits the patch can alter the defaults.
+    expect(toolsPageDefaults().tools?.enabledTools).not.toBe(DEFAULT_SETTINGS.tools.enabledTools);
   });
 });
