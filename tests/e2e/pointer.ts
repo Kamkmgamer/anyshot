@@ -15,28 +15,50 @@ const WHEEL = 0x0800;
 const NOTCH = 120;
 const DONE = 'anyshot-e2e-done';
 
-let shell: ChildProcessWithoutNullStreams | null = null;
-let output = '';
-const pending: (() => void)[] = [];
+interface Helper {
+  child: ChildProcessWithoutNullStreams;
+  /** Commands sent and not yet answered, oldest first. */
+  pending: { resolve: () => void; reject: (error: Error) => void }[];
+  output: string;
+}
+
+let helper: Helper | null = null;
+
+/** Ends a helper: its unanswered commands fail, and the next command starts a new one. */
+function stopHelper(stopped: Helper, error: Error): void {
+  if (helper === stopped) helper = null;
+  for (const command of stopped.pending.splice(0)) command.reject(error);
+}
+
+function startHelper(): Helper {
+  const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '-']);
+  const started: Helper = { child, pending: [], output: '' };
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (chunk: string) => {
+    started.output += chunk;
+    for (let at = started.output.indexOf(DONE); at >= 0; at = started.output.indexOf(DONE)) {
+      started.output = started.output.slice(at + DONE.length);
+      started.pending.shift()?.resolve();
+    }
+  });
+  child.on('error', (error) =>
+    stopHelper(started, new Error(`Pointer helper failed: ${error.message}`)),
+  );
+  child.on('exit', (code, signal) =>
+    stopHelper(started, new Error(`Pointer helper exited (${signal ?? `code ${code}`})`)),
+  );
+  // Writing to a helper that has died fails here; the exit handler reports it.
+  child.stdin.on('error', () => {});
+  child.stdin.write(`${WIN32_INPUT}\n`);
+  return started;
+}
 
 function powershell(command: string): Promise<void> {
-  if (!shell) {
-    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '-']);
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      output += chunk;
-      for (let at = output.indexOf(DONE); at >= 0; at = output.indexOf(DONE)) {
-        output = output.slice(at + DONE.length);
-        pending.shift()?.();
-      }
-    });
-    child.stdin.write(`${WIN32_INPUT}\n`);
-    shell = child;
-  }
-  const child = shell;
-  return new Promise((resolve) => {
-    pending.push(resolve);
-    child.stdin.write(`${command}; '${DONE}'\n`);
+  helper ??= startHelper();
+  const current = helper;
+  return new Promise((resolve, reject) => {
+    current.pending.push({ resolve, reject });
+    current.child.stdin.write(`${command}; '${DONE}'\n`);
   });
 }
 
@@ -62,9 +84,9 @@ export async function wheel(direction: 'up' | 'down'): Promise<void> {
 
 /** Ends the helper process, if one was started. */
 export function releasePointer(): void {
-  shell?.stdin.end();
-  shell?.kill();
-  shell = null;
-  output = '';
-  pending.length = 0;
+  if (!helper) return;
+  const released = helper;
+  stopHelper(released, new Error('Pointer helper released'));
+  released.child.stdin.end();
+  released.child.kill();
 }
