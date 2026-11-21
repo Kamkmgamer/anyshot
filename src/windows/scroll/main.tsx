@@ -1,6 +1,7 @@
 import '../common/ui.css';
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import { screenshotDoc } from '../../engine/model';
 import type { ScrollInit } from '../../shared/ipc';
 import { pointerAreas } from '../../shared/stitch';
 import type { StitchMessage, StitchReply } from '../../workers/stitch.worker';
@@ -114,7 +115,9 @@ async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
       fail(new Error(event.message || 'The scroll worker stopped unexpectedly.'));
     };
     worker.onmessage = ({ data }: MessageEvent<StitchReply>) => {
-      if (data.type === 'progress' || data.type === 'lost-overlap') {
+      if (data.type === 'failed') {
+        fail(new Error(data.error));
+      } else if (data.type === 'progress' || data.type === 'lost-overlap') {
         // A lost overlap is recoverable: the stitch so far is kept, and frames match
         // again once the user scrolls back to content that overlaps it.
         busy = false;
@@ -164,7 +167,8 @@ async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
       return;
     }
     update((s) => ({ ...s, phase: 'finishing', width: crop.width, height }));
-    worker.postMessage({ type: 'finish' } satisfies StitchMessage);
+    const doc = screenshotDoc(init.scaleFactor * sx, init.beautify, 'scroll');
+    worker.postMessage({ type: 'finish', doc } satisfies StitchMessage);
     const done = await Promise.race([finished, failure]);
     await api.invoke(
       'scroll:finish',
@@ -172,6 +176,7 @@ async function capture(stream: MediaStream, init: ScrollInit): Promise<void> {
         ? {
             image: { bytes: done.png, mime: 'image/png', width: done.width, height: done.height },
             thumb: done.thumb,
+            ...(done.original ? { edit: { doc, source: done.original } } : {}),
           }
         : { image: null },
     );

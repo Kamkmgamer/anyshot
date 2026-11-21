@@ -3,7 +3,9 @@
  * declared once with its request and response types, and with the window kinds
  * allowed to call it. Main rejects calls from any other sender.
  */
+import type { AutoBeautify, CustomBackground, SavedBackground } from './background';
 import type { Point, Rect, Size } from './geometry';
+import type { RecordingQuality } from './recording-quality';
 import type { DeepPartial, HotkeyAction, Settings, ToolChoices, ToolId } from './settings';
 import type { UpdateOffer, UpdateStatus } from './update';
 
@@ -186,6 +188,7 @@ export interface RecorderInit {
   crop: Rect;
   scaleFactor: number;
   fps: number;
+  quality: RecordingQuality;
   microphone: boolean;
   /** Computer audio, from the display stream (Windows loopback). */
   systemAudio: boolean;
@@ -205,6 +208,7 @@ export interface ScrollInit {
   crop: Rect;
   scaleFactor: number;
   maxHeight: number;
+  beautify: AutoBeautify;
 }
 
 export interface OcrResult {
@@ -285,7 +289,10 @@ export interface InvokeContract {
   'recorder:control': Channel<'stop' | 'pause' | 'resume', void>;
 
   'scroll:init': Channel<void, ScrollInit>;
-  'scroll:finish': Channel<{ image: EncodedImage | null; thumb?: ArrayBuffer }, void>;
+  'scroll:finish': Channel<
+    { image: EncodedImage | null; thumb?: ArrayBuffer; edit?: EditableSource },
+    void
+  >;
   /** The mouse pointer in physical pixels relative to the crop (screen captures draw it in). */
   'scroll:pointer': Channel<void, Point | null>;
 
@@ -302,6 +309,12 @@ export interface InvokeContract {
   'secrets:set': Channel<{ key: string; value: string }, void>;
   'uploads:test': Channel<void, DeliverResult>;
   'settings:choose-dir': Channel<'output' | 'recording', string | null>;
+  'backgrounds:list': Channel<void, SavedBackground[]>;
+  'backgrounds:save': Channel<
+    { id?: string; name: string; background: CustomBackground },
+    SavedBackground
+  >;
+  'backgrounds:remove': Channel<string, void>;
   'settings:set-tool-enabled': Channel<{ tool: ToolId; enabled: boolean }, void>;
   'hotkeys:status': Channel<void, HotkeyReport>;
 }
@@ -385,12 +398,16 @@ export const INVOKE_ACCESS: { readonly [K in InvokeChannel]: readonly WindowKind
   'secrets:set': ['settings'],
   'uploads:test': ['settings'],
   'settings:choose-dir': ['settings'],
+  'backgrounds:list': ['settings', 'overlay', 'editor'],
+  'backgrounds:save': ['settings', 'overlay', 'editor'],
+  'backgrounds:remove': ['settings', 'overlay', 'editor'],
   'settings:set-tool-enabled': ['settings'],
   'hotkeys:status': ['settings'],
 };
 
 /** Events pushed from main to windows. */
 export interface EventContract {
+  'backgrounds:changed': undefined;
   'settings:changed': Settings;
   'hotkeys:changed': HotkeyReport;
   'overlay:clear-selection': undefined;
@@ -405,6 +422,7 @@ export interface EventContract {
 export type EventChannel = keyof EventContract;
 
 export const EVENT_CHANNELS: readonly EventChannel[] = [
+  'backgrounds:changed',
   'settings:changed',
   'hotkeys:changed',
   'overlay:clear-selection',

@@ -109,6 +109,34 @@ for (const pointer of [null, { x: 300, y: 200 }]) {
   });
 }
 
+test('automatic Beautify adds one frame and keeps the stitched pixels for editing', async () => {
+  const { app } = await open(longPage(80));
+  await app.evaluate(async () => {
+    await globalThis.__anyshot?.patch({ capture: { beautify: { enabled: true, background: 2 } } });
+  });
+  await movePointer(150, 150);
+  const scale = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().scaleFactor);
+  const width = Math.round(600 * scale);
+  const height = Math.round(400 * scale);
+  const pad = Math.round(48 * scale);
+  const hud = await startScrollCapture(app, `${width} × ${height}`);
+  await pageScript(app, 'window.scrollBy(0, 112)');
+  const stitched = height + Math.round(112 * scale);
+  await expect(hud.getByTestId('scroll-status')).toContainText(`${width} × ${stitched}`);
+  expect(await finish(app, hud)).toEqual({ width: width + 2 * pad, height: stitched + 2 * pad });
+  await dispatch(app, 'history');
+  const history = await pageOf(app, 'history');
+  await history.getByTestId('history-card').dblclick();
+  const editor = await pageOf(app, 'editor');
+  await expect(editor.locator('#frame')).toHaveAttribute('data-background', '2');
+  await editor.getByTestId('fx-beautify').click();
+  await editor.getByTestId('beautify-none').click();
+  await editor.keyboard.press('Escape');
+  await editor.keyboard.press('Control+c');
+  await expect(editor.getByTestId('editor-status')).toHaveText('Copied to the clipboard');
+  await expect(editor.getByTestId('editor-size')).toHaveText(`${width} × ${stitched}`);
+});
+
 // Real wheel scrolling is smooth: frames land mid-animation at sub-pixel offsets, and
 // with display scaling every scroll position is drawn a little differently. The HUD
 // used to report "Lost track" over and over even when scrolling slowly.

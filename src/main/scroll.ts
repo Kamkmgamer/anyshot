@@ -17,6 +17,7 @@ let active: { win: BrowserWindow; init: ScrollInit; display: Display } | null = 
 export async function startScrollCapture(display: Display, rect: Rect): Promise<void> {
   if (active) return;
   const { bounds, scaleFactor, workArea } = display;
+  const settings = getSettings();
   const init: ScrollInit = {
     displayId: display.id,
     displaySize: {
@@ -25,7 +26,8 @@ export async function startScrollCapture(display: Display, rect: Rect): Promise<
     },
     crop: evenRect(scaleRect(rect, scaleFactor)),
     scaleFactor,
-    maxHeight: getSettings().scroll.maxHeight,
+    maxHeight: settings.scroll.maxHeight,
+    beautify: settings.capture.beautify,
   };
   const area = {
     x: bounds.x + rect.x,
@@ -85,9 +87,9 @@ handle('scroll:pointer', (_req, { win }) => {
   return pointerInCrop(dip, display.bounds, init, physical);
 });
 
-handle('scroll:finish', async ({ image, thumb }, { win }) => {
+handle('scroll:finish', async ({ image, thumb, edit }, { win }) => {
   win.destroy();
   if (!image) return;
   const { deliver } = await import('./deliver');
-  await deliver({ action: 'quick', image, ...(thumb ? { thumb } : {}) });
+  await deliver({ action: 'quick', image, ...(thumb ? { thumb } : {}), ...(edit ? { edit } : {}) });
 });

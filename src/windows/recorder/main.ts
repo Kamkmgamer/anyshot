@@ -11,6 +11,7 @@ import {
   Mp4OutputFormat,
   Output,
   QUALITY_HIGH,
+  QUALITY_LOW,
   QUALITY_MEDIUM,
   StreamTarget,
   WebMOutputFormat,
@@ -27,6 +28,7 @@ import { createPauseGate, type PauseGate } from './pause-gate';
 
 const api = window.anyshot;
 const GIF_MAX_WIDTH = 800;
+const VIDEO_QUALITY = { compact: QUALITY_LOW, standard: QUALITY_MEDIUM, high: QUALITY_HIGH };
 /** How often the controls' clock updates. */
 const HUD_TICK_MS = 250;
 /** How long a pause waits for every track's first sample before it goes ahead anyway. */
@@ -118,9 +120,12 @@ async function record(init: RecorderInit): Promise<string> {
     const video = stream.getVideoTracks()[0];
     if (!video) throw new Error('No screen video track');
     const crop = cropFor(init, video);
+    const quality = VIDEO_QUALITY[init.quality];
     const codec = await getFirstEncodableVideoCodec(['avc', 'vp9', 'vp8'], {
       width: crop.width,
       height: crop.height,
+      quality,
+      frameRate: init.fps,
     });
     if (!codec) throw new Error('No supported video encoder (H.264, VP9 or VP8) is available');
     const mp4 = codec === 'avc';
@@ -162,7 +167,7 @@ async function record(init: RecorderInit): Promise<string> {
     });
     const source = new MediaStreamVideoTrackSource(
       video as MediaStreamVideoTrack,
-      { codec, quality: QUALITY_HIGH, transform: { crop } },
+      { codec, quality, transform: { crop } },
       { frameRate: init.fps },
     );
     output.addVideoTrack(source, { frameRate: init.fps });

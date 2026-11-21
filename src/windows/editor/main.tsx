@@ -9,10 +9,11 @@ import type { DeliverAction, EditableSource, EditorInit, EncodedImage } from '..
 import { packProject } from '../../shared/project';
 import { isRecord } from '../../shared/schema';
 import { type Annotator, createAnnotator, nativeInputOwnsKey } from '../common/annotator';
+import { paintBackgroundPreview } from '../common/background-preview';
 import { EffectButtons, EffectPopovers } from '../common/effects-ui';
-import { TextPopover } from '../common/text-style-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
+import { TextPopover } from '../common/text-style-ui';
 import { followTheme } from '../common/theme';
 import { Bar, Button, ColorPopover, OptionsRow, RepeatButton, ToolStrip } from '../common/toolbar';
 import { watchMinimumSize } from './min-size';
@@ -45,6 +46,7 @@ const ui = createStore<EditorUi>({
 
 const viewport = el('viewport');
 const frame = el('frame');
+const frameBackground = document.querySelector<HTMLCanvasElement>('#frame-background');
 const clip = el('clip');
 const stage = el('stage');
 const cropLayer = el('crop');
@@ -108,14 +110,18 @@ function shownBeautify(): Beautify | null {
 }
 
 /**
- * Shows the Beautify frame live around the image with CSS: the same gradient,
- * padding, corner radius and shadow drawBeautified adds on export, at the
- * current zoom. The canvas and its coordinates stay as they are.
+ * Shows the Beautify frame at the current zoom. The annotation canvas keeps
+ * its own coordinates and the custom background is drawn on a separate layer.
  */
 function paintFrame(): void {
   const b = shownBeautify();
   frame.classList.toggle('beautified', b !== null);
-  frame.dataset.background = b ? String(b.background) : '';
+  frame.dataset.background = b
+    ? typeof b.background === 'number'
+      ? String(b.background)
+      : b.background.kind
+    : '';
+  if (frameBackground) frameBackground.hidden = !b || typeof b.background === 'number';
   if (!b) {
     frame.style.padding = '';
     frame.style.background = '';
@@ -131,6 +137,15 @@ function paintFrame(): void {
   const shadow = b.shadow * unit() * s;
   frame.style.padding = `${pad}px`;
   frame.style.background = beautifyBackgroundCss(b, width, height);
+  if (frameBackground && typeof b.background !== 'number') {
+    const previewScale = Math.min(1, 1600 / Math.max(width, height));
+    paintBackgroundPreview(
+      frameBackground,
+      b.background,
+      Math.max(1, Math.round(width * previewScale)),
+      Math.max(1, Math.round(height * previewScale)),
+    );
+  }
   clip.style.borderRadius = `${b.radius * unit() * s}px`;
   clip.style.boxShadow =
     shadow > 0 ? `0 ${shadow * 0.25}px ${shadow}px rgba(0, 0, 0, 0.45)` : 'none';
@@ -623,7 +638,6 @@ async function boot(): Promise<void> {
   annotator.view.setSource(bitmap);
   savedDoc = annotator.docs.doc;
   const tools = annotator.controller.store;
-  tools.set({ framePreview: true });
   let shown = { effects: tools.get().effects, preview: tools.get().previewEffects };
   tools.subscribe((t) => {
     if (t.effects === shown.effects && t.previewEffects === shown.preview) return;

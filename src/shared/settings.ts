@@ -1,3 +1,5 @@
+import { autoBeautifySchema } from './background';
+import { recordingQuality } from './recording-quality';
 import { bool, type Infer, int, list, num, obj, oneOf, pattern, str } from './schema';
 
 const MODIFIER = '(?:CommandOrControl|CmdOrCtrl|Control|Ctrl|Alt|Shift|Super|Meta)';
@@ -87,6 +89,7 @@ export const settingsSchema = obj({
     openEditorAfterQuick: bool(false),
     /** Show the edit tools on the selection instead of capturing it at once. */
     instantPreview: bool(false),
+    beautify: autoBeautifySchema,
     doubleClickToCopy: bool(true),
     hideInstructions: bool(false),
     dimOutside: bool(true),
@@ -151,6 +154,7 @@ export const settingsSchema = obj({
   }),
   recording: obj({
     fps: int(30, 5, 60),
+    quality: recordingQuality(),
     microphone: bool(false),
     /** Computer (system) audio. Windows only: Electron provides it as loopback there. */
     systemAudio: bool(false),

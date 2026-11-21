@@ -3,8 +3,10 @@ import './settings.css';
 import { type ComponentChildren, cloneElement, isValidElement, render } from 'preact';
 import { useEffect, useId, useState } from 'preact/hooks';
 import logo from '../../../resources/icon-256.png';
+import { type AutoBeautify, SCREENSHOT_MODES } from '../../shared/background';
 import { expandTemplate } from '../../shared/filename';
 import type { HotkeyReport, InvokeRes } from '../../shared/ipc';
+import { RECORDING_QUALITY_OPTIONS } from '../../shared/recording-quality';
 import {
   ACCELERATOR,
   type DeepPartial,
@@ -15,6 +17,7 @@ import {
   TOOL_IDS,
   toolsPageDefaults,
 } from '../../shared/settings';
+import { BackgroundControls } from '../common/background-controls';
 import { Icon, type IconName } from '../common/icons';
 import { applyTheme } from '../common/theme';
 import { TOOL_LABELS } from '../common/tools';
@@ -90,6 +93,45 @@ function Toggle(props: {
       data-testid={props.testId}
       onChange={(e) => props.onChange((e.target as HTMLInputElement).checked)}
     />
+  );
+}
+
+function ScreenshotBeautify({ value }: { value: AutoBeautify }) {
+  return (
+    <>
+      <Row label="Automatic Beautify" hint="Add your chosen background to new screenshots.">
+        <Toggle
+          value={value.enabled}
+          onChange={(enabled) => patch({ capture: { beautify: { enabled } } })}
+        />
+      </Row>
+      {value.enabled && (
+        <div class="auto-beautify">
+          <fieldset class="auto-beautify-modes">
+            <legend>Apply to</legend>
+            {SCREENSHOT_MODES.map(([mode, label]) => (
+              <label key={mode}>
+                <input
+                  type="checkbox"
+                  checked={value.modes[mode]}
+                  onChange={(e) =>
+                    patch({ capture: { beautify: { modes: { [mode]: e.currentTarget.checked } } } })
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          <details class="auto-beautify-background">
+            <summary>Default background</summary>
+            <BackgroundControls
+              value={value.background}
+              onSelect={(background) => patch({ capture: { beautify: { background } } })}
+            />
+          </details>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -613,6 +655,7 @@ function Page({
               onChange={(v) => patch({ capture: { openEditorAfterQuick: v } })}
             />
           </Row>
+          <ScreenshotBeautify value={c.beautify} />
           <Row
             label="Instant capture"
             hint="Keeps one hidden overlay ready: faster, costs one renderer of memory"
@@ -865,6 +908,16 @@ function Page({
                 ['60', '60 fps'],
               ]}
               onChange={(v) => patch({ recording: { fps: Number(v) } })}
+            />
+          </Row>
+          <Row
+            label="Video quality"
+            hint="Higher quality preserves more detail and can increase file size."
+          >
+            <Select
+              value={s.recording.quality}
+              options={RECORDING_QUALITY_OPTIONS}
+              onChange={(quality) => patch({ recording: { quality } })}
             />
           </Row>
           <Row

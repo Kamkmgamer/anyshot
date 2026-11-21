@@ -4,7 +4,7 @@ import type { ComponentChildren } from 'preact';
 import { render } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { isBlankDoc, translateDoc } from '../../engine/document';
-import { emptyDoc } from '../../engine/model';
+import { DEFAULT_EFFECTS, emptyDoc, screenshotDoc } from '../../engine/model';
 import type { Point, Rect } from '../../shared/geometry';
 import type { DeliverAction, OverlayInit, RawImage, RecordAudio } from '../../shared/ipc';
 import {
@@ -19,9 +19,9 @@ import {
 } from '../../shared/selection';
 import { type Annotator, createAnnotator, nativeInputOwnsKey } from '../common/annotator';
 import { EffectButtons, EffectPopovers } from '../common/effects-ui';
-import { TextPopover } from '../common/text-style-ui';
 import { exportImage } from '../common/export';
 import { createStore, useStore } from '../common/store';
+import { TextPopover } from '../common/text-style-ui';
 import { followTheme } from '../common/theme';
 import { Bar, Button, ColorPopover, OptionsRow, ToolStrip } from '../common/toolbar';
 
@@ -63,6 +63,7 @@ let init: OverlayInit;
 let bitmap: ImageBitmap;
 let annotator: Annotator;
 let selection: Rect | null = null;
+let automaticBeautify = DEFAULT_EFFECTS.beautify;
 let drag: Drag | null = null;
 let spaceHeld = false;
 let chromeFrame = 0;
@@ -141,6 +142,21 @@ function fullScreen(): Rect {
   return { x: 0, y: 0, ...screenSize() };
 }
 
+function selectCapture(rect: Rect, mode: 'area' | 'last' | 'screen'): void {
+  const { docs } = annotator;
+  if (init.mode !== 'ocr' && !isRecordingSetup()) {
+    const { beautify } = screenshotDoc(docs.doc.unit, init.settings.capture.beautify, mode).effects;
+    if (
+      beautify.enabled !== automaticBeautify.enabled ||
+      beautify.background !== automaticBeautify.background
+    ) {
+      docs.setBeautifyDefault(automaticBeautify, beautify);
+      automaticBeautify = beautify;
+    }
+  }
+  setSelection(rect);
+}
+
 // ---------------------------------------------------------------- pointer
 
 function onPointerDown(e: PointerEvent): void {
@@ -207,8 +223,10 @@ function onPointerUp(e: PointerEvent): void {
     return;
   }
   // A click without a drag selects the whole display.
-  const tiny = !selection || selection.width < 4 || selection.height < 4;
-  setSelection(current.type === 'new' && tiny ? fullScreen() : selection);
+  if (current.type !== 'new') setSelection(selection);
+  else if (selection && selection.width >= 4 && selection.height >= 4)
+    selectCapture(selection, 'area');
+  else selectCapture(fullScreen(), 'screen');
   ui.set({ dragging: false });
   if (current.type === 'new') afterSelected();
 }
@@ -250,6 +268,7 @@ function isRecordingSetup(): boolean {
 function onDoubleClick(e: MouseEvent): void {
   if (!selection || ui.get().phase !== 'selected' || isRecordingSetup()) return;
   if (!init.settings.capture.doubleClickToCopy) return;
+  if (e.target instanceof Element && e.target.closest('.popover')) return;
   const p = pointOf(e);
   const inside =
     p.x >= selection.x &&
@@ -287,8 +306,8 @@ function onKeyDown(e: KeyboardEvent): void {
   }
   const phase = ui.get().phase;
   if (phase === 'idle') {
-    if (key === 'f') setSelection(fullScreen());
-    else if (key === 'r' && init.lastSelection) setSelection(init.lastSelection);
+    if (key === 'f') selectCapture(fullScreen(), 'screen');
+    else if (key === 'r' && init.lastSelection) selectCapture(init.lastSelection, 'last');
     if (key === 'f' || key === 'r') afterSelected();
     return;
   }
@@ -434,6 +453,13 @@ function Floating(props: {
       const popover = el.querySelector<HTMLElement>('.popover');
       if (!popover) return;
       const bar = el.getBoundingClientRect();
+      if (popover.classList.contains('beautify')) {
+        const { width, height } = screenSize();
+        const above = bar.top - 12;
+        const below = height - bar.bottom - 12;
+        popover.style.setProperty('--beautify-height', `${Math.max(above, below)}px`);
+        popover.style.left = `${Math.min(0, width - bar.left - popover.offsetWidth - 8)}px`;
+      }
       setPopoverUp(popoverSide(bar, popover.offsetHeight, screenSize().height) === 'above');
     };
     place();
@@ -638,8 +664,8 @@ async function boot(): Promise<void> {
   buildHandles();
   render(<Chrome />, byId('ui'));
   ui.set({ phase: 'idle' });
-  if (init.selectAll) setSelection(fullScreen());
-  else if (init.mode === 'last' && init.lastSelection) setSelection(init.lastSelection);
+  if (init.selectAll) selectCapture(fullScreen(), 'screen');
+  else if (init.mode === 'last' && init.lastSelection) selectCapture(init.lastSelection, 'last');
   else scheduleChrome();
   if (init.selectAll || (init.mode === 'last' && init.lastSelection)) afterSelected();
   window.addEventListener('pointerdown', onPointerDown);

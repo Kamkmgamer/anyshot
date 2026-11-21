@@ -109,6 +109,47 @@ input[type="number"] {
   width: 18px;
   height: 18px;
 }
+
+.auto-beautify {
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--bar-border);
+}
+
+.auto-beautify-modes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.auto-beautify-modes legend {
+  float: left;
+  margin-right: 6px;
+  padding: 3px 0;
+  color: var(--bar-muted);
+}
+
+.auto-beautify-modes label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.auto-beautify-background summary {
+  width: fit-content;
+  padding: 5px 0 2px;
+  cursor: pointer;
+}
+
+.auto-beautify-background .background-controls {
+  margin-top: 7px;
+}
 input[type="checkbox"],
 input[type="radio"] {
   accent-color: var(--accent);

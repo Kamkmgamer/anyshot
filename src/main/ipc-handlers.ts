@@ -1,5 +1,6 @@
 import { type BrowserWindow, shell } from 'electron';
 import type { ToolChoices } from '../shared/settings';
+import { registerBackgrounds } from './backgrounds';
 import { copyText } from './clipboard';
 import { releaseFrame } from './frames';
 import { getHotkeyReport } from './hotkeys';
@@ -13,6 +14,7 @@ export function registerIpc(): void {
   handle('settings:patch', (patch) => patchSettings(patch));
   handle('hotkeys:status', () => getHotkeyReport());
   registerToolChoices();
+  registerBackgrounds();
   handle('window:close', (_req, { win }) => win.close());
   handle('window:set-size', ({ width, height }, { win }) => {
     win.setContentSize(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));

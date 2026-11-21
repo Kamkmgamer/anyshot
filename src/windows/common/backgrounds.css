@@ -1,0 +1,265 @@
+.background-controls {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.background-controls .gradients {
+  grid-template-columns: repeat(9, minmax(0, 28px));
+}
+
+.background-controls .gradients.without-none {
+  grid-template-columns: repeat(8, minmax(0, 28px));
+}
+
+.background-controls .gradients button {
+  width: 100%;
+}
+
+.bg-library {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow-x: auto;
+}
+
+.bg-library-items {
+  display: flex;
+  gap: 8px;
+  width: max-content;
+  padding: 3px 3px 6px;
+}
+
+.bg-saved {
+  position: relative;
+  flex: 0 0 114px;
+  min-width: 0;
+}
+
+.bg-tile {
+  display: grid;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--field-border);
+  border-radius: 7px;
+  background: var(--field-bg);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bg-tile[aria-pressed="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.bg-tile canvas,
+.bg-preview canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.bg-tile span {
+  padding: 4px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bg-actions,
+.bg-editor-head,
+.bg-editor-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bg-editor-head {
+  justify-content: space-between;
+}
+
+.bg-editor-foot {
+  align-items: end;
+  padding-block-start: 10px;
+  border-top: 1px solid var(--field-border);
+}
+
+.bg-button {
+  padding: 5px 8px;
+  border: 1px solid var(--field-border);
+  border-radius: 6px;
+  background: var(--field-bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.bg-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.bg-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bg-button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #08211e;
+  font-weight: 600;
+}
+
+.bg-button.bg-edit {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 2px 5px;
+  font-size: 11px;
+}
+
+.bg-editor {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.bg-preview {
+  position: relative;
+  margin: 4px;
+  border-radius: 8px;
+  background: var(--well-bg);
+}
+
+.bg-preview canvas {
+  border-radius: inherit;
+}
+
+.bg-stop-track {
+  position: relative;
+  height: 15px;
+  margin: 4px 9px;
+  border-radius: 5px;
+}
+
+.bg-handle {
+  position: absolute;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #222;
+  cursor: grab;
+  touch-action: none;
+}
+
+.bg-handle[aria-pressed="true"],
+.bg-handle:focus-visible {
+  z-index: 2;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.bg-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 10px;
+}
+
+.bg-field {
+  display: grid;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--bar-muted);
+  font-size: 12px;
+  cursor: default;
+}
+
+.bg-editor-foot .bg-field {
+  flex: 1;
+}
+
+.bg-field select,
+.bg-field input[type="text"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 27px;
+  padding: 3px 5px;
+  border: 1px solid var(--field-border);
+  border-radius: 5px;
+  background: var(--field-bg);
+  color: var(--bar-fg);
+  font: inherit;
+}
+
+.bg-field.bg-color {
+  grid-template-columns: 26px minmax(0, 1fr);
+}
+
+.bg-color span,
+.bg-range span:first-child {
+  grid-column: 1 / -1;
+}
+
+.bg-color input[type="color"] {
+  width: 26px;
+  height: 26px;
+  padding: 1px;
+  border: 1px solid var(--field-border);
+  border-radius: 5px;
+  background: var(--field-bg);
+  cursor: pointer;
+}
+
+.bg-field.bg-range {
+  grid-template-columns: minmax(0, 1fr) 38px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bg-range input {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.bg-color-editor {
+  display: grid;
+  grid-template-columns: auto minmax(80px, 1fr) auto auto;
+  align-items: end;
+  gap: 6px;
+}
+
+.bg-texture {
+  padding-block-start: 9px;
+  border-top: 1px solid var(--field-border);
+}
+
+.bg-error {
+  margin: 0;
+  color: var(--warn-fg);
+}
+
+.popover.effects.beautify {
+  box-sizing: border-box;
+  max-height: min(var(--beautify-height, calc(100vh - 104px)), 620px);
+  overflow: hidden auto;
+  width: 342px;
+  background: var(--surface);
+}
+
+.popover.effects.beautify:has(.bg-editor) {
+  width: min(370px, 45vw);
+}
