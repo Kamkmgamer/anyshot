@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>anyshot: screenshots, annotation and recording for Windows and Linux</title>
+    <meta
+      name="description"
+      content="anyshot is a lean screenshot, annotation and screen-recording app for Windows and Linux. Free and open source."
+    />
+    <meta name="theme-color" content="#F5F0E6" />
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="anyshot" />
+    <meta
+      property="og:description"
+      content="A lean screenshot, annotation and screen-recording app for Windows and Linux."
+    />
+    <meta property="og:image" content="/icon.png" />
+    <meta name="twitter:card" content="summary" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="#top"><img src="/icon.png" alt="" width="26" height="26" />anyshot</a>
+      <a class="gh" href="https://github.com/mgamergo/anyshot" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+          />
+        </svg>
+        GitHub
+      </a>
+    </header>
+
+    <main id="top" data-capture-surface>
+      <fieldset class="caps">
+        <legend class="sr-only">Play the demo</legend>
+        <button class="cap wide" type="button" data-cap="Alt">
+          <span class="g" aria-hidden="true">⌥</span><span class="l">Alt</span>
+        </button>
+        <span class="plus" aria-hidden="true">+</span>
+        <button class="cap wide" type="button" data-cap="Shift">
+          <span class="g" aria-hidden="true">⇧</span><span class="l">Shift</span>
+        </button>
+        <span class="plus" aria-hidden="true">+</span>
+        <button class="cap x" type="button" data-cap="X">
+          <span class="g">area</span><span class="l">X</span>
+        </button>
+      </fieldset>
+      <p class="caps-note" id="caps-note" aria-live="polite">Click to play</p>
+
+      <h1>Show, don't tell.</h1>
+      <p class="sub">
+        anyshot is a lean screenshot, annotation and screen-recording app for Windows and Linux.
+        Press the shortcut, drag over anything, mark it up, and it's on your clipboard.
+      </p>
+
+      <div class="demo-wrap"><div id="demo"></div></div>
+      <fieldset class="scenes">
+        <legend class="sr-only">Demo scenes</legend>
+        <button type="button" data-scene="capture" aria-pressed="false">
+          Capture and annotate <kbd>Alt+Shift+X</kbd>
+        </button>
+        <button type="button" data-scene="record" aria-pressed="false">
+          Record <kbd>Alt+Shift+R</kbd>
+        </button>
+        <button type="button" data-scene="ocr" aria-pressed="false">
+          Copy text <kbd>Alt+Shift+T</kbd>
+        </button>
+        <button type="button" data-scene="pin" aria-pressed="false">Pin</button>
+        <button type="button" data-scene="beautify" aria-pressed="false">Beautify</button>
+      </fieldset>
+
+      <section class="install" id="download" data-no-capture>
+        <h2>Install anyshot</h2>
+        <div id="install"></div>
+      </section>
+
+      <ul class="facts">
+        <li>Free and open source, MIT</li>
+        <li>No windows or renderers while idle</li>
+        <li>OCR runs offline, on your machine</li>
+        <li>Offers each update when it starts</li>
+      </ul>
+    </main>
+
+    <footer>
+      <span>
+        Inspired by
+        <a href="https://github.com/sw33tLie/macshot" target="_blank" rel="noopener noreferrer">macshot</a>,
+        written from scratch for Windows and Linux.
+      </span>
+      <a href="https://github.com/mgamergo/anyshot" target="_blank" rel="noopener noreferrer">
+        github.com/mgamergo/anyshot
+      </a>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
