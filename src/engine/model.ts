@@ -1,3 +1,4 @@
+import { type AutoBeautify, autoBeautifyApplies, type Background } from '../shared/background';
 import type { Point, Rect } from '../shared/geometry';
 import type { TextFont } from '../shared/settings';
 
@@ -126,8 +127,7 @@ export interface Beautify {
   padding: number;
   radius: number;
   shadow: number;
-  /** Index into the built-in gradient list. */
-  background: number;
+  background: Background;
 }
 
 export interface Effects {
@@ -156,6 +156,18 @@ export const DEFAULT_EFFECTS: Effects = {
 
 export function emptyDoc(unit = 1): Doc {
   return { version: 1, unit, annotations: [], effects: DEFAULT_EFFECTS, crop: null };
+}
+
+export function screenshotDoc(unit: number, defaults: AutoBeautify, mode: string): Doc {
+  const doc = emptyDoc(unit);
+  if (!autoBeautifyApplies(defaults, mode)) return doc;
+  return {
+    ...doc,
+    effects: {
+      ...doc.effects,
+      beautify: { ...doc.effects.beautify, enabled: true, background: defaults.background },
+    },
+  };
 }
 
 let counter = 0;

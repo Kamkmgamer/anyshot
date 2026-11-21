@@ -23,7 +23,7 @@ export function pressOutcome(target: PressTarget | null): 'keep' | 'close' | 'cl
   return target.closest(CONTROLS) ? 'close' : 'close-only';
 }
 
-const FOCUSABLE = '.popover button:not(:disabled), .popover input, .popover select';
+const FOCUSABLE = '.popover :is(button, input, select):not(:disabled, [hidden], [type="hidden"])';
 
 /**
  * Closes the open tool popover on a press outside it or on Esc, and handles

@@ -63,6 +63,7 @@ export async function startRecording(
     crop: evenRect(scaleRect(rect, display.scaleFactor)),
     scaleFactor: display.scaleFactor,
     fps: gif ? Math.min(15, settings.recording.fps) : settings.recording.fps,
+    quality: gif ? 'high' : settings.recording.quality,
     microphone: audio.microphone,
     systemAudio: audio.systemAudio,
     gif,

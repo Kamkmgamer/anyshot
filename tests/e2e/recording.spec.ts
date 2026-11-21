@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 import { ALL_FORMATS, BufferSource, EncodedPacketSink, Input } from 'mediabunny';
@@ -11,8 +11,8 @@ import {
   pressClosing,
   processTypes,
   rendererCount,
-  windowKinds,
   verifyAndClose,
+  windowKinds,
 } from './harness';
 import { click, movePointer, releasePointer } from './pointer';
 
@@ -126,6 +126,67 @@ test('records an area to a playable file and stops cleanly', async () => {
   await expect
     .poll(async () => rendererCount(await processTypes(ctx.app)), { timeout: 30_000 })
     .toBe(0);
+});
+
+test('takes quality and frame rate from Settings', async () => {
+  const info = test.info();
+  await dispatch(ctx.app, 'settings');
+  const settings = await pageOf(ctx.app, 'settings');
+  await settings.getByTestId('tab-recording').click();
+  const quality = settings.getByRole('combobox', { name: /Video quality/ });
+  await expect(quality).toHaveValue('high');
+  await quality.selectOption('compact');
+  await settings.getByRole('combobox', { name: 'Frame rate' }).selectOption('24');
+  await expect(quality).toHaveValue('compact');
+  await settings.screenshot({ path: info.outputPath('recording-quality.png') });
+  await settings.close();
+
+  await movePointer(150, 150);
+  const overlay = await recordBar('recordArea');
+  await expect(overlay.getByRole('combobox')).toHaveCount(0);
+  await overlay
+    .getByTestId('start')
+    .click()
+    .catch(() => {});
+  const recorder = await pageOf(ctx.app, 'recorder');
+  const init = await recorder.evaluate(() => window.anyshot.invoke('recorder:init'));
+  expect(init).toMatchObject({ quality: 'compact', fps: 24 });
+  await expect(recorder.getByRole('button', { name: /Pause/ })).toBeVisible();
+  await ctx.app.evaluate(async ({ BrowserWindow }) => {
+    const fixture = BrowserWindow.getAllWindows().find(
+      (win) =>
+        win.webContents.getURL().startsWith('data:') &&
+        win.webContents.getTitle() === 'Fixture desktop',
+    );
+    if (!fixture) throw new Error('Recording fixture missing');
+    fixture.webContents.setBackgroundThrottling(false);
+    await fixture.webContents.executeJavaScript(`void document.querySelector('.card').animate(
+      [{ transform: 'translateX(0)' }, { transform: 'translateX(100px)' }],
+      { duration: 900, direction: 'alternate', iterations: Infinity }
+    )`);
+  });
+  await new Promise((resolve) => setTimeout(resolve, 2200));
+  await dispatch(ctx.app, 'stopRecording');
+  await expect.poll(() => windowKinds(ctx.app), { timeout: 15_000 }).toEqual([]);
+  const [file] = await readdir(dir);
+  if (!file) throw new Error('Recording was not saved');
+  const input = new Input({
+    source: new BufferSource(await readFile(join(dir, file))),
+    formats: ALL_FORMATS,
+  });
+  try {
+    const track = await input.getPrimaryVideoTrack();
+    expect({ width: track?.displayWidth, height: track?.displayHeight }).toEqual({
+      width: init.crop.width,
+      height: init.crop.height,
+    });
+    let frames = 0;
+    if (track) for await (const _packet of new EncodedPacketSink(track).packets()) frames++;
+    expect(frames).toBeGreaterThan(1);
+  } finally {
+    input.dispose();
+  }
+  await copyFile(join(dir, file), info.outputPath(file));
 });
 
 test('records a GIF via an intermediate video that is removed afterwards', async () => {

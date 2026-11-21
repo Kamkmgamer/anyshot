@@ -1,21 +1,6 @@
+import { decodeBackgroundImage, drawBackground, presetColors } from './background-render';
 import type { Beautify } from './model';
 import { type Ctx, roundRectPath } from './render';
-
-/** Built-in backgrounds for Beautify: two-stop diagonal gradients. */
-export const BACKGROUNDS: readonly [string, string][] = [
-  ['#5eead4', '#6366f1'],
-  ['#fda4af', '#f59e0b'],
-  ['#a5b4fc', '#ec4899'],
-  ['#86efac', '#0ea5e9'],
-  ['#fde68a', '#f97316'],
-  ['#e2e8f0', '#94a3b8'],
-  ['#1e293b', '#0f172a'],
-  ['#c4b5fd', '#22d3ee'],
-];
-
-function colors(b: Beautify): [string, string] {
-  return BACKGROUNDS[b.background % BACKGROUNDS.length] ?? ['#ffffff', '#ffffff'];
-}
 
 /**
  * The background as a CSS gradient for a width × height frame. Matches
@@ -23,7 +8,8 @@ function colors(b: Beautify): [string, string] {
  * gradient line also runs from corner to corner.
  */
 export function beautifyBackgroundCss(b: Beautify, width: number, height: number): string {
-  const [from, to] = colors(b);
+  if (typeof b.background !== 'number') return '';
+  const [from, to] = presetColors(b.background);
   const angle = (Math.atan2(width, -height) * 180) / Math.PI;
   return `linear-gradient(${Number(angle.toFixed(3))}deg, ${from}, ${to})`;
 }
@@ -33,7 +19,29 @@ export function beautifiedSize(width: number, height: number, b: Beautify, unit:
   return { width: width + pad * 2, height: height + pad * 2, pad };
 }
 
-/** Draws `image` framed on a gradient background with rounded corners and a shadow. */
+export async function frameImage(
+  image: OffscreenCanvas,
+  b: Beautify,
+  unit: number,
+): Promise<OffscreenCanvas> {
+  if (!b.enabled) return image;
+  const size = beautifiedSize(image.width, image.height, b, unit);
+  const canvas = new OffscreenCanvas(size.width, size.height);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2D context unavailable');
+  const background =
+    typeof b.background !== 'number' && b.background.kind === 'image'
+      ? await decodeBackgroundImage(b.background.data)
+      : null;
+  try {
+    drawBeautified(ctx, image, image.width, image.height, b, unit, background);
+  } finally {
+    background?.close();
+  }
+  return canvas;
+}
+
+/** Draws `image` framed on a background with rounded corners and a shadow. */
 export function drawBeautified(
   ctx: Ctx,
   image: CanvasImageSource,
@@ -41,14 +49,10 @@ export function drawBeautified(
   height: number,
   b: Beautify,
   unit: number,
+  background?: ImageBitmap | null,
 ): void {
   const out = beautifiedSize(width, height, b, unit);
-  const [from, to] = colors(b);
-  const gradient = ctx.createLinearGradient(0, 0, out.width, out.height);
-  gradient.addColorStop(0, from);
-  gradient.addColorStop(1, to);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, out.width, out.height);
+  drawBackground(ctx, b.background, out.width, out.height, background);
   const frame = { x: out.pad, y: out.pad, width, height };
   const radius = b.radius * unit;
   if (b.shadow > 0) {

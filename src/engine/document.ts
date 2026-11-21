@@ -1,10 +1,13 @@
+import { backgroundField } from '../shared/background';
 import { type Point, type Rect, rectFromPoints } from '../shared/geometry';
 import { TEXT_FONTS } from '../shared/settings';
 import { apply, type Change, History } from './history';
 import {
   type Annotation,
+  type Beautify,
   type CensorMode,
   DEFAULT_EFFECTS,
+  DEFAULT_TEXT_STYLE,
   type Doc,
   type Effects,
   emptyDoc,
@@ -12,7 +15,6 @@ import {
   isAdjustNeutral,
   type LineStyle,
   type Stroke,
-  DEFAULT_TEXT_STYLE,
   type TextStyle,
 } from './model';
 import { translate } from './shapes';
@@ -129,6 +131,18 @@ export class DocStore {
 
   setEffects(after: Effects): void {
     this.commit({ type: 'effects', before: this.current.effects, after });
+  }
+
+  /** A new capture mode changes the inherited frame without adding or discarding edits. */
+  setBeautifyDefault(previous: Beautify, next: Beautify): void {
+    const update = (effects: Effects) =>
+      effects.beautify === previous ? { ...effects, beautify: next } : effects;
+    this.history.mapEffects(update);
+    const effects = update(this.current.effects);
+    if (effects !== this.current.effects) {
+      this.current = { ...this.current, effects };
+      this.emit();
+    }
   }
 
   setCrop(after: Rect | null): void {
@@ -302,7 +316,7 @@ function parseEffects(v: unknown): Effects {
       padding: n(beau.padding, d.beautify.padding, 0, 200),
       radius: n(beau.radius, d.beautify.radius, 0, 60),
       shadow: n(beau.shadow, d.beautify.shadow, 0, 100),
-      background: Math.round(n(beau.background, d.beautify.background, 0, 99)),
+      background: backgroundField.parse(beau.background),
     },
   };
 }

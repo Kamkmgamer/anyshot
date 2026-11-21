@@ -51,6 +51,16 @@ export function apply(doc: Doc, change: Change): Doc {
   }
 }
 
+function mapEffects(change: Change, update: (effects: Effects) => Effects): Change {
+  if (change.type === 'effects') {
+    return { ...change, before: update(change.before), after: update(change.after) };
+  }
+  if (change.type === 'batch') {
+    return { ...change, changes: change.changes.map((entry) => mapEffects(entry, update)) };
+  }
+  return change;
+}
+
 export class History {
   private undoStack: Change[] = [];
   private redoStack: Change[] = [];
@@ -84,6 +94,11 @@ export class History {
 
   get canRedo(): boolean {
     return this.redoStack.length > 0;
+  }
+
+  mapEffects(update: (effects: Effects) => Effects): void {
+    this.undoStack = this.undoStack.map((change) => mapEffects(change, update));
+    this.redoStack = this.redoStack.map((change) => mapEffects(change, update));
   }
 
   clear(): void {

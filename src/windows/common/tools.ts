@@ -15,8 +15,6 @@ export interface ToolUiState extends ToolOptions {
   effects: Effects;
   /** Effects shown while a slider is being dragged, not yet committed. */
   previewEffects: Effects | null;
-  /** The window draws the Beautify frame live around the image (the editor). */
-  framePreview: boolean;
   /** Which popover is open, if any. */
   popover: 'color' | 'adjust' | 'beautify' | 'text' | null;
 }
@@ -109,7 +107,6 @@ export function createToolStore(settings: Settings): Store<ToolUiState> {
     popover: null,
     effects: DEFAULT_EFFECTS,
     previewEffects: null,
-    framePreview: false,
   });
 }
 

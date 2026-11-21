@@ -1,4 +1,4 @@
-import { beautifiedSize, drawBeautified } from './beautify';
+import { frameImage } from './beautify';
 import { parseDoc } from './document';
 import { adjustFilter, GlEffects } from './gl';
 import { isAdjustNeutral } from './model';
@@ -50,9 +50,5 @@ export async function composeInto(bitmap: ImageBitmap, rawDoc: unknown): Promise
     censor: fx?.censor ?? censorFallback,
   };
   drawDoc(ctx, doc, env);
-  if (!beautify.enabled) return canvas;
-  const size = beautifiedSize(width, height, beautify, doc.unit);
-  const framed = new OffscreenCanvas(size.width, size.height);
-  drawBeautified(context(framed), canvas, width, height, beautify, doc.unit);
-  return framed;
+  return frameImage(canvas, beautify, doc.unit);
 }

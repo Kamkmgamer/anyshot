@@ -1,5 +1,5 @@
-import { BACKGROUNDS } from '../../engine/beautify';
 import { type Adjust, type Effects, isAdjustNeutral, NEUTRAL_ADJUST } from '../../engine/model';
+import { BackgroundControls } from './background-controls';
 import { useStore } from './store';
 import { Button, type Controller } from './toolbar';
 
@@ -80,7 +80,6 @@ export function EffectPopovers({ c }: { c: Controller }) {
   const s = useStore(c.store, (s) => ({
     effects: s.effects,
     popover: s.popover,
-    framePreview: s.framePreview,
   }));
   if (s.popover === 'adjust') {
     const fx = s.effects;
@@ -128,8 +127,10 @@ export function EffectPopovers({ c }: { c: Controller }) {
   if (s.popover === 'beautify') {
     const fx = s.effects;
     const b = fx.beautify;
-    const set = (patch: Partial<Effects['beautify']>) =>
-      c.effects.set({ ...fx, beautify: { ...b, ...patch } });
+    const set = (patch: Partial<Effects['beautify']>) => {
+      const current = c.store.get().effects;
+      c.effects.set({ ...current, beautify: { ...current.beautify, ...patch } });
+    };
     const range = (
       key: 'padding' | 'radius' | 'shadow',
       label: string,
@@ -148,7 +149,7 @@ export function EffectPopovers({ c }: { c: Controller }) {
     );
     return (
       <div
-        class="popover effects"
+        class="popover effects beautify"
         role="dialog"
         aria-label="Beautify"
         onPointerDown={stop}
@@ -160,45 +161,22 @@ export function EffectPopovers({ c }: { c: Controller }) {
             {b.enabled ? 'On' : 'Off'}
           </span>
         </div>
-        {/* "None" sits with the backgrounds: removing the frame is picking no background. */}
-        <fieldset class="gradients" aria-label="Background">
-          <button
-            type="button"
-            class={`none${b.enabled ? '' : ' active'}`}
-            title="No background"
-            aria-label="No background"
-            aria-pressed={!b.enabled}
-            data-testid="beautify-none"
-            onClick={() => set({ enabled: false })}
-          />
-          {BACKGROUNDS.map(([from, to], i) => {
-            const chosen = b.enabled && i === b.background;
-            return (
-              <button
-                type="button"
-                key={from}
-                class={chosen ? 'active' : ''}
-                title={`Background ${i + 1}`}
-                aria-label={`Background ${i + 1}`}
-                aria-pressed={chosen}
-                style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
-                onClick={() => set({ background: i, enabled: true })}
-              />
-            );
-          })}
-        </fieldset>
-        <fieldset class="fx-sliders" disabled={!b.enabled} data-testid="beautify-sliders">
-          {range('padding', 'Padding', 16, 96)}
-          {range('radius', 'Corners', 0, 30)}
-          {range('shadow', 'Shadow', 0, 100)}
-        </fieldset>
-        <span class="opt hint">
-          {!b.enabled
-            ? 'Pick a background to frame the image.'
-            : s.framePreview
-              ? 'Shown around the image; applied when you copy, save or pin.'
-              : 'Applied when you copy, save or pin.'}
-        </span>
+        <BackgroundControls
+          value={b.enabled ? b.background : null}
+          onSelect={(background) => set({ background, enabled: true })}
+          onClear={() => set({ enabled: false })}
+        >
+          <fieldset class="fx-sliders" disabled={!b.enabled} data-testid="beautify-sliders">
+            {range('padding', 'Padding', 16, 96)}
+            {range('radius', 'Corners', 0, 30)}
+            {range('shadow', 'Shadow', 0, 100)}
+          </fieldset>
+          <span class="opt hint">
+            {b.enabled
+              ? 'Applied when you copy, save or pin.'
+              : 'Pick a background to frame the image.'}
+          </span>
+        </BackgroundControls>
       </div>
     );
   }
