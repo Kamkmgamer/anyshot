@@ -236,15 +236,17 @@ test('overlay popovers open upwards when there is no room below the toolbar', as
       ),
     )
     .toBe(true);
+  // Electron pages have no Playwright viewport size; measure the overlay (the display) itself.
+  const screen = await overlay.evaluate(() => ({ width: innerWidth, height: innerHeight }));
   // The toolbar fits below this selection, but a popover under it would not.
-  await overlay.mouse.move(300, 300);
+  const bottom = screen.height - 200;
+  await overlay.mouse.move(300, bottom - 300);
   await overlay.mouse.down();
-  await overlay.mouse.move(900, 600, { steps: 5 });
+  await overlay.mouse.move(900, bottom, { steps: 5 });
   await overlay.mouse.up();
   await overlay.getByTestId('tool-text').click();
-  const screen = overlay.viewportSize() ?? { width: 1280, height: 800 };
   const tools = await overlay.getByTestId('tools').boundingBox();
-  expect(tools?.y).toBeGreaterThan(600);
+  expect(tools?.y).toBeGreaterThan(bottom);
   for (const [button, testId] of [
     ['text-style', 'text-popover'],
     ['fx-beautify', 'beautify-popover'],

@@ -1,12 +1,20 @@
 import { type FileHandle, open, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { app, type BrowserWindow, type Display, Notification, shell } from 'electron';
+import {
+  app,
+  type BrowserWindow,
+  type Display,
+  Notification,
+  type Rectangle,
+  shell,
+} from 'electron';
 import { expandTemplate } from '../shared/filename';
 import { evenRect, type Rect, scaleRect } from '../shared/geometry';
 import type { RecorderInit, RecorderStatus } from '../shared/ipc';
 import { recordingAudio } from '../shared/recording-audio';
 import { setAppState } from './app-state';
 import { createUniqueFile } from './atomic-file';
+import { nudgeCapture } from './capture-nudge';
 import { copyText } from './clipboard';
 import { setCaptureDisplay } from './display-media';
 import { handle } from './ipc';
@@ -19,6 +27,8 @@ import { createWindow, send } from './windows';
 
 interface Recording {
   win: BrowserWindow;
+  /** The recorded display's bounds (DIP). */
+  displayBounds: Rectangle;
   init: RecorderInit;
   files: Map<string, FileHandle>;
   finalPath: string | null;
@@ -68,6 +78,7 @@ export async function startRecording(
   setCaptureDisplay(win.webContents, display.id);
   active = {
     win,
+    displayBounds: display.bounds,
     init,
     files: new Map(),
     finalPath: null,
@@ -157,6 +168,8 @@ handle('recorder:status', (status, { win }) => {
   const recording = current(win);
   if (recording.status.state === 'starting' && status.state === 'recording') {
     recordTiming('recordingStarted', status.elapsedMs);
+    // Capture has started: make sure Windows sends a first frame of a still screen.
+    nudgeCapture(recording.displayBounds);
   }
   recording.status = status;
 });

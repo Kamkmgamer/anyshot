@@ -1,6 +1,6 @@
-import { execFileSync } from 'node:child_process';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
 import { dispatch, type Launched, launch, pageOf, verifyAndClose, windowKinds } from './harness';
+import { movePointer, releasePointer, wheel } from './pointer';
 
 let ctx: Launched | undefined;
 
@@ -37,10 +37,7 @@ test.afterEach(async () => {
   ctx = undefined;
 });
 
-/** Moves the real X pointer (screen pixels): screen captures draw it into their frames. */
-function movePointer(x: number, y: number): void {
-  execFileSync('xdotool', ['mousemove', String(Math.round(x)), String(Math.round(y))]);
-}
+test.afterAll(() => releasePointer());
 
 function pageScript(app: ElectronApplication, script: string): Promise<unknown> {
   return app.evaluate(({ BrowserWindow }, script) => {
@@ -99,7 +96,8 @@ for (const pointer of [null, { x: 300, y: 200 }]) {
   test(title, async () => {
     const { app } = await open(longPage(80));
     // Keep the pointer outside the region unless the test puts it inside.
-    movePointer(pointer?.x ?? 1000, pointer?.y ?? 700);
+    // Screen captures draw the real pointer into their frames.
+    await movePointer(pointer?.x ?? 1000, pointer?.y ?? 700);
     const hud = await startScrollCapture(app, '600 × 400');
     for (let i = 0; i < 6; i++) {
       await pageScript(app, 'window.scrollBy(0, 110)');
@@ -117,15 +115,21 @@ for (const pointer of [null, { x: 300, y: 200 }]) {
 for (const scale of [1, 1.5]) {
   test(`slow wheel scrolling keeps track at ${scale * 100} % scaling`, async () => {
     test.setTimeout(90_000);
+    // On Windows the switch scales Electron's screen geometry twice (a 1920 × 1080 display
+    // at 1.5 reports 853 × 480 DIP), so it doesn't stand in for a scaled display there.
+    test.skip(
+      process.platform === 'win32' && scale !== 1,
+      '--force-device-scale-factor does not simulate display scaling on Windows',
+    );
     const { app } = await open(
       longPage(200, true),
       scale === 1 ? [] : [`--force-device-scale-factor=${scale}`],
     );
     const px = (n: number) => Math.round(n * scale);
-    movePointer(1250, 780);
+    await movePointer(1250, 780);
     const hud = await startScrollCapture(app, `${px(600)} × ${px(400)}`);
     // The pointer sits over the page while the wheel turns, as when scrolling by hand.
-    movePointer(px(300), px(200));
+    await movePointer(px(300), px(200));
     const seen = new Set<string>();
     let polling = true;
     const poll = (async () => {
@@ -142,12 +146,12 @@ for (const scale of [1, 1.5]) {
     })();
     try {
       for (let i = 0; i < 20; i++) {
-        execFileSync('xdotool', ['click', '5']);
+        await wheel('down');
         await new Promise((r) => setTimeout(r, 350));
       }
       // A few notches back up, then down again: the stitch follows without adding rows twice.
-      for (const button of ['4', '4', '5', '5', '5']) {
-        execFileSync('xdotool', ['click', button]);
+      for (const direction of ['up', 'up', 'down', 'down', 'down'] as const) {
+        await wheel(direction);
         await new Promise((r) => setTimeout(r, 350));
       }
       await new Promise((r) => setTimeout(r, 1000));
