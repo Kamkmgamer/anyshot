@@ -257,6 +257,7 @@ for (const microphone of [false, true]) {
     );
     expect(audioSeconds).toBeGreaterThan(1.5);
     expect(videoSeconds).toBeGreaterThan(1.5);
+    expect(Math.abs((audioSeconds ?? 0) - (videoSeconds ?? 0))).toBeLessThan(0.3);
   });
 }
 
@@ -287,10 +288,24 @@ async function startRecording(): Promise<number> {
   return clickedAt;
 }
 
+/** Waits, polling every few ms, until the controls show a running recording. */
+async function waitForRecordingPhase(hud: Page): Promise<void> {
+  await hud.waitForFunction(
+    () =>
+      document.querySelector<HTMLElement>('[data-testid="recording-hud"]')?.dataset.phase ===
+      'recording',
+    null,
+    { polling: 5, timeout: 15_000 },
+  );
+}
+
 test('the recording controls show the time, pause and resume, and stop', async () => {
   const before = await readdir(dir).catch((): string[] => []);
-  // From the Start click: longer than the recording itself, never shorter.
-  const startedBefore = await startRecording();
+  await startRecording();
+  const hud = await pageOf(ctx.app, 'recorder');
+  await waitForRecordingPhase(hud);
+  // From when capture runs to the Stop click: no capture startup or saving in it.
+  const capturingFrom = Date.now();
   // Shown once capture runs: just below the area, which a red border frames from outside.
   await expect.poll(async () => (await recorderWindow())?.visible).toBe(true);
   const hudBounds = (await recorderWindow())?.bounds;
@@ -298,7 +313,6 @@ test('the recording controls show the time, pause and resume, and stop', async (
   // One frame window, 2 px larger on every side: its line sits just outside the area.
   await expect.poll(borderWindows).toEqual([{ x: 98, y: 98, width: 405, height: 205 }]);
 
-  const hud = await pageOf(ctx.app, 'recorder');
   const time = hud.getByTestId('recording-time');
   await expect(time).toHaveText(/^0:0[1-9]$/, { timeout: 5_000 });
   expect(await trayFirstItems()).toEqual(['Stop recording', 'Pause recording']);
@@ -317,12 +331,12 @@ test('the recording controls show the time, pause and resume, and stop', async (
   await expect(hud.getByTestId('recording-hud')).toHaveAttribute('data-phase', 'recording');
   await expect.poll(trayFirstItems).toEqual(['Stop recording', 'Pause recording']);
   await new Promise((r) => setTimeout(r, 1000));
+  const capturedSeconds = (Date.now() - capturingFrom) / 1000;
   await hud
     .getByTestId('recording-stop')
     .click()
     .catch(() => {});
   await expect.poll(() => windowKinds(ctx.app), { timeout: 30_000 }).toEqual([]);
-  const wallSeconds = (Date.now() - startedBefore) / 1000;
   expect(await borderWindows()).toEqual([]);
 
   const files = (await readdir(dir)).filter((name) => !before.includes(name));
@@ -333,12 +347,48 @@ test('the recording controls show the time, pause and resume, and stop', async (
   });
   const duration = await input.computeDuration();
   console.log(
-    `paused recording: ${duration.toFixed(2)} s of video, ${wallSeconds.toFixed(2)} s while recording`,
+    `paused recording: ${duration.toFixed(2)} s of video, ${capturedSeconds.toFixed(2)} s captured`,
   );
   // About a second before the pause and a second after it. Had the 2.5 s pause been
-  // recorded, only the ~1 s before capture starts would separate the two.
+  // recorded, the video would last about as long as the capture.
   expect(duration).toBeGreaterThan(1.5);
-  expect(duration).toBeLessThan(wallSeconds - 2);
+  expect(duration).toBeLessThan(capturedSeconds - 1.5);
+});
+
+test('a pause as soon as recording starts leaves the same gap out of audio and video', async () => {
+  // Pausing before a track's first sample used to put that sample after the pause, out
+  // of step with the other track. Here it often has started already; the unit tests of
+  // the pause gate cover the order of events.
+  await verifyAndClose(ctx);
+  await start(['--use-fake-device-for-media-stream']);
+  const before = await readdir(dir).catch((): string[] => []);
+  const overlay = await recordBar('recordArea');
+  await overlay.getByTestId('audio-mic').click();
+  await overlay
+    .getByTestId('start')
+    .click()
+    .catch(() => {});
+  const hud = await pageOf(ctx.app, 'recorder');
+  await waitForRecordingPhase(hud);
+  await hud.getByTestId('recording-pause').evaluate((button: HTMLElement) => button.click());
+  await expect(hud.getByTestId('recording-hud')).toHaveAttribute('data-phase', 'paused');
+  await new Promise((r) => setTimeout(r, 2000));
+  await dispatch(ctx.app, 'togglePauseRecording');
+  await expect(hud.getByTestId('recording-hud')).toHaveAttribute('data-phase', 'recording');
+  await new Promise((r) => setTimeout(r, 1500));
+  await dispatch(ctx.app, 'stopRecording');
+  await expect.poll(() => windowKinds(ctx.app), { timeout: 30_000 }).toEqual([]);
+
+  const [name] = (await readdir(dir)).filter((n) => !before.includes(n));
+  const input = new Input({
+    source: new BufferSource(await readFile(join(dir, name ?? ''))),
+    formats: ALL_FORMATS,
+  });
+  const audio = await (await input.getPrimaryAudioTrack())?.computeDuration();
+  const video = await (await input.getPrimaryVideoTrack())?.computeDuration();
+  console.log(`paused at once: audio ${audio?.toFixed(2)} s, video ${video?.toFixed(2)} s`);
+  expect(video).toBeLessThan(2.8);
+  expect(Math.abs((audio ?? 0) - (video ?? 0))).toBeLessThan(0.3);
 });
 
 test('a pause leaves the same gap out of the audio and the video', async () => {

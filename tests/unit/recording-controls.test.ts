@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { outsideFrame, placeBeside } from '../../src/shared/geometry';
 import { createClock, formatElapsed } from '../../src/windows/recorder/clock';
+import { createPauseGate } from '../../src/windows/recorder/pause-gate';
 
 describe('recording clock', () => {
   it('counts recorded time and stands still while paused', () => {
@@ -102,5 +103,41 @@ describe('outsideFrame', () => {
       height: 204,
     });
     expect(outsideFrame(display, 2, display)).toBeNull();
+  });
+});
+
+describe('pause gate', () => {
+  it('holds requests until it opens, then applies the last one', () => {
+    const applied: boolean[] = [];
+    const gate = createPauseGate((pause) => applied.push(pause));
+    gate.request(true);
+    gate.request(false);
+    gate.request(true);
+    expect(gate.pending).toBe(true);
+    expect(applied).toEqual([]);
+    gate.open();
+    expect(applied).toEqual([true]);
+    expect(gate.pending).toBeNull();
+    gate.request(false);
+    expect(applied).toEqual([true, false]);
+  });
+
+  it('applies nothing on opening when nothing was asked', () => {
+    const applied: boolean[] = [];
+    const gate = createPauseGate((pause) => applied.push(pause));
+    gate.open();
+    gate.open();
+    expect(applied).toEqual([]);
+  });
+
+  it('drops held and later requests once closed', () => {
+    const applied: boolean[] = [];
+    const gate = createPauseGate((pause) => applied.push(pause));
+    gate.request(true);
+    gate.close();
+    gate.open();
+    gate.request(true);
+    expect(applied).toEqual([]);
+    expect(gate.pending).toBeNull();
   });
 });
