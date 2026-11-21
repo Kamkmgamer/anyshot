@@ -118,9 +118,9 @@ export async function stopRecording(): Promise<void> {
 /** Pauses a running recording, or resumes a paused one. */
 export async function togglePauseRecording(): Promise<void> {
   if (!active) return;
+  // The recorder decides which: it may hold a pause asked for before every track started.
   const { state } = active.status;
-  if (state === 'paused') send(active.win, 'recorder:command', 'resume');
-  else if (state === 'recording') send(active.win, 'recorder:command', 'pause');
+  if (state === 'paused' || state === 'recording') send(active.win, 'recorder:command', 'toggle');
 }
 
 /** When no side of the area has room for the controls, they go inside it, at the bottom. */

@@ -384,11 +384,18 @@ test('a pause as soon as recording starts leaves the same gap out of audio and v
     source: new BufferSource(await readFile(join(dir, name ?? ''))),
     formats: ALL_FORMATS,
   });
-  const audio = await (await input.getPrimaryAudioTrack())?.computeDuration();
-  const video = await (await input.getPrimaryVideoTrack())?.computeDuration();
-  console.log(`paused at once: audio ${audio?.toFixed(2)} s, video ${video?.toFixed(2)} s`);
+  const audioTrack = await input.getPrimaryAudioTrack();
+  const videoTrack = await input.getPrimaryVideoTrack();
+  expect(audioTrack).not.toBeNull();
+  expect(videoTrack).not.toBeNull();
+  const audio = (await audioTrack?.computeDuration()) ?? 0;
+  const video = (await videoTrack?.computeDuration()) ?? 0;
+  console.log(`paused at once: audio ${audio.toFixed(2)} s, video ${video.toFixed(2)} s`);
+  // The 1.5 s after Resume, in both tracks, and not the 2 s pause.
+  expect(audio).toBeGreaterThan(1.2);
+  expect(video).toBeGreaterThan(1.2);
   expect(video).toBeLessThan(2.8);
-  expect(Math.abs((audio ?? 0) - (video ?? 0))).toBeLessThan(0.3);
+  expect(Math.abs(audio - video)).toBeLessThan(0.3);
 });
 
 test('a pause leaves the same gap out of the audio and the video', async () => {

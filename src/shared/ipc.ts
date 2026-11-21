@@ -397,7 +397,7 @@ export interface EventContract {
   'overlay:reset': OverlayInit;
   'floating:items': FloatingItem[];
   'history:changed': undefined;
-  'recorder:command': 'stop' | 'pause' | 'resume';
+  'recorder:command': 'stop' | 'pause' | 'resume' | 'toggle';
   'recorder:status': RecorderStatus;
   'scroll:command': 'stop' | 'cancel' | 'copy';
   'update:status': UpdateStatus;

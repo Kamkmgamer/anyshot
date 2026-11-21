@@ -293,15 +293,21 @@ async function toGif(videoPath: string, init: RecorderInit): Promise<void> {
   await api.invoke('recorder:close-file', { path: gifPath });
 }
 
+/** Pauses or resumes, counting a request still held for the tracks to start. */
+function togglePause(): void {
+  pauseGate?.request(!(pauseGate.pending ?? clock.paused));
+}
+
 async function main(): Promise<void> {
   api.on('recorder:command', (command) => {
     if (command === 'stop') stopRequested?.();
+    else if (command === 'toggle') togglePause();
     else pauseGate?.request(command === 'pause');
   });
   const init = await api.invoke('recorder:init');
   showHud = mountHud(
     {
-      togglePause: () => pauseGate?.request(!(pauseGate.pending ?? clock.paused)),
+      togglePause,
       stop: () => stopRequested?.(),
     },
     init.gif,
