@@ -336,7 +336,7 @@
   cursor: default;
   color: var(--bar-muted);
 }
-.fx-default [role='alert'] {
+.fx-default [role="alert"] {
   color: #ef4444;
   font-size: 12px;
 }

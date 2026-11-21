@@ -85,7 +85,10 @@ describe('automatic Beautify', () => {
       enabled: true,
       background: 2,
     });
-    expect(screenshotDoc(1, on, 'ocr').effects.beautify).toMatchObject({ ...frame, enabled: false });
+    expect(screenshotDoc(1, on, 'ocr').effects.beautify).toMatchObject({
+      ...frame,
+      enabled: false,
+    });
   });
 
   it('round-trips custom recipes and falls back safely for invalid image data', () => {

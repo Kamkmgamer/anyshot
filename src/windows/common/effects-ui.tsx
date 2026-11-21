@@ -224,7 +224,9 @@ export function EffectPopovers({ c }: { c: Controller }) {
             {range('radius', 'Corners', 0, 30)}
             {range('shadow', 'Shadow', 0, 100)}
           </fieldset>
-          {b.enabled && <SaveFrameDefault padding={b.padding} radius={b.radius} shadow={b.shadow} />}
+          {b.enabled && (
+            <SaveFrameDefault padding={b.padding} radius={b.radius} shadow={b.shadow} />
+          )}
           <span class="opt hint">
             {b.enabled
               ? 'Applied when you copy, save or pin.'
