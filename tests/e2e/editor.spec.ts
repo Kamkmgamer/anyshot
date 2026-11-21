@@ -245,7 +245,7 @@ test('beautify shows its frame live around the image, as it will be copied', asy
   await expect(popover).toContainText('Pick a background to frame the image.');
   // Picking a background turns Beautify on and shows it at once.
   await popover.getByRole('button', { name: 'Background 3' }).click();
-  await expect(popover).toContainText('Shown around the image');
+  await expect(popover).toContainText('Applied when you copy, save or pin.');
   await expect(popover.getByTestId('beautify-state')).toHaveText('On');
   await expect(popover.getByTestId('beautify-none')).toHaveAttribute('aria-pressed', 'false');
   await expect(popover.getByRole('button', { name: 'Background 3' })).toHaveAttribute(

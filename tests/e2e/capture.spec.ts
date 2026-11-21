@@ -105,9 +105,13 @@ test('drag-select and copy puts the exact region on the clipboard', async () => 
   expect(near(shot?.rgb, card.rgb)).toBe(true);
 });
 
-test('Ctrl+S saves a PNG into the configured folder', async () => {
+test('Ctrl+S saves a PNG into the configured folder with Beautify focused', async () => {
   const page = await openOverlay();
   await dragSelect(page, { x: 50, y: 50 }, { x: 250, y: 150 });
+  await page.getByTestId('fx-beautify').click();
+  const noBackground = page.getByRole('button', { name: 'No background' });
+  await noBackground.click();
+  await expect(noBackground).toBeFocused();
   await pressClosing(page, 'Control+s');
   await overlaysGone();
   await expect.poll(async () => (await readdir(saveDir).catch(() => [])).length).toBe(1);
@@ -207,7 +211,11 @@ test('invert, beautify and censor change the exported image', async () => {
   await page.getByTestId('fx-invert').click();
   await expect(page.getByTestId('fx-invert')).toHaveAttribute('aria-pressed', 'true');
   await page.getByTestId('fx-beautify').click();
-  await page.getByTestId('beautify-popover').getByRole('button', { name: 'Background 1' }).click();
+  const background = page
+    .getByTestId('beautify-popover')
+    .getByRole('button', { name: 'Background 1' });
+  await background.click();
+  await expect(background).toBeFocused();
   await pressClosing(page, 'Control+c');
   await overlaysGone();
   // Padding 48 on each side at unit 1; the card is inverted inside the frame.

@@ -6,6 +6,11 @@
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
 - Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`), checkout `/home/boxes/repos/anyshot`. PRs #7–#11 are merged. To resume: read this logbook first, then continue from the "Next:" line below.
 
+## 2026-11-21 - Beautify keyboard shortcuts and Linux CI
+
+- Reproduced both Linux CI failures on PR #21 under Xvfb. The background picker stopped Ctrl+C and Ctrl+S from reaching the capture window when a preset had focus. The picker now passes through those shortcuts while the designer is closed. The editor test expects the current Beautify hint, as CodeRabbit noted, and still checks the live frame and clipboard pixels.
+- Passed formatting, lint, type checks, 186 unit tests, and the build. Seven focused Electron tests passed under Xvfb, including clipboard copy and PNG save while the picker has focus.
+
 ## 2026-11-20 - recording controls: time, pause/resume, stop, area border (branch `feat/recording-controls`)
 
 Built on `fix/windows-still-screen-recording` (PR #17). The owner said recording was basic and untested and asked for contributions. The logbook listed "recording HUD with pause/stop" as not done; `recording.showControls` existed (default on) but nothing read it, and `recorder:control` declared pause/resume that the recorder ignored.

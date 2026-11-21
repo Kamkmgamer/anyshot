@@ -94,7 +94,9 @@ export function BackgroundControls({
     <div
       class="background-controls"
       onKeyDown={(e) => {
-        if (e.key !== 'Escape') e.stopPropagation();
+        const key = e.key.toLowerCase();
+        const exportShortcut = !draft && (e.ctrlKey || e.metaKey) && (key === 'c' || key === 's');
+        if (key !== 'escape' && !exportShortcut) e.stopPropagation();
       }}
     >
       <input
