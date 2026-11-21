@@ -1,0 +1,244 @@
+/* The page's capture overlay. Themed by the --ac-* variables in site.css. */
+.ac-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: var(--ac-font, inherit);
+  text-align: left;
+}
+.ac-root[hidden] {
+  display: none;
+}
+.ac-root.ac-empty {
+  background: var(--ac-dim);
+}
+.ac-shade {
+  position: absolute;
+  box-shadow: 0 0 0 200vmax var(--ac-dim);
+}
+.ac-censors > div {
+  position: absolute;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+.ac-ink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.ac-frame {
+  position: absolute;
+  border: 1px solid var(--ac-line);
+  pointer-events: none;
+}
+.ac-h {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: var(--ac-handle);
+  border: 1px solid var(--ac-line);
+  margin: -5px 0 0 -5px;
+  pointer-events: auto;
+  border-radius: 2px;
+}
+.ac-h::before {
+  content: "";
+  position: absolute;
+  inset: -9px;
+}
+.ac-h[data-h="nw"],
+.ac-h[data-h="se"] {
+  cursor: nwse-resize;
+}
+.ac-h[data-h="ne"],
+.ac-h[data-h="sw"] {
+  cursor: nesw-resize;
+}
+.ac-h[data-h="n"],
+.ac-h[data-h="s"] {
+  cursor: ns-resize;
+}
+.ac-h[data-h="e"],
+.ac-h[data-h="w"] {
+  cursor: ew-resize;
+}
+.ac-chip {
+  position: absolute;
+  left: -1px;
+  bottom: calc(100% + 8px);
+  background: var(--ac-chip);
+  color: var(--ac-chip-ink);
+  font: 600 12px / 1 var(--ac-font, inherit);
+  padding: 6px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ac-chip.inside {
+  bottom: auto;
+  top: 8px;
+  left: 8px;
+}
+.ac-bar {
+  position: absolute;
+  background: var(--ac-bar);
+  border-radius: var(--ac-radius);
+  padding: 5px;
+  display: flex;
+  gap: 2px;
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px var(--ac-bar-edge);
+  cursor: default;
+}
+.ac-bar[hidden] {
+  display: none;
+}
+.ac-bar.ac-v {
+  flex-direction: column;
+}
+.ac-bar button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ac-bar-ink);
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+.ac-bar button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.ac-bar button[aria-pressed="true"] {
+  background: var(--ac-on);
+  color: var(--ac-on-ink);
+}
+.ac-bar button:focus-visible {
+  outline: 2px solid var(--ac-line);
+  outline-offset: 0;
+}
+.ac-bar svg {
+  width: 19px;
+  height: 19px;
+}
+.ac-sep {
+  width: 1px;
+  background: var(--ac-bar-edge);
+  margin: 6px 4px;
+}
+.ac-v .ac-sep {
+  height: 1px;
+  width: auto;
+  margin: 4px 6px;
+}
+.ac-sw {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--ac-bar-ink);
+}
+.ac-hint {
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  transform: translateX(-50%);
+  background: var(--ac-chip);
+  color: var(--ac-chip-ink);
+  font-size: 15px;
+  line-height: 1.3;
+  padding: 10px 16px;
+  border-radius: var(--ac-radius);
+  pointer-events: none;
+  text-align: center;
+  max-width: calc(100% - 32px);
+}
+.ac-hint[hidden] {
+  display: none;
+}
+.ac-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translate(-50%, 14px);
+  opacity: 0;
+  z-index: 1100;
+  background: var(--ac-chip);
+  color: var(--ac-chip-ink);
+  font: 15px / 1.35 var(--ac-font, inherit);
+  padding: 12px 18px;
+  border-radius: var(--ac-radius);
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+  pointer-events: none;
+  max-width: calc(100% - 32px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+.ac-toast.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.ac-pin {
+  position: fixed;
+  z-index: 900;
+  cursor: grab;
+  touch-action: none;
+  box-sizing: content-box;
+  background: var(--ac-pin-mat);
+  padding: var(--ac-pin-pad);
+  box-shadow: var(--ac-pin-shadow);
+}
+.ac-pin img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.ac-pin button {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--ac-chip);
+  color: var(--ac-chip-ink);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  cursor: pointer;
+  padding: 0;
+}
+.ac-pin:hover button,
+.ac-pin button:focus-visible {
+  opacity: 1;
+}
+.ac-pin button svg {
+  width: 13px;
+  height: 13px;
+}
+[data-capture-surface] {
+  cursor: crosshair;
+}
+[data-capture-surface] [data-no-capture],
+[data-capture-surface] p,
+[data-capture-surface] h1,
+[data-capture-surface] h2 {
+  cursor: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-toast {
+    transition: none;
+  }
+}

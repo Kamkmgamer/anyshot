@@ -1,0 +1,209 @@
+/* Install table. Themed by --in-* variables on an ancestor. */
+.in {
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+  text-align: left;
+}
+.in-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.in-tabs {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--in-bg);
+  box-shadow: inset 0 0 0 1px var(--in-line);
+}
+.in-tabs button {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--in-muted);
+}
+.in-tabs button svg {
+  width: 14px;
+  height: 14px;
+}
+.in-tabs button[aria-selected="true"] {
+  background: var(--in-tab-on);
+  color: var(--in-ink);
+  box-shadow: var(--in-tab-shadow, none);
+}
+.in-tabs button:focus-visible,
+.in-seg button:focus-visible,
+.in-btn:focus-visible {
+  outline: 2px solid var(--in-accent);
+  outline-offset: 2px;
+}
+.in-ver {
+  font-size: 13px;
+  color: var(--in-muted);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.in-ver select {
+  font: inherit;
+  color: var(--in-ink);
+  background: var(--in-bg);
+  border: 1px solid var(--in-line);
+  border-radius: 8px;
+  padding: 5px 8px;
+}
+.in-table {
+  border-radius: 14px;
+  background: var(--in-bg);
+  box-shadow: inset 0 0 0 1px var(--in-line);
+  overflow: hidden;
+}
+.in-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 10px 10px 18px;
+  min-height: 56px;
+}
+.in-row + .in-row {
+  border-top: 1px solid var(--in-line);
+}
+.in-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--in-ink);
+}
+.in-label small {
+  display: block;
+  font-weight: 400;
+  color: var(--in-muted);
+  font-size: 12px;
+  margin-top: 1px;
+}
+.in-mid {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.in-seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--in-line);
+}
+.in-seg button {
+  all: unset;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 4px 9px;
+  border-radius: 6px;
+  color: var(--in-muted);
+}
+.in-seg button[aria-checked="true"] {
+  background: var(--in-tab-on);
+  color: var(--in-ink);
+}
+.in-spec {
+  font-size: 13px;
+  color: var(--in-muted);
+}
+.in-cmd {
+  font: 12.5px / 1.4 var(--mono, ui-monospace, monospace);
+  color: var(--in-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.in-acts {
+  display: flex;
+  gap: 6px;
+}
+.in-btn {
+  all: unset;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: var(--in-ink);
+  box-shadow: inset 0 0 0 1px var(--in-line);
+  position: relative;
+}
+.in-btn svg {
+  width: 17px;
+  height: 17px;
+}
+.in-btn.primary {
+  background: var(--in-accent);
+  color: var(--in-accent-ink);
+  box-shadow: none;
+}
+.in-btn:hover {
+  filter: brightness(1.08);
+}
+.in-btn .tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: var(--in-ink);
+  color: var(--in-bg-solid);
+  font-size: 11.5px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.in-btn:hover .tip,
+.in-btn:focus-visible .tip,
+.in-btn.done .tip {
+  opacity: 1;
+}
+.in-missing {
+  font-size: 13px;
+  color: var(--in-muted);
+}
+.in-note {
+  font-size: 13px;
+  color: var(--in-muted);
+  margin: 12px 4px 0;
+  line-height: 1.5;
+}
+.in-note a {
+  color: var(--in-ink);
+}
+.in-note code {
+  font: 12px var(--mono, ui-monospace, monospace);
+}
+@media (max-width: 640px) {
+  .in-row {
+    grid-template-columns: 1fr auto;
+  }
+  .in-row .in-mid,
+  .in-row .in-cmd,
+  .in-row .in-missing {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .in-row .in-acts {
+    grid-row: 1;
+    grid-column: 2;
+  }
+}
