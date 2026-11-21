@@ -6,6 +6,12 @@
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
 - Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`), checkout `/home/boxes/repos/anyshot`. PRs #7–#11 are merged. To resume: read this logbook first, then continue from the "Next:" line below.
 
+## 2026-11-21 - recording quality as resolutions; website downloads stay current
+
+- Recording quality now caps the resolution as well as the bitrate: Compact · 720p (low), Standard · 1080p (medium), High · 1440p (high), Ultra · 4K (2160p) (high, the new default, so the default still records most areas at full size). `recordingSize` fits the cropped area inside the preset's long × short side in either orientation, never scales up, and keeps both sides even; the recorder passes it to Mediabunny's transform after the crop. GIFs use Ultra, since they are scaled to 800 px later anyway. Saved `compact`/`standard`/`high` keep working; High now means at most 1440p.
+- Website showed 0.1.8 after 0.2.0 shipped: the site rebuilt when the Release run finished, but that run made a draft that was published by hand a minute later, and drafts are skipped. Releases published with the workflow's own token send no `release` event, so `site.yml` keeps the `workflow_run` trigger and adds `release: published/unpublished/deleted` (checking out the default branch, not the tag). The page also re-reads the releases from the GitHub API when it loads and switches to a newer latest; on failure (rate limit, offline) it keeps the built list. Release parsing moved to `site/src/releases.ts`, shared by the build plugin and the page.
+- Checks: format, lint, typecheck, 192 unit tests (new `recording-quality.test.ts`), build; recording e2e under Xvfb 10 passed, 3 skipped (Windows-only), including a 1100 × 780 area recorded at Compact that comes out scaled to 720p. Site: `bun run check` and build; headless Chromium against the built site with the API stubbed to a newer 0.3.0 (picker and links switch to it, no errors) and with the API unreachable (stays on the built 0.2.0, no page errors).
+
 ## 2026-11-21 - Beautify keyboard shortcuts and Linux CI
 
 - Reproduced both Linux CI failures on PR #21 under Xvfb. The background picker stopped Ctrl+C and Ctrl+S from reaching the capture window when a preset had focus. The picker now passes through those shortcuts while the designer is closed. The editor test expects the current Beautify hint, as CodeRabbit noted, and still checks the live frame and clipboard pixels.

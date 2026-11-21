@@ -912,7 +912,7 @@ function Page({
           </Row>
           <Row
             label="Video quality"
-            hint="Higher quality preserves more detail and can increase file size."
+            hint="The largest resolution a recording is saved at; smaller areas keep their size. Higher settings keep more detail and make larger files."
           >
             <Select
               value={s.recording.quality}

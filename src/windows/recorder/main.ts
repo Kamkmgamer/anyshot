@@ -17,6 +17,7 @@ import {
   WebMOutputFormat,
 } from 'mediabunny';
 import type { RecorderInit, RecorderStatus } from '../../shared/ipc';
+import { RECORDING_QUALITY_PRESETS, recordingSize } from '../../shared/recording-quality';
 import type { GifMessage } from '../../workers/gif.worker';
 import { createClock } from './clock';
 import { type HudView, mountHud } from './hud';
@@ -28,7 +29,7 @@ import { createPauseGate, type PauseGate } from './pause-gate';
 
 const api = window.anyshot;
 const GIF_MAX_WIDTH = 800;
-const VIDEO_QUALITY = { compact: QUALITY_LOW, standard: QUALITY_MEDIUM, high: QUALITY_HIGH };
+const BITRATE = { low: QUALITY_LOW, medium: QUALITY_MEDIUM, high: QUALITY_HIGH };
 /** How often the controls' clock updates. */
 const HUD_TICK_MS = 250;
 /** How long a pause waits for every track's first sample before it goes ahead anyway. */
@@ -120,10 +121,11 @@ async function record(init: RecorderInit): Promise<string> {
     const video = stream.getVideoTracks()[0];
     if (!video) throw new Error('No screen video track');
     const crop = cropFor(init, video);
-    const quality = VIDEO_QUALITY[init.quality];
+    const quality = BITRATE[RECORDING_QUALITY_PRESETS[init.quality].bitrate];
+    // The area at most at the quality's resolution (a 4K area at 1080p comes out 1920 × 1080).
+    const size = recordingSize(crop.width, crop.height, init.quality);
     const codec = await getFirstEncodableVideoCodec(['avc', 'vp9', 'vp8'], {
-      width: crop.width,
-      height: crop.height,
+      ...size,
       quality,
       frameRate: init.fps,
     });
@@ -167,7 +169,7 @@ async function record(init: RecorderInit): Promise<string> {
     });
     const source = new MediaStreamVideoTrackSource(
       video as MediaStreamVideoTrack,
-      { codec, quality, transform: { crop } },
+      { codec, quality, transform: { crop, ...size, fit: 'fill' } },
       { frameRate: init.fps },
     );
     output.addVideoTrack(source, { frameRate: init.fps });
