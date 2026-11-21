@@ -6,7 +6,16 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["src/**", "tests/**", "scripts/**", "*.config.ts", "*.json", "!**/out", "!**/dist"]
+    "includes": [
+      "src/**",
+      "tests/**",
+      "scripts/**",
+      "*.config.ts",
+      "*.json",
+      "!**/out",
+      "!**/dist",
+      "!!site"
+    ]
   },
   "formatter": {
     "indentStyle": "space",
