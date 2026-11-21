@@ -168,14 +168,12 @@ export function mountInstall(el: HTMLElement) {
   });
   draw();
 
-  // Releases published since the build. Anonymous API requests are rate-limited per
+  // Releases published (or installers added or replaced) since the build. Anonymous API requests are rate-limited per
   // visitor; when this fails, the page keeps the releases it was built with.
   fetchReleases()
     .then((fresh) => {
       const newest = fresh[0];
-      if (!newest || fresh.map((r) => r.version).join() === releases.map((r) => r.version).join()) {
-        return;
-      }
+      if (!newest || JSON.stringify(fresh) === JSON.stringify(releases)) return;
       const onLatest = state.version === latest.version;
       releases = fresh;
       latest = newest;
