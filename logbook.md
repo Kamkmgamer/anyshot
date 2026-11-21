@@ -6,6 +6,10 @@
 - On-box implementation thread: `ph73jdn3ekr9hqqj5ngyya8s4x8jgfvd` (v1 used `ph78d3n1dyfse7gztvadjcgzxx8jhnec`).
 - Session box `98774d41-e95f-40e0-bf34-7b9c66510d54` (`default-box-fork-7cebc354a22b`), checkout `/home/boxes/repos/anyshot`. PRs #7–#11 are merged. To resume: read this logbook first, then continue from the "Next:" line below.
 
+## 2026-11-21 - website: download tooltip clipped
+
+- The download button's tooltip sits above the button, and `.in-table` had `overflow: hidden`, so on the first row only a thin dark sliver of it showed. The rows have no backgrounds of their own, so the clipping did nothing else: removed it and gave the tooltip `z-index: 1`. Checked in headless Chromium at 1440 and 390 px: the whole "Download anyshot-Setup-0.3.0-x64.exe" tooltip shows above the button, no horizontal scroll, no console, page or HTTP errors.
+
 ## 2026-11-21 - recording quality as resolutions; website downloads stay current
 
 - Recording quality now caps the resolution as well as the bitrate: Compact · 720p (low), Standard · 1080p (medium), High · 1440p (high), Ultra · 4K (2160p) (high, the new default, so the default still records most areas at full size). `recordingSize` fits the cropped area inside the preset's long × short side in either orientation, never scales up, and keeps both sides even; the recorder passes it to Mediabunny's transform after the crop. GIFs use Ultra, since they are scaled to 800 px later anyway. Saved `compact`/`standard`/`high` keep working; High now means at most 1440p.
