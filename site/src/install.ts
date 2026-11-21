@@ -1,11 +1,13 @@
 /*
   Install table: OS tabs, an architecture toggle, a copyable command and a direct
   download per row, and a version picker. Every link and size comes from the
-  release assets on GitHub, read when the site is built.
+  release assets on GitHub: read when the site is built, and read again when the page
+  loads, so a newer release shows up even before the site is rebuilt.
 */
 import './install.css';
-import releases, { type Asset, type FileKind, type Release } from 'virtual:releases';
+import built, { type Asset, type FileKind, type Release } from 'virtual:releases';
 import { ICONS, must, WINDOWS_LOGO } from './icons';
+import { fetchReleases } from './releases';
 
 type Os = 'win' | 'linux';
 type Arch = 'x64' | 'arm64';
@@ -36,8 +38,18 @@ function missing(version: string): string {
   return `<span class="in-missing">Not part of ${esc(version)}</span>`;
 }
 
+function versionOptions(list: Release[]): string {
+  return list
+    .map(
+      (r, i) =>
+        `<option value="${esc(r.version)}">${esc(r.version)}${i ? '' : ' (latest)'}</option>`,
+    )
+    .join('');
+}
+
 export function mountInstall(el: HTMLElement) {
-  const latest = releases[0] as Release;
+  let releases = built;
+  let latest = releases[0] as Release;
   const state = { ...detectPlatform(), version: latest.version };
   const release = () => releases.find((r) => r.version === state.version) ?? latest;
   const asset = (kind: FileKind) => release().files[kind];
@@ -50,12 +62,7 @@ export function mountInstall(el: HTMLElement) {
         <button type="button" role="tab" data-os="linux">${ICONS.terminal}Linux</button>
       </div>
       <label class="in-ver">Version
-        <select>${releases
-          .map(
-            (r, i) =>
-              `<option value="${esc(r.version)}">${esc(r.version)}${i ? '' : ' (latest)'}</option>`,
-          )
-          .join('')}</select>
+        <select>${versionOptions(releases)}</select>
       </label>
     </div>
     <div class="in-table" role="tabpanel"></div>
@@ -154,9 +161,29 @@ export function mountInstall(el: HTMLElement) {
     }
     draw();
   });
-  must<HTMLSelectElement>(el, 'select').addEventListener('change', (e) => {
-    state.version = (e.target as HTMLSelectElement).value;
+  const select = must<HTMLSelectElement>(el, 'select');
+  select.addEventListener('change', () => {
+    state.version = select.value;
     draw();
   });
   draw();
+
+  // Releases published (or installers added or replaced) since the build. Anonymous API requests are rate-limited per
+  // visitor; when this fails, the page keeps the releases it was built with.
+  fetchReleases()
+    .then((fresh) => {
+      const newest = fresh[0];
+      if (!newest || JSON.stringify(fresh) === JSON.stringify(releases)) return;
+      const onLatest = state.version === latest.version;
+      releases = fresh;
+      latest = newest;
+      if (onLatest || !fresh.some((r) => r.version === state.version))
+        state.version = newest.version;
+      select.innerHTML = versionOptions(releases);
+      select.value = state.version;
+      draw();
+    })
+    .catch((error: unknown) => {
+      console.warn('[install] could not check for newer releases', error);
+    });
 }

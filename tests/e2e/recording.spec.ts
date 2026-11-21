@@ -2,6 +2,7 @@ import { copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 import { ALL_FORMATS, BufferSource, EncodedPacketSink, Input } from 'mediabunny';
+import { recordingSize } from '../../src/shared/recording-quality';
 import { closeFixture, showFixture } from './fixture';
 import {
   dispatch,
@@ -45,8 +46,14 @@ test.afterEach(async () => {
   await verifyAndClose(ctx);
 });
 
-/** Opens the record bar on a 400 × 200 area; returns the overlay. */
-async function recordBar(action: 'recordArea' | 'recordGif'): Promise<Page> {
+/** Opens the record bar on an area (400 × 200 by default); returns the overlay. */
+async function recordBar(
+  action: 'recordArea' | 'recordGif',
+  [from, to]: [[number, number], [number, number]] = [
+    [100, 100],
+    [501, 301],
+  ],
+): Promise<Page> {
   await dispatch(ctx.app, action);
   const overlay = await pageOf(ctx.app, 'overlay');
   await expect
@@ -56,9 +63,9 @@ async function recordBar(action: 'recordArea' | 'recordGif'): Promise<Page> {
       ),
     )
     .toBe(true);
-  await overlay.mouse.move(100, 100);
+  await overlay.mouse.move(...from);
   await overlay.mouse.down();
-  await overlay.mouse.move(501, 301, { steps: 4 });
+  await overlay.mouse.move(...to, { steps: 4 });
   await overlay.mouse.up();
   await expect(overlay.getByTestId('start')).toBeVisible();
   return overlay;
@@ -134,7 +141,13 @@ test('takes quality and frame rate from Settings', async () => {
   const settings = await pageOf(ctx.app, 'settings');
   await settings.getByTestId('tab-recording').click();
   const quality = settings.getByRole('combobox', { name: /Video quality/ });
-  await expect(quality).toHaveValue('high');
+  await expect(quality).toHaveValue('ultra');
+  await expect(quality.locator('option')).toHaveText([
+    'Compact · 720p',
+    'Standard · 1080p',
+    'High · 1440p',
+    'Ultra · 4K (2160p)',
+  ]);
   await quality.selectOption('compact');
   await settings.getByRole('combobox', { name: 'Frame rate' }).selectOption('24');
   await expect(quality).toHaveValue('compact');
@@ -142,7 +155,11 @@ test('takes quality and frame rate from Settings', async () => {
   await settings.close();
 
   await movePointer(150, 150);
-  const overlay = await recordBar('recordArea');
+  // An area taller than Compact's 720p, so the video is scaled down.
+  const overlay = await recordBar('recordArea', [
+    [0, 0],
+    [1100, 780],
+  ]);
   await expect(overlay.getByRole('combobox')).toHaveCount(0);
   await overlay
     .getByTestId('start')
@@ -176,10 +193,11 @@ test('takes quality and frame rate from Settings', async () => {
   });
   try {
     const track = await input.getPrimaryVideoTrack();
-    expect({ width: track?.displayWidth, height: track?.displayHeight }).toEqual({
-      width: init.crop.width,
-      height: init.crop.height,
-    });
+    const expected = recordingSize(init.crop.width, init.crop.height, 'compact');
+    expect(Math.max(expected.width, expected.height)).toBeLessThanOrEqual(1280);
+    expect(Math.min(expected.width, expected.height)).toBeLessThanOrEqual(720);
+    expect(expected.width).toBeLessThan(init.crop.width);
+    expect({ width: track?.displayWidth, height: track?.displayHeight }).toEqual(expected);
     let frames = 0;
     if (track) for await (const _packet of new EncodedPacketSink(track).packets()) frames++;
     expect(frames).toBeGreaterThan(1);
