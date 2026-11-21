@@ -6,6 +6,7 @@ import type { HotkeyAction } from '../shared/settings';
 export type AppAction =
   | HotkeyAction
   | 'stopRecording'
+  | 'togglePauseRecording'
   | 'settings'
   | 'openImage'
   | 'openClipboard'
@@ -26,6 +27,7 @@ const FLAGS: Record<string, AppAction> = {
   '--record': 'recordArea',
   '--record-gif': 'recordGif',
   '--stop-recording': 'stopRecording',
+  '--pause-recording': 'togglePauseRecording',
   '--history': 'history',
   '--settings': 'settings',
   '--pin-clipboard': 'pinClipboard',

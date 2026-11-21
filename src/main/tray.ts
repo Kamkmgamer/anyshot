@@ -36,7 +36,14 @@ export function trayTemplate(
   const delays = [0, 3, 5, 10, 30];
   return [
     ...(appState.recording
-      ? [item('Stop recording', 'stopRecording'), { type: 'separator' } as const]
+      ? [
+          item('Stop recording', 'stopRecording'),
+          item(
+            appState.recordingPaused ? 'Resume recording' : 'Pause recording',
+            'togglePauseRecording',
+          ),
+          { type: 'separator' } as const,
+        ]
       : []),
     item('Capture area', 'captureArea'),
     item('Capture screen', 'captureScreen'),
@@ -71,7 +78,13 @@ export function updateTray(template: MenuItemConstructorOptions[]): Menu {
   if (tray) {
     tray.setContextMenu(menu);
     tray.setImage(icon(appState.recording));
-    tray.setToolTip(appState.recording ? 'anyshot — recording' : 'anyshot');
+    tray.setToolTip(
+      appState.recordingPaused
+        ? 'anyshot — recording paused'
+        : appState.recording
+          ? 'anyshot — recording'
+          : 'anyshot',
+    );
   }
   return menu;
 }

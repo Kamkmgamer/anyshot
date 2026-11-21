@@ -17,20 +17,37 @@ import {
 } from 'mediabunny';
 import type { RecorderInit, RecorderStatus } from '../../shared/ipc';
 import type { GifMessage } from '../../workers/gif.worker';
+import { createClock } from './clock';
+import { type HudView, mountHud } from './hud';
+import { createPauseGate, type PauseGate } from './pause-gate';
 
-// Hidden window that owns the screen stream and the encoder while recording.
+// The window that owns the screen stream and the encoder while recording, and shows
+// the recording controls beside the area (main shows it once capture has started).
 // Encoded chunks go to main as they are produced and are written to disk there.
 
 const api = window.anyshot;
 const GIF_MAX_WIDTH = 800;
+/** How often the controls' clock updates. */
+const HUD_TICK_MS = 250;
+/** How long a pause waits for every track's first sample before it goes ahead anyway. */
+const FIRST_SAMPLE_WAIT_MS = 1000;
 
 let stopRequested: (() => void) | null = null;
 const stopped = new Promise<void>((resolve) => {
   stopRequested = resolve;
 });
 
+const clock = createClock();
+/** Pauses or resumes the running recording; set while one runs. */
+let pauseGate: PauseGate | null = null;
+let showHud: (view: HudView) => void = () => {};
+
 function report(status: RecorderStatus): void {
   void api.invoke('recorder:status', status);
+}
+
+function hudView(): HudView {
+  return { phase: clock.paused ? 'paused' : 'recording', elapsedMs: clock.elapsed() };
 }
 
 /** Writes into a file opened by main, keeping only the current chunk in memory. */
@@ -61,6 +78,20 @@ function cropFor(init: RecorderInit, track: MediaStreamTrack): CropRectangle {
     width: even(init.crop.width * sx),
     height: even(init.crop.height * sy),
   };
+}
+
+/** Resolves when the track delivers its first frame or audio data, or ends. Stops the track. */
+async function firstSample(track: MediaStreamTrack): Promise<void> {
+  try {
+    const reader = new MediaStreamTrackProcessor({ track }).readable.getReader();
+    const { value } = await reader.read();
+    value?.close();
+    void reader.cancel();
+  } catch (error) {
+    console.warn('[recorder] could not watch for the first sample', error);
+  } finally {
+    track.stop();
+  }
 }
 
 /** Mixes computer audio and the microphone into one track (a file takes one audio track). */
@@ -106,8 +137,8 @@ async function record(init: RecorderInit): Promise<string> {
       audioTracks.push(audio);
     }
     let audioSource: MediaStreamAudioTrackSource | undefined;
-    if (audioTracks.length > 0) {
-      let audio = audioTracks[0] as MediaStreamTrack;
+    let audio: MediaStreamTrack | undefined = audioTracks[0];
+    if (audio) {
       if (audioTracks.length > 1) {
         const mixed = mixAudio(audioTracks);
         tracks.push(mixed.track);
@@ -139,20 +170,51 @@ async function record(init: RecorderInit): Promise<string> {
     if (audioSource) output.addAudioTrack(audioSource);
 
     await output.start();
-    const t0 = performance.now();
-    report({ state: 'recording', elapsedMs: t0 - started, bytes: 0 });
-    // A renderer-side timer is fine: this window only exists while recording.
+    // Clones get the same frames as the sources, from now on, so a clone's first sample
+    // means its source has started too.
+    const clones = [video, audio].flatMap((track) => (track ? [track.clone()] : []));
+    tracks.push(...clones);
+    const tracksStarted = Promise.race([
+      Promise.all(clones.map(firstSample)),
+      new Promise((resolve) => setTimeout(resolve, FIRST_SAMPLE_WAIT_MS)),
+    ]);
+    clock.start();
+    // The first report's time is how long capture took to start.
+    report({ state: 'recording', elapsedMs: performance.now() - started, bytes: 0 });
+    const state = () => (clock.paused ? 'paused' : 'recording');
+    const gate = createPauseGate((pause) => {
+      // Paused sources drop what the stream sends, and the next timestamps continue
+      // from where they stopped, so the file has no gap.
+      if (pause ? !clock.pause() : !clock.resume()) return;
+      for (const media of [source, audioSource]) {
+        if (pause) media?.pause();
+        else media?.resume();
+      }
+      report({ state: state(), elapsedMs: clock.elapsed(), bytes });
+      showHud(hudView());
+    });
+    // A source paused before its first sample places that sample after the paused time,
+    // out of step with the other track, so pauses wait until every track has started.
+    pauseGate = gate;
+    void tracksStarted.then(() => gate.open());
+    // Renderer-side timers are fine: this window only exists while recording.
     const ticker = setInterval(
-      () => report({ state: 'recording', elapsedMs: performance.now() - t0, bytes }),
+      () => report({ state: state(), elapsedMs: clock.elapsed(), bytes }),
       1000,
     );
+    const hudTicker = setInterval(() => showHud(hudView()), HUD_TICK_MS);
+    showHud(hudView());
     const failure = source.errorPromise.then(() => undefined);
     try {
       await Promise.race([stopped, failure]);
     } finally {
       clearInterval(ticker);
+      clearInterval(hudTicker);
+      gate.close();
+      pauseGate = null;
     }
-    report({ state: 'finishing', elapsedMs: performance.now() - t0, bytes });
+    report({ state: 'finishing', elapsedMs: clock.elapsed(), bytes });
+    showHud({ phase: 'finishing', elapsedMs: clock.elapsed() });
     await output.finalize();
     await api.invoke('recorder:close-file', { path });
     return path;
@@ -231,11 +293,25 @@ async function toGif(videoPath: string, init: RecorderInit): Promise<void> {
   await api.invoke('recorder:close-file', { path: gifPath });
 }
 
+/** Pauses or resumes, counting a request still held for the tracks to start. */
+function togglePause(): void {
+  pauseGate?.request(!(pauseGate.pending ?? clock.paused));
+}
+
 async function main(): Promise<void> {
   api.on('recorder:command', (command) => {
     if (command === 'stop') stopRequested?.();
+    else if (command === 'toggle') togglePause();
+    else pauseGate?.request(command === 'pause');
   });
   const init = await api.invoke('recorder:init');
+  showHud = mountHud(
+    {
+      togglePause,
+      stop: () => stopRequested?.(),
+    },
+    init.gif,
+  );
   try {
     const path = await record(init);
     if (init.gif) {

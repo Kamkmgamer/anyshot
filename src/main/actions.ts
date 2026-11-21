@@ -35,6 +35,8 @@ export async function runAction(action: AppAction, file?: string): Promise<void>
   switch (action) {
     case 'stopRecording':
       return (await import('./recording')).stopRecording();
+    case 'togglePauseRecording':
+      return (await import('./recording')).togglePauseRecording();
     case 'history':
       return (await import('./history-window')).openHistory();
     case 'settings':

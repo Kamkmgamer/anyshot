@@ -9,6 +9,10 @@ describe('command line', () => {
       { action: 'captureArea' },
       { action: 'recordArea' },
     ]);
+    expect(parseCli(['anyshot', '--pause-recording', '--stop-recording'])).toEqual([
+      { action: 'togglePauseRecording' },
+      { action: 'stopRecording' },
+    ]);
   });
 
   it('parses --open with a path in both forms', () => {

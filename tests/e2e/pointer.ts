@@ -12,6 +12,8 @@ const WIN32_INPUT = [
   "'; [void][AnyshotE2E.Input]::SetProcessDPIAware()",
 ].join(' ');
 const WHEEL = 0x0800;
+const LEFT_DOWN = 0x0002;
+const LEFT_UP = 0x0004;
 const NOTCH = 120;
 const DONE = 'anyshot-e2e-done';
 
@@ -79,6 +81,18 @@ export async function wheel(direction: 'up' | 'down'): Promise<void> {
     await powershell(`[AnyshotE2E.Input]::mouse_event(${WHEEL}, 0, 0, ${delta}, [UIntPtr]::Zero)`);
   } else {
     execFileSync('xdotool', ['click', direction === 'down' ? '5' : '4']);
+  }
+}
+
+/** Clicks the real left mouse button where the pointer is. */
+export async function click(): Promise<void> {
+  if (process.platform === 'win32') {
+    const input = '[AnyshotE2E.Input]::mouse_event';
+    await powershell(
+      `${input}(${LEFT_DOWN}, 0, 0, 0, [UIntPtr]::Zero); ${input}(${LEFT_UP}, 0, 0, 0, [UIntPtr]::Zero)`,
+    );
+  } else {
+    execFileSync('xdotool', ['click', '1']);
   }
 }
 
